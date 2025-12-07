@@ -1,49 +1,60 @@
-import React, { useState, useEffect } from 'react';
-import { TILE_TYPES, getMovementCost } from '../data/worldData';
+import React, { useState } from 'react';
+import { TILE_TYPES, VIEWPORT_SIZE, getMovementCost } from '../data/worldData';
 
-function WorldMap({ map, playerPos, onMove, onInteract }) {
+function WorldMap({ map, playerPos, onMove, onEnterSector }) {
     if (!map) return <div className="loading-scan">Initializing Satellite Link...</div>;
 
     const [hoverPos, setHoverPos] = useState(null);
 
+    // Viewport Logic
+    // Center the viewport on the player
+    const halfView = Math.floor(VIEWPORT_SIZE / 2);
+    let startX = playerPos.x - halfView;
+    let startY = playerPos.y - halfView;
+
+    // Bounds check
+    // (In a wrapped world we would handle this differently, for now clamp)
+    // Actually, displaying "void" or clamping is better than crashing
+    // Let's not clamp rigidly to edge so player stays centered, but we must handle out-of-bounds index access
+
+    const renderRows = [];
+    for (let y = startY; y < startY + VIEWPORT_SIZE; y++) {
+        const rowData = [];
+        for (let x = startX; x < startX + VIEWPORT_SIZE; x++) {
+            if (y >= 0 && y < map.length && x >= 0 && x < map[0].length) {
+                rowData.push(map[y][x]);
+            } else {
+                rowData.push(null); // Out of bounds (Void)
+            }
+        }
+        renderRows.push({ y, cells: rowData });
+    }
+
     return (
         <div className="map-container">
             <div className="map-grid">
-                {map.map((row, y) => (
-                    <div key={y} className="map-row">
-                        {row.map((tile, x) => {
-                            const isPlayerHere = playerPos.x === x && playerPos.y === y;
-                            const isHovered = hoverPos && hoverPos.x === x && hoverPos.y === y;
+                {renderRows.map((row) => (
+                    <div key={row.y} className="map-row">
+                        {row.cells.map((tile, i) => {
+                            if (!tile) return <div key={i} className="map-tile type-void"></div>;
 
-                            // Simple pathfinding visualization (just direct neighbor check for now)
-                            const isNeighbor = Math.abs(playerPos.x - x) <= 1 && Math.abs(playerPos.y - y) <= 1;
+                            const isPlayerHere = playerPos.x === tile.x && playerPos.y === tile.y;
+                            const isHovered = hoverPos && hoverPos === tile;
 
                             return (
                                 <div
-                                    key={`${x}-${y}`}
+                                    key={`${tile.x}-${tile.y}`}
                                     className={`map-tile type-${tile.type} ${isPlayerHere ? 'active-player' : ''} ${isHovered ? 'hovered' : ''}`}
-                                    onClick={() => onMove(x, y)}
-                                    onMouseEnter={() => setHoverPos({ x, y })}
+                                    onClick={() => onMove(tile.x, tile.y)}
+                                    autoFocus
+                                    onMouseEnter={() => setHoverPos(tile)}
                                     onMouseLeave={() => setHoverPos(null)}
                                 >
                                     {/* Icons */}
                                     {tile.type === TILE_TYPES.CITY && <span className="icon">🏙️</span>}
-                                    {tile.type === TILE_TYPES.RESOURCE_MINERAL && <span className="icon">💎</span>}
-                                    {tile.type === TILE_TYPES.RESOURCE_ENERGY && <span className="icon">⚡</span>}
-                                    {tile.type === TILE_TYPES.FOREST && <span className="icon">🌲</span>}
-                                    {tile.type === TILE_TYPES.MOUNTAIN && <span className="icon">⛰️</span>}
-                                    {tile.type === TILE_TYPES.OCEAN && <span className="icon">🌊</span>}
+                                    {/* {tile.type === TILE_TYPES.MOUNTAIN && <span className="icon">⛰️</span>} */}
 
-                                    {/* Facilities */}
-                                    {tile.type === TILE_TYPES.FACILITY_MINE && <span className="icon">⛏️</span>}
-                                    {tile.type === TILE_TYPES.FACILITY_PLANT && <span className="icon">🏭</span>}
-                                    {tile.type === TILE_TYPES.FACILITY_WAREHOUSE && <span className="icon">📦</span>}
-
-                                    {/* Player */}
-                                    {isPlayerHere && <div className="player-avatar">🤖</div>}
-
-                                    {/* Drones Display (if any) */}
-                                    {tile.drones && tile.drones > 0 && <span className="drone-indicator">🚁</span>}
+                                    {isPlayerHere && <div className="player-avatar">🚀</div>}
                                 </div>
                             );
                         })}
@@ -54,34 +65,19 @@ function WorldMap({ map, playerPos, onMove, onInteract }) {
             <div className="map-controls">
                 {hoverPos ? (
                     <div className="tile-info-panel">
-                        <strong>Sector [{hoverPos.x}, {hoverPos.y}]</strong>
-                        <div>Terrain: {map[hoverPos.y][hoverPos.x].type.toUpperCase()}</div>
-                        <div>Move Cost: {getMovementCost(map[hoverPos.y][hoverPos.x].type)} Energy</div>
-                        {map[hoverPos.y][hoverPos.x].data && (
-                            <div className="city-info">
-                                <span className="city-name">{map[hoverPos.y][hoverPos.x].data.name}</span>
-                                <span className="city-desc">{map[hoverPos.y][hoverPos.x].data.desc}</span>
-                            </div>
-                        )}
-                        {/* Auto-Miner Status */}
-                        {map[hoverPos.y][hoverPos.x].drones > 0 && (
-                            <div className="drone-status">Active Drones: {map[hoverPos.y][hoverPos.x].drones}</div>
-                        )}
+                        <strong>Global Sector [{hoverPos.x}, {hoverPos.y}]</strong>
+                        <div>Terrain: {hoverPos.type.toUpperCase()}</div>
+                        {hoverPos.data && <div style={{ color: 'var(--accent-primary)' }}>{hoverPos.data.name}</div>}
                     </div>
                 ) : (
                     <div className="tile-info-panel">
-                        Hover over a sector for scans.
+                        Current Loc: [{playerPos.x}, {playerPos.y}]
                     </div>
                 )}
 
                 <div className="action-buttons">
-                    <button className="btn-small" onClick={() => onInteract('gather')}>Manual Gather</button>
-                    <div className="divider"></div>
-                    <button className="btn-small build-btn" onClick={() => onInteract('deploy_drone')}>
-                        Deploy Drone (100₡)
-                    </button>
-                    <button className="btn-small build-btn" onClick={() => onInteract('build_warehouse')}>
-                        Build Depot (200₡)
+                    <button className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }} onClick={onEnterSector}>
+                        ⏬ Enter Sector (Local Map)
                     </button>
                 </div>
             </div>

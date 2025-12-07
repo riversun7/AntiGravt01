@@ -1,78 +1,129 @@
-// Enhanced World Data based on Earth and RPG elements
+// World Generation & Data Management
+
+// 1. Configuration
+export const WORLD_SIZE = 500; // 500x500
+export const INNER_MAP_SIZE = 20; // 20x20 for local sectors
+export const VIEWPORT_SIZE = 15; // Viewport size for the web view
 
 export const TILE_TYPES = {
-    // Terrain
-    EMPTY: 'plains', // Default traversable
-    OCEAN: 'ocean',  // Hard to traverse
-    MOUNTAIN: 'mountain', // High cost, minerals
-    FOREST: 'forest', // Wood
-
-    // Resources
-    RESOURCE_MINERAL: 'mineral',
-    RESOURCE_ENERGY: 'energy',
-
-    // Structures
+    OCEAN: 'ocean',
+    PLAINS: 'plains',
+    FOREST: 'forest',
+    MOUNTAIN: 'mountain',
     CITY: 'city',
-    FACILITY_MINE: 'facility_mine',
-    FACILITY_PLANT: 'facility_plant',
-    FACILITY_WAREHOUSE: 'facility_warehouse' // Increases storage
+    // ... add more as needed
 };
 
-export const WORLD_WIDTH = 20; // Expanded for prototype
-export const WORLD_HEIGHT = 15;
-
-// Real-world inspired major cities (Approximate relative locations on a grid)
-export const NPC_CITIES = [
-    { id: 'city_seoul', name: 'Neo-Seoul', x: 16, y: 5, type: 'Tech', desc: 'Advanced cybernetics hub.', population: 9800000 },
-    { id: 'city_tokyo', name: 'Cyber-Tokyo', x: 17, y: 5, type: 'Trade', desc: 'The eastern economic capital.', population: 14000000 },
-    { id: 'city_shanghai', name: 'New-Shanghai', x: 15, y: 6, type: 'Industrial', desc: 'Massive production facilities.', population: 26000000 },
-    { id: 'city_ny', name: 'Mega-NYC', x: 4, y: 5, type: 'Finance', desc: 'Global financial center.', population: 8500000 },
-    { id: 'city_london', name: 'Iron-London', x: 9, y: 3, type: 'Diplomacy', desc: 'Political neutral ground.', population: 9000000 },
+// 2. City Database (Major Cities)
+export const MAJOR_CITIES = [
+    { id: 'seoul', name: 'Neo-Seoul', x: 250, y: 250, type: 'Tech', population: 15000000, desc: 'The heart of cybernetics.' },
+    { id: 'ny', name: 'Mega-NYC', x: 140, y: 200, type: 'Finance', population: 12000000, desc: 'Global commerce hub.' },
+    { id: 'london', name: 'Iron-London', x: 240, y: 190, type: 'Diplomacy', population: 9500000, desc: 'Political neutral zone.' },
+    { id: 'tokyo', name: 'Cyber-Tokyo', x: 260, y: 250, type: 'Trade', population: 30000000, desc: 'Eastern trade capital.' },
+    // Add more to fill the map
 ];
 
-export const generateInitialMap = () => {
+// 3. World Generation Logic (Procedural)
+// Uses simple noise-like math for prototype. In real proejct, use Perlin Noise.
+export const generateWorldMap = () => {
+    // We will represent the map as a sparse system or just a large array for now.
+    // Optimized: flattened array or 2D array. 2D array is easier for XY access.
+    // WARNING: 500x500 = 250,000 objects. Light objects are fine.
+
     const map = [];
-    for (let y = 0; y < WORLD_HEIGHT; y++) {
+
+    for (let y = 0; y < WORLD_SIZE; y++) {
         const row = [];
-        for (let x = 0; x < WORLD_WIDTH; x++) {
-            // 1. Check for cities
-            const city = NPC_CITIES.find(c => c.x === x && c.y === y);
-            if (city) {
-                row.push({ x, y, type: TILE_TYPES.CITY, data: city });
-                continue;
+        for (let x = 0; x < WORLD_SIZE; x++) {
+            // Biome Generation Logic
+            let type = TILE_TYPES.OCEAN;
+
+            // Simple geographic shapes (Pseudo-Earth)
+            // Center huge continent
+            const dx = x - 250;
+            const dy = y - 250;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            // Noise function simulation (sin waves)
+            const noise = Math.sin(x * 0.05) + Math.cos(y * 0.05) + Math.sin(x * 0.01 + y * 0.01);
+
+            if (dist < 150 + (noise * 20)) {
+                type = TILE_TYPES.PLAINS;
+
+                // Forests
+                if (Math.sin(x * 0.1) * Math.cos(y * 0.1) > 0.3) {
+                    type = TILE_TYPES.FOREST;
+                }
+
+                // Mountains
+                if (Math.abs(noise) > 1.5) {
+                    type = TILE_TYPES.MOUNTAIN;
+                }
             }
 
-            // 2. Generate varied terrain (Simple noise-like logic)
-            // Oceans on edges or specific bands
-            if (x < 2 || x > 18 || y > 12) {
-                row.push({ x, y, type: TILE_TYPES.OCEAN });
-                continue;
-            }
-
-            // 3. Random Resources & biomes
-            const rand = Math.random();
-            if (rand < 0.05) {
-                row.push({ x, y, type: TILE_TYPES.RESOURCE_MINERAL, amount: 500, regenRate: 1 });
-            } else if (rand < 0.1) {
-                row.push({ x, y, type: TILE_TYPES.RESOURCE_ENERGY, amount: 1000, regenRate: 5 });
-            } else if (rand < 0.2) {
-                row.push({ x, y, type: TILE_TYPES.FOREST, amount: 2000, regenRate: 2 });
-            } else if (rand < 0.3) {
-                row.push({ x, y, type: TILE_TYPES.MOUNTAIN }); // Obstacle/Mineral potential
-            } else {
-                row.push({ x, y, type: TILE_TYPES.EMPTY });
-            }
+            row.push({
+                x, y,
+                type: type,
+                explored: x > 240 && x < 260 && y > 240 && y < 260 // Start area revealed
+            });
         }
         map.push(row);
     }
+
+    // Plant Cities
+    MAJOR_CITIES.forEach(city => {
+        if (city.x >= 0 && city.x < WORLD_SIZE && city.y >= 0 && city.y < WORLD_SIZE) {
+            map[city.y][city.x].type = TILE_TYPES.CITY;
+            map[city.y][city.x].data = city;
+        }
+    });
+
     return map;
+};
+
+// 4. Inner Map Generation (Drill-down)
+// Generates a local map based on the World Tile properties
+export const generateInnerMap = (worldTile) => {
+    const seed = worldTile.x * 1000 + worldTile.y;
+    const localMap = [];
+
+    for (let y = 0; y < INNER_MAP_SIZE; y++) {
+        const row = [];
+        for (let x = 0; x < INNER_MAP_SIZE; x++) {
+            let type = 'empty'; // usable land
+
+            // If World Tile was City, generate city blocks
+            if (worldTile.type === TILE_TYPES.CITY) {
+                type = 'city_block';
+                if (x === 10 && y === 10) type = 'city_hall';
+            }
+            // If Mountain, rocky terrain
+            else if (worldTile.type === TILE_TYPES.MOUNTAIN) {
+                if (Math.random() > 0.7) type = 'rock_obstacle';
+                else type = 'mineral_deposit';
+            }
+            // If Forest, trees
+            else if (worldTile.type === TILE_TYPES.FOREST) {
+                if (Math.random() > 0.6) type = 'tree';
+                else type = 'empty';
+            }
+
+            row.push({ x, y, type });
+        }
+        localMap.push(row);
+    }
+
+    return {
+        parentTile: worldTile,
+        tiles: localMap
+    };
 };
 
 export const getMovementCost = (tileType) => {
     switch (tileType) {
-        case TILE_TYPES.OCEAN: return 10; // Hard to swim/fly
-        case TILE_TYPES.MOUNTAIN: return 5; // Hard to climb
+        case TILE_TYPES.OCEAN: return 10;
+        case TILE_TYPES.MOUNTAIN: return 5;
         case TILE_TYPES.FOREST: return 2;
         default: return 1;
     }
-}
+};
