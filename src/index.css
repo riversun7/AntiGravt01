@@ -1,0 +1,65 @@
+:root {
+  --bg-primary: #050510;
+  --bg-secondary: #111425;
+  --bg-glass: rgba(17, 20, 37, 0.7);
+  --text-primary: #e0e6ed;
+  --text-secondary: #94a3b8;
+  --accent-primary: #00f0ff;
+  --accent-secondary: #7000ff;
+  --success: #00ff9d;
+  --warning: #ffb800;
+  --danger: #ff0055;
+  --border-color: rgba(0, 240, 255, 0.2);
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, rgba(112, 0, 255, 0.1) 0%, transparent 50%);
+  background-attachment: fixed;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+  background: none;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+}
+
+a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+a:hover {
+  color: var(--success);
+}

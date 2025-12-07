@@ -1,0 +1,431 @@
+/* Layout Structure */
+.app-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 250px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  z-index: 100;
+}
+
+.brand-title {
+  font-size: 1.5rem;
+  color: var(--accent-primary);
+  margin-bottom: 2rem;
+  text-align: center;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+.nav-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nav-item {
+  padding: 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: rgba(0, 240, 255, 0.1);
+  color: var(--accent-primary);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+}
+
+/* Main Content Area */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Navbar */
+.navbar {
+  height: 60px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+}
+
+.resource-bar {
+  display: flex;
+  gap: 2rem;
+}
+
+.res-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+/* Content Viewport */
+.content-viewport {
+  flex: 1;
+  overflow: auto;
+  padding: 2rem;
+  position: relative;
+}
+
+/* Tab Content Containers */
+.view-container {
+  width: 100%;
+  height: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Utility Overrides for existing generic classes */
+.screen-container {
+  padding: 0;
+  /* Let layout handle padding */
+}
+
+/* Detail Panel for Sector View */
+.sector-detail {
+  background: var(--bg-glass);
+  border: var(--glass-border);
+  padding: 2rem;
+  border-radius: 12px;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* -------------------------------------
+   EXISTING STYLES PRESERVED BELOW
+------------------------------------- */
+
+.title-large {
+  font-size: 4rem;
+  margin-bottom: 2rem;
+  background: linear-gradient(135deg, var(--text-primary), var(--accent-primary));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-align: center;
+}
+
+.btn-primary {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid var(--accent-primary);
+  color: var(--accent-primary);
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.btn-primary:hover {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  box-shadow: 0 0 20px var(--accent-primary);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  width: 100%;
+  max-width: 1200px;
+}
+
+.card {
+  background: var(--bg-glass);
+  border: var(--glass-border);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+}
+
+.stat-value {
+  font-size: 2rem;
+  color: var(--success);
+  font-weight: bold;
+}
+
+.input-field {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  padding: 0.8rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  width: 100%;
+  max-width: 300px;
+}
+
+/* Map specific styles */
+.map-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 100%;
+  overflow: auto;
+}
+
+.map-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(0, 240, 255, 0.1);
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.map-row {
+  display: flex;
+  gap: 2px;
+}
+
+.map-tile {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  border: 1px solid transparent;
+}
+
+.map-tile:hover {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--accent-primary);
+}
+
+.map-tile.type-city {
+  background: rgba(255, 184, 0, 0.15);
+  border: 1px solid rgba(255, 184, 0, 0.3);
+}
+
+.map-tile.type-mineral {
+  background: rgba(100, 200, 255, 0.1);
+  border: 1px solid rgba(100, 200, 255, 0.3);
+}
+
+.map-tile.type-energy {
+  background: rgba(255, 255, 0, 0.1);
+  border: 1px solid rgba(255, 255, 0, 0.3);
+}
+
+.map-tile.type-facility_mine,
+.map-tile.type-facility_plant,
+.map-tile.type-facility_warehouse {
+  background: rgba(0, 255, 157, 0.2);
+  border: 1px solid var(--success);
+}
+
+
+.map-tile.active-player {
+  box-shadow: 0 0 10px var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+  z-index: 10;
+}
+
+.player-avatar {
+  font-size: 1.2rem;
+  position: absolute;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.map-controls {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-glass);
+  padding: 1rem;
+  border-radius: 4px;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.btn-small {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--text-secondary);
+  color: var(--text-primary);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  transition: all 0.2s;
+}
+
+.btn-small:hover {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  border-color: var(--accent-primary);
+}
+
+/* Updated Map Styles including new Terrains */
+.map-tile.type-ocean {
+  background: rgba(0, 40, 255, 0.2);
+  border: 1px solid rgba(0, 40, 255, 0.1);
+}
+
+.map-tile.type-mountain {
+  background: rgba(100, 100, 100, 0.3);
+  border: 1px solid rgba(150, 150, 150, 0.2);
+}
+
+.map-tile.type-forest {
+  background: rgba(0, 255, 100, 0.1);
+  border: 1px solid rgba(0, 255, 100, 0.1);
+}
+
+.map-tile.hovered {
+  border-color: var(--warning);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tile-info-panel {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-right: 1rem;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.city-name {
+  display: block;
+  color: var(--accent-primary);
+  font-weight: bold;
+  margin-top: 0.2rem;
+}
+
+.city-desc {
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.drone-indicator {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  font-size: 0.8rem;
+  background: var(--bg-primary);
+  border-radius: 50%;
+  padding: 2px;
+}
+
+.drone-status {
+  color: var(--success);
+  font-weight: bold;
+  font-size: 0.8rem;
+  margin-top: 0.3rem;
+  animation: flash 2s infinite;
+}
+
+@keyframes flash {
+  0% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.5;
+  }
+}
+
+.divider {
+  width: 1px;
+  height: 30px;
+  background: var(--border-color);
+  margin: 0 1rem;
+}
+
+.build-btn {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.build-btn:hover {
+  background: var(--success);
+  color: var(--bg-primary);
+}
