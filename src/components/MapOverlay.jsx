@@ -60,10 +60,15 @@ function MapOverlay({ selectedTile, playerPos, onMove, onManage, onEnter, onClos
                     <button
                         className="btn-secondary"
                         onClick={() => onMove(selectedTile.x, selectedTile.y)}
-                        style={{ display: 'flex', justifyContent: 'space-between' }}
+                        style={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: '0.2rem' }}
                     >
-                        <span>Initiate Thrusters</span>
-                        <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>-{moveCost} Energy</span>
+                        <span style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                            <span>Initiate Thrusters</span>
+                            <span>-{Math.floor(dist * moveCost)} Energy</span>
+                        </span>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.8, alignSelf: 'flex-start' }}>
+                            Est. Time: {(dist * 0.3 * moveCost).toFixed(1)}s
+                        </span>
                     </button>
                 )}
 

@@ -1,18 +1,12 @@
-// World Generation & Data Management
+import { TILE_TYPES, GRID_SIZES, BUILDING_TYPES } from './constants';
+export { TILE_TYPES, GRID_SIZES, BUILDING_TYPES };
+
+import dbConfig from './dbConfig.json';
 
 // 1. Configuration
-export const WORLD_SIZE = 500; // 500x500
+export const WORLD_SIZE = dbConfig.WORLD_SIZE || 500; // 500x500
 export const INNER_MAP_SIZE = 20; // 20x20 for local sectors
 export const VIEWPORT_SIZE = 15; // Viewport size for the web view
-
-export const TILE_TYPES = {
-    OCEAN: 'ocean',
-    PLAINS: 'plains',
-    FOREST: 'forest',
-    MOUNTAIN: 'mountain',
-    CITY: 'city',
-    // ... add more as needed
-};
 
 // 2. City Database (Major Cities)
 export const MAJOR_CITIES = [
@@ -83,15 +77,23 @@ export const generateWorldMap = () => {
 
 // 4. Inner Map Generation (Drill-down)
 // Generates a local map based on the World Tile properties
+
+
+
+// 4. Inner Map Generation (Drill-down)
+// Generates a local map based on the World Tile properties
 export const generateInnerMap = (worldTile) => {
-    const seed = worldTile.x * 1000 + worldTile.y;
+    // Reverted to 20x20 fixed size for detail
+    // const seed = worldTile.x * 1000 + worldTile.y; 
     const localMap = [];
 
     for (let y = 0; y < INNER_MAP_SIZE; y++) {
         const row = [];
         for (let x = 0; x < INNER_MAP_SIZE; x++) {
             let type = 'empty'; // usable land
+            let building = null;
 
+            // Simple pre-generation logic (Restore 20x20 logic)
             // If World Tile was City, generate city blocks
             if (worldTile.type === TILE_TYPES.CITY) {
                 type = 'city_block';
@@ -108,7 +110,7 @@ export const generateInnerMap = (worldTile) => {
                 else type = 'empty';
             }
 
-            row.push({ x, y, type });
+            row.push({ x, y, type, building });
         }
         localMap.push(row);
     }

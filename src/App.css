@@ -496,12 +496,14 @@
   /* No 3D tilt for surface view */
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(100, 255, 100, 0.2);
+  align-items: center; /* Center the grid content */
 }
 
 .inner-view .map-tile {
-  width: 32px;
-  height: 32px;
-  border-radius: 2px;
+  width: 28px;  /* 20 * 28 = 560px + gaps -> Fits in standard view */
+  height: 28px;
+  border-radius: 1px;
+  font-size: 0.6rem; /* Smaller font for icons on detailed map */
 }
 
 .map-tile.type-void {

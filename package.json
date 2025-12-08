@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "sync-config": "node scripts/sync_db_config.js",
+    "dev": "npm run sync-config && vite",
+    "build": "npm run sync-config && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

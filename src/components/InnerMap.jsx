@@ -1,9 +1,12 @@
 import React from 'react';
 
-function InnerMap({ innerMapData, onBack }) {
+function InnerMap({ innerMapData, onBack, onTileClick }) {
     if (!innerMapData) return <div>Loading Local Data...</div>;
 
     const { parentTile, tiles } = innerMapData;
+
+    // Calculate tile size percentage
+    // e.g. 5x5 grid = 20% width per tile
 
     return (
         <div className="map-container inner-view">
@@ -20,12 +23,14 @@ function InnerMap({ innerMapData, onBack }) {
                                 key={`${x}-${y}`}
                                 className={`map-tile inner-tile type-${tile.type}`}
                                 title={`Local [${x},${y}] ${tile.type}`}
+                                onClick={() => onTileClick(x, y, tile)}
                             >
                                 {tile.type === 'city_block' && '🏢'}
                                 {tile.type === 'city_hall' && '🏛️'}
                                 {tile.type === 'rock_obstacle' && '🪨'}
                                 {tile.type === 'mineral_deposit' && '💎'}
                                 {tile.type === 'tree' && '🌲'}
+                                {tile.building && '🏭'}
                             </div>
                         ))}
                     </div>

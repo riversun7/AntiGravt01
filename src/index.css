@@ -1,4 +1,14 @@
 :root {
+  /* Shared Structural Variables */
+  --font-main: 'Outfit', sans-serif;
+  --font-tech: 'Rajdhani', sans-serif;
+
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  --glass-blur: blur(12px);
+}
+
+/* Default Theme (Cyber) */
+:root[data-theme="cyber"] {
   --bg-primary: #030408;
   --bg-secondary: #0b101b;
   --bg-tertiary: #151a28;
@@ -20,13 +30,38 @@
 
   --border-color: rgba(255, 255, 255, 0.08);
   --border-active: rgba(0, 240, 255, 0.3);
-
-  --font-main: 'Outfit', sans-serif;
-  --font-tech: 'Rajdhani', sans-serif;
-
-  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
   --glass-border: 1px solid rgba(255, 255, 255, 0.05);
-  --glass-blur: blur(12px);
+}
+
+/* Pastel Theme */
+:root[data-theme="pastel"] {
+  --bg-primary: #fdf6f6;
+  /* Soft Cream/Rose tint */
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f4eeee;
+  --bg-glass: rgba(255, 255, 255, 0.75);
+
+  --text-primary: #2d3436;
+  /* Dark Gray for contrast */
+  --text-secondary: #636e72;
+  --text-dim: #b2bec3;
+
+  --accent-primary: #ff7675;
+  /* Pastel Pink/Salmon */
+  --accent-secondary: #74b9ff;
+  /* Soft Blue */
+  --accent-glow: rgba(255, 118, 117, 0.4);
+
+  --success: #55efc4;
+  /* Mint */
+  --warning: #ffeaa7;
+  /* Cream Yellow */
+  --danger: #ff6b6b;
+  /* Soft Red */
+
+  --border-color: rgba(0, 0, 0, 0.06);
+  --border-active: rgba(255, 118, 117, 0.4);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 * {
@@ -44,9 +79,10 @@ body {
   overflow: hidden;
   /* Prevent body scroll, let app handle it */
   background-image:
-    radial-gradient(circle at 15% 50%, rgba(112, 0, 255, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 85% 30%, rgba(0, 240, 255, 0.08) 0%, transparent 40%);
+    radial-gradient(circle at 15% 50%, var(--accent-secondary) 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, var(--accent-primary) 0%, transparent 40%);
   background-size: cover;
+  transition: background-color 0.5s ease, color 0.5s ease;
 }
 
 ::selection {

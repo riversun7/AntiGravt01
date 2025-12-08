@@ -3,9 +3,13 @@ import WorldMap from './components/WorldMap'
 import InnerMap from './components/InnerMap'
 import Minimap from './components/Minimap'
 import MapOverlay from './components/MapOverlay'
-import ManagementPanel from './components/ManagementPanel'
+import SettingsPanel from './components/SettingsPanel'
+import ConstructionMenu from './components/ConstructionMenu'
+import AssetsPanel from './components/AssetsPanel'
 import { generateWorldMap, generateInnerMap, TILE_TYPES, getMovementCost } from './data/worldData'
-import './App.css'
+
+
+
 
 function App() {
   const [gameState, setGameState] = useState('start')
@@ -20,13 +24,36 @@ function App() {
   const [activeTab, setActiveTab] = useState('world_map'); // world_map, tile_detail, territory, lab, exchange, settings
   const [viewMode, setViewMode] = useState('ORBIT'); // ORBIT (World), SURFACE (Inner)
   const [innerMapData, setInnerMapData] = useState(null);
+  const [theme, setTheme] = useState('cyber'); // cyber, pastel
 
   const [log, setLog] = useState([])
   const [moving, setMoving] = useState(false)
+  const [constructionTarget, setConstructionTarget] = useState(null) // {x, y} for building
 
   const addToLog = (msg) => {
     setLog(prev => [msg, ...prev].slice(0, 5))
   }
+
+  // Theme Management
+  useEffect(() => {
+    const storedTheme = localStorage.getItem('terra_theme') || 'cyber';
+    setTheme(storedTheme);
+    document.documentElement.setAttribute('data-theme', storedTheme);
+  }, []);
+
+  const handleThemeChange = (newTheme) => {
+    setTheme(newTheme);
+    localStorage.setItem('terra_theme', newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+  };
+
+  const handleResetData = () => {
+    if (confirm('Are you sure you want to wipe all data? This cannot be undone.')) {
+      localStorage.removeItem('terra_user');
+      localStorage.removeItem('terra_theme');
+      location.reload();
+    }
+  };
 
   // Initial World Gen
   useEffect(() => {
@@ -37,6 +64,10 @@ function App() {
       addToLog("Global Satellites Interfaced. 500km Scan Complete.");
     }
   }, [gameState, map]);
+
+
+
+
 
   const handleTileSelect = (tile) => {
     setSelectedTile(tile);
@@ -74,29 +105,57 @@ function App() {
   }
 
   // World Map Movement
-  const handleWorldMove = (x, y) => {
+  const movePlayerTo = (targetX, targetY) => {
     if (moving) return;
     if (!map) return;
+    if (playerPos.x === targetX && playerPos.y === targetY) return;
 
-    const dist = Math.abs(playerPos.x - x) + Math.abs(playerPos.y - y)
-    if (dist === 0 || dist > 1) return;
+    // Simple Manhattan distance for now (no obstacles)
+    const distX = Math.abs(playerPos.x - targetX);
+    const distY = Math.abs(playerPos.y - targetY);
+    const totalDist = distX + distY;
 
-    const targetTile = map[y][x];
-    const moveCost = getMovementCost(targetTile.type);
+    // Base cost calculation (simplified for long distance)
+    const targetTile = map[targetY][targetX];
+    const terrainCost = getMovementCost(targetTile.type);
 
-    if (player.energy < moveCost) {
-      addToLog(`Insufficient Energy. Need ${moveCost} Energy.`); return;
+    // Total energy needed (approximate linear cost)
+    const totalEnergyCost = Math.floor(totalDist * terrainCost);
+
+    if (player.energy < totalEnergyCost) {
+      addToLog(`Insufficient Energy. Need ${totalEnergyCost} for this trajectory.`);
+      return;
     }
 
+    // Initiate Travel
     setMoving(true);
+    const travelTimeMs = totalDist * 300 * terrainCost; // 300ms per tile base
+
+    addToLog(`Thrusters engaged. ETA: ${(travelTimeMs / 1000).toFixed(1)}s`);
+
+    // visual update of "ghost" or just wait? 
+    // For now, just wait and teleport to simulate travel time, 
+    // ideally we would step through, but let's do direct for v1 of this feature.
+
     setTimeout(() => {
-      setPlayer(p => ({ ...p, energy: p.energy - moveCost }))
-      setPlayerPos({ x, y })
+      setPlayer(p => ({ ...p, energy: p.energy - totalEnergyCost }));
+      setPlayerPos({ x: targetX, y: targetY });
       setMoving(false);
-      if (targetTile.type === TILE_TYPES.CITY) {
-        addToLog(`Orbiting ${targetTile.data.name}. Ready for descent.`);
+
+      if (map[targetY][targetX].type === TILE_TYPES.CITY) {
+        addToLog(`Arrived at ${map[targetY][targetX].data.name}. Orbit established.`);
+      } else {
+        addToLog(`Arrival confirmed at [${targetX}, ${targetY}].`);
       }
-    }, 150 * moveCost);
+    }, travelTimeMs);
+  };
+
+  const handleWorldMove = (x, y) => movePlayerTo(x, y);
+
+
+
+  const handleTileDoubleClick = (tile) => {
+    movePlayerTo(tile.x, tile.y);
   }
 
   const handleEnterSector = () => {
@@ -116,7 +175,46 @@ function App() {
   const handleExitSector = () => {
     setViewMode('ORBIT');
     setInnerMapData(null);
+    setConstructionTarget(null);
     addToLog("Launching to low orbit.");
+  }
+
+  const handleInnerTileClick = (x, y, tile) => {
+    // Allow building on empty land or city blocks (redevelopment)
+    if (tile.type !== 'empty' && tile.type !== 'city_block') {
+      addToLog(`Cannot build on ${tile.type.replace('_', ' ')}.`);
+      return;
+    }
+    if (tile.building) {
+      addToLog(`Sector already occupied by ${tile.building.name}.`);
+      return;
+    }
+    setConstructionTarget({ x, y });
+  }
+
+  const handleConstruct = (building) => {
+    if (!constructionTarget || !innerMapData) return;
+
+    // Deduct resources
+    setPlayer(p => ({
+      ...p,
+      money: p.money - building.cost.money,
+      materials: p.materials - building.cost.materials
+    }));
+
+    // Update map data (Local State Only for now)
+    const newTiles = innerMapData.tiles.map((row, rY) =>
+      row.map((tile, rX) => {
+        if (rY === constructionTarget.y && rX === constructionTarget.x) {
+          return { ...tile, building: building };
+        }
+        return tile;
+      })
+    );
+
+    setInnerMapData(prev => ({ ...prev, tiles: newTiles }));
+    setConstructionTarget(null);
+    addToLog(`Construction Complete: ${building.name} at [${constructionTarget.x}, ${constructionTarget.y}]`);
   }
 
   if (gameState === 'start') {
@@ -159,6 +257,7 @@ function App() {
                         selectedTile={selectedTile}
                         onMove={handleWorldMove}
                         onTileClick={handleTileSelect}
+                        onTileDoubleClick={handleTileDoubleClick}
                         onEnterSector={handleEnterSector}
                       />
                       <MapOverlay
@@ -175,10 +274,21 @@ function App() {
                       </div>
                     </>
                   ) : (
-                    <InnerMap
-                      innerMapData={innerMapData}
-                      onBack={handleExitSector}
-                    />
+                    <>
+                      <InnerMap
+                        innerMapData={innerMapData}
+                        onBack={handleExitSector}
+                        onTileClick={handleInnerTileClick}
+                      />
+                      {constructionTarget && (
+                        <ConstructionMenu
+                          tile={constructionTarget}
+                          onBuild={handleConstruct}
+                          onCancel={() => setConstructionTarget(null)}
+                          player={player}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
                 <LogPanel log={log} />
@@ -187,30 +297,21 @@ function App() {
 
             {activeTab === 'tile_detail' && (
               <ManagementPanel
-                tile={selectedTile}
+                tile={selectedTile || (map ? map[playerPos.y][playerPos.x] : null)}
                 onBack={() => setActiveTab('world_map')}
               />
             )}
 
-            {activeTab === 'territory' && (
-              <div className="sector-detail">
-                <h2>Territory Management</h2>
-                <p style={{ color: 'var(--text-secondary)' }}>Manage your claimed sectors and colonies here.</p>
-              </div>
+            {activeTab === 'assets' && (
+              <AssetsPanel player={player} />
             )}
 
-            {activeTab === 'lab' && (
-              <div className="sector-detail">
-                <h2>Research Laboratory</h2>
-                <p style={{ color: 'var(--text-secondary)' }}>Develop new technologies and upgrade your cyborg.</p>
-              </div>
-            )}
-
-            {activeTab === 'exchange' && (
-              <div className="sector-detail">
-                <h2>Galactic Exchange</h2>
-                <p style={{ color: 'var(--text-secondary)' }}>Trade resources with major factions.</p>
-              </div>
+            {activeTab === 'settings' && (
+              <SettingsPanel
+                theme={theme}
+                onThemeChange={handleThemeChange}
+                onResetData={handleResetData}
+              />
             )}
           </div>
         </div>
@@ -230,16 +331,10 @@ function Sidebar({ activeTab, onTabChange }) {
         <div className={`nav-item ${activeTab === 'tile_detail' ? 'active' : ''}`} onClick={() => onTabChange('tile_detail')}>
           <span>🏗️</span> Management
         </div>
-        <div className={`nav-item ${activeTab === 'territory' ? 'active' : ''}`} onClick={() => onTabChange('territory')}>
-          <span>🚩</span> My Territory
+        <div className={`nav-item ${activeTab === 'assets' ? 'active' : ''}`} onClick={() => onTabChange('assets')}>
+          <span>📦</span> Assets
         </div>
-        <div className={`nav-item ${activeTab === 'lab' ? 'active' : ''}`} onClick={() => onTabChange('lab')}>
-          <span>🧬</span> Research Lab
-        </div>
-        <div className={`nav-item ${activeTab === 'exchange' ? 'active' : ''}`} onClick={() => onTabChange('exchange')}>
-          <span>💳</span> Exchange
-        </div>
-        <div className="nav-item">
+        <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => onTabChange('settings')}>
           <span>⚙️</span> Settings
         </div>
       </div>
@@ -294,9 +389,29 @@ function CharacterCreation({ onComplete }) {
           placeholder="Enter ID"
           value={name}
           onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && name.trim() && onComplete({ name, type: 'Cyborg', money: 1000, energy: 500, materials: 50 })}
+          onKeyDown={e => e.key === 'Enter' && name.trim() && onComplete({
+            name,
+            type: 'Cyborg',
+            money: 1000,
+            energy: 500,
+            materials: 50,
+            inventory: [],
+            human_employees: [],
+            creatures: [],
+            androids: []
+          })}
         />
-        <button className="btn-primary" onClick={() => name.trim() && onComplete({ name, type: 'Cyborg', money: 1000, energy: 500, materials: 50 })}>
+        <button className="btn-primary" onClick={() => name.trim() && onComplete({
+          name,
+          type: 'Cyborg',
+          money: 1000,
+          energy: 500,
+          materials: 50,
+          inventory: [],
+          human_employees: [],
+          creatures: [],
+          androids: []
+        })}>
           Confirm Access
         </button>
       </div>
@@ -318,3 +433,4 @@ function LogPanel({ log }) {
 }
 
 export default App
+// Re-verified syntax structure

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TILE_TYPES, VIEWPORT_SIZE, getMovementCost } from '../data/worldData';
 
-function WorldMap({ map, playerPos, selectedTile, onMove, onTileClick, onEnterSector }) {
+function WorldMap({ map, playerPos, selectedTile, onMove, onTileClick, onTileDoubleClick, onEnterSector }) {
     if (!map) return <div className="loading-scan">Initializing Satellite Link...</div>;
 
     const [hoverPos, setHoverPos] = useState(null);
@@ -47,6 +47,7 @@ function WorldMap({ map, playerPos, selectedTile, onMove, onTileClick, onEnterSe
                                     key={`${tile.x}-${tile.y}`}
                                     className={`map-tile type-${tile.type} ${isPlayerHere ? 'active-player' : ''} ${isSelected ? 'selected' : ''} ${isHovered ? 'hovered' : ''}`}
                                     onClick={() => onTileClick(tile)}
+                                    onDoubleClick={() => onTileDoubleClick(tile)}
                                     autoFocus
                                     onMouseEnter={() => setHoverPos(tile)}
                                     onMouseLeave={() => setHoverPos(null)}
