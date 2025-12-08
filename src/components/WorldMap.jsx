@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { TILE_TYPES, VIEWPORT_SIZE, getMovementCost } from '../data/worldData';
 
 function WorldMap({ map, playerPos, selectedTile, onMove, onTileClick, onTileDoubleClick, onEnterSector }) {
-    if (!map) return <div className="loading-scan">Initializing Satellite Link...</div>;
-
     const [hoverPos, setHoverPos] = useState(null);
+
+    // Initial Loading State handled in render
+    if (!map) return <div className="loading-scan">Initializing Satellite Link...</div>;
 
     // Viewport Logic
     // Center the viewport on the player

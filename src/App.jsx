@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import './App.css'
 import WorldMap from './components/WorldMap'
 import InnerMap from './components/InnerMap'
 import Minimap from './components/Minimap'
@@ -12,19 +13,38 @@ import { generateWorldMap, generateInnerMap, TILE_TYPES, getMovementCost } from 
 
 
 function App() {
-  const [gameState, setGameState] = useState('start')
-  const [player, setPlayer] = useState(null)
+  const [gameState, setGameState] = useState(() => {
+    return localStorage.getItem('terra_user') ? 'dashboard' : 'start';
+  });
+  const [player, setPlayer] = useState(() => {
+    try {
+      const stored = localStorage.getItem('terra_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Global Map State
-  const [map, setMap] = useState(null)
+  const [map, setMap] = useState(() => {
+    // Generate map immediately if we are in dashboard mode to avoid undefined map state
+    if (localStorage.getItem('terra_user')) {
+      console.log("Generating World (Lazy Init)...");
+      return generateWorldMap();
+    }
+    return null;
+  });
+
   const [playerPos, setPlayerPos] = useState({ x: 250, y: 250 }) // Center of large map
   const [selectedTile, setSelectedTile] = useState(null)
 
   // View State
-  const [activeTab, setActiveTab] = useState('world_map'); // world_map, tile_detail, territory, lab, exchange, settings
-  const [viewMode, setViewMode] = useState('ORBIT'); // ORBIT (World), SURFACE (Inner)
+  const [activeTab, setActiveTab] = useState('world_map');
+  const [viewMode, setViewMode] = useState('ORBIT');
   const [innerMapData, setInnerMapData] = useState(null);
-  const [theme, setTheme] = useState('cyber'); // cyber, pastel
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('terra_theme') || 'cyber';
+  });
 
   const [log, setLog] = useState([])
   const [moving, setMoving] = useState(false)
@@ -34,12 +54,10 @@ function App() {
     setLog(prev => [msg, ...prev].slice(0, 5))
   }
 
-  // Theme Management
+  // Theme Management Side Effect
   useEffect(() => {
-    const storedTheme = localStorage.getItem('terra_theme') || 'cyber';
-    setTheme(storedTheme);
-    document.documentElement.setAttribute('data-theme', storedTheme);
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme);
@@ -56,11 +74,16 @@ function App() {
   };
 
   // Initial World Gen
+  // Initial World Gen moved to State Initializer or explicit Event,
+  // preventing useEffect setState loops.
+
+  // Ensure Map exists if we switch to dashboard (e.g. after character creation)
   useEffect(() => {
     if (gameState === 'dashboard' && !map) {
-      console.log("Generating World...");
+      console.log("Generating World (Effect)...");
       const newMap = generateWorldMap();
       setMap(newMap);
+      // We can safely add log here as it's a response to state change, not a loop
       addToLog("Global Satellites Interfaced. 500km Scan Complete.");
     }
   }, [gameState, map]);
@@ -77,21 +100,11 @@ function App() {
     setActiveTab('tile_detail');
   }
 
-  // Initial Load: Check for stored user
-  useEffect(() => {
-    const storedUser = localStorage.getItem('terra_user')
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser)
-        setPlayer(userData)
-        setGameState('dashboard')
-      } catch (e) {
-        console.error("Failed to load user", e)
-      }
-    }
-  }, [])
+  // Initial Load & State Management
+  // Initial Load handled by lazy state now.
+  // Kept empty to clean up old effect hook.
 
-  // Save on state change (simple autosave)
+  // Save on state change
   useEffect(() => {
     if (player) {
       localStorage.setItem('terra_user', JSON.stringify(player))

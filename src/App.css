@@ -2,8 +2,9 @@
 /* Layout Structure */
 .app-layout {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  /* Changed from 100vh to rely on root */
+  width: 100%;
   background: var(--bg-primary);
   position: relative;
   overflow: hidden;
@@ -144,6 +145,9 @@
   /* Manage inner scrolling per view */
   padding: 1.5rem;
   position: relative;
+  display: flex;
+  /* Ensure children can flex fill */
+  flex-direction: column;
 }
 
 /* Tab Content Containers */
@@ -353,7 +357,10 @@
   border: 1px solid var(--border-color);
   border-radius: 4px;
   width: 100%;
-  height: 100%;
+  flex: 1;
+  /* Key change: Allow it to fill the card */
+  min-height: 0;
+  /*  Prevent flex blowout */
   overflow: hidden;
   position: relative;
 }
@@ -496,14 +503,17 @@
   /* No 3D tilt for surface view */
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(100, 255, 100, 0.2);
-  align-items: center; /* Center the grid content */
+  align-items: center;
+  /* Center the grid content */
 }
 
 .inner-view .map-tile {
-  width: 28px;  /* 20 * 28 = 560px + gaps -> Fits in standard view */
+  width: 28px;
+  /* 20 * 28 = 560px + gaps -> Fits in standard view */
   height: 28px;
   border-radius: 1px;
-  font-size: 0.6rem; /* Smaller font for icons on detailed map */
+  font-size: 0.6rem;
+  /* Smaller font for icons on detailed map */
 }
 
 .map-tile.type-void {
