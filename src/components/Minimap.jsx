@@ -12,6 +12,7 @@ const TILE_COLORS = {
 };
 
 function Minimap({ map, playerPos }) {
+    const [isExpanded, setIsExpanded] = React.useState(true);
     const canvasRef = useRef(null);
 
     useEffect(() => {
@@ -67,14 +68,55 @@ function Minimap({ map, playerPos }) {
     }, [map, playerPos]);
 
     return (
-        <div className="minimap-container">
+        <div
+            className="minimap-container"
+            style={{
+                width: isExpanded ? '200px' : '60px',
+                height: isExpanded ? '200px' : '60px',
+                transition: 'all 0.3s ease',
+                position: 'relative'
+            }}
+        >
             <canvas
                 ref={canvasRef}
                 className="minimap-canvas"
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    imageRendering: 'pixelated',
+                    opacity: isExpanded ? 0.9 : 0.6
+                }}
             />
-            <div className="minimap-label">
-                RADAR
-            </div>
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsExpanded(!isExpanded);
+                }}
+                style={{
+                    position: 'absolute',
+                    top: '-10px',
+                    right: '-10px',
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    border: '1px solid var(--accent-primary)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    zIndex: 10
+                }}
+            >
+                {isExpanded ? '−' : '+'}
+            </button>
+            {isExpanded && (
+                <div className="minimap-label" style={{ pointerEvents: 'none' }}>
+                    RADAR
+                </div>
+            )}
         </div>
     );
 }

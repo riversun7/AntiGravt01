@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import WorldMap from './components/WorldMap'
 import InnerMap from './components/InnerMap'
 import Minimap from './components/Minimap'
+import MapOverlay from './components/MapOverlay'
+import ManagementPanel from './components/ManagementPanel'
 import { generateWorldMap, generateInnerMap, TILE_TYPES, getMovementCost } from './data/worldData'
 import './App.css'
 
@@ -12,14 +14,19 @@ function App() {
   // Global Map State
   const [map, setMap] = useState(null)
   const [playerPos, setPlayerPos] = useState({ x: 250, y: 250 }) // Center of large map
+  const [selectedTile, setSelectedTile] = useState(null)
 
   // View State
-  const [activeTab, setActiveTab] = useState('world_map'); // world_map, territory, lab, exchange, settings
+  const [activeTab, setActiveTab] = useState('world_map'); // world_map, tile_detail, territory, lab, exchange, settings
   const [viewMode, setViewMode] = useState('ORBIT'); // ORBIT (World), SURFACE (Inner)
   const [innerMapData, setInnerMapData] = useState(null);
 
   const [log, setLog] = useState([])
   const [moving, setMoving] = useState(false)
+
+  const addToLog = (msg) => {
+    setLog(prev => [msg, ...prev].slice(0, 5))
+  }
 
   // Initial World Gen
   useEffect(() => {
@@ -29,10 +36,41 @@ function App() {
       setMap(newMap);
       addToLog("Global Satellites Interfaced. 500km Scan Complete.");
     }
-  }, [gameState]);
+  }, [gameState, map]);
 
-  const addToLog = (msg) => {
-    setLog(prev => [msg, ...prev].slice(0, 5))
+  const handleTileSelect = (tile) => {
+    setSelectedTile(tile);
+  }
+
+  const handleEnterManagement = () => {
+    setActiveTab('tile_detail');
+  }
+
+  // Initial Load: Check for stored user
+  useEffect(() => {
+    const storedUser = localStorage.getItem('terra_user')
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser)
+        setPlayer(userData)
+        setGameState('dashboard')
+      } catch (e) {
+        console.error("Failed to load user", e)
+      }
+    }
+  }, [])
+
+  // Save on state change (simple autosave)
+  useEffect(() => {
+    if (player) {
+      localStorage.setItem('terra_user', JSON.stringify(player))
+    }
+  }, [player])
+
+  const handleLogout = () => {
+    localStorage.removeItem('terra_user')
+    setPlayer(null)
+    setGameState('start')
   }
 
   // World Map Movement
@@ -86,7 +124,10 @@ function App() {
   }
   if (gameState === 'create') {
     return <CharacterCreation onComplete={(data) => {
-      setPlayer(data); setGameState('dashboard');
+      // Simulate DB Save
+      localStorage.setItem('terra_user', JSON.stringify(data))
+      setPlayer(data);
+      setGameState('dashboard');
     }} />
   }
 
@@ -94,7 +135,7 @@ function App() {
     <div className="app-layout">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="main-content">
-        <Navbar player={player} />
+        <Navbar player={player} onLogout={handleLogout} />
         <div className="content-viewport">
 
           {/* Main View Container */}
@@ -115,8 +156,18 @@ function App() {
                       <WorldMap
                         map={map}
                         playerPos={playerPos}
+                        selectedTile={selectedTile}
                         onMove={handleWorldMove}
+                        onTileClick={handleTileSelect}
                         onEnterSector={handleEnterSector}
+                      />
+                      <MapOverlay
+                        selectedTile={selectedTile}
+                        playerPos={playerPos}
+                        onMove={handleWorldMove}
+                        onManage={handleEnterManagement}
+                        onEnter={handleEnterSector}
+                        onClose={() => setSelectedTile(null)}
                       />
                       {/* Floating Minimap */}
                       <div style={{ position: 'absolute', bottom: '20px', right: '20px', zIndex: 100 }}>
@@ -132,6 +183,13 @@ function App() {
                 </div>
                 <LogPanel log={log} />
               </div>
+            )}
+
+            {activeTab === 'tile_detail' && (
+              <ManagementPanel
+                tile={selectedTile}
+                onBack={() => setActiveTab('world_map')}
+              />
             )}
 
             {activeTab === 'territory' && (
@@ -169,6 +227,9 @@ function Sidebar({ activeTab, onTabChange }) {
         <div className={`nav-item ${activeTab === 'world_map' ? 'active' : ''}`} onClick={() => onTabChange('world_map')}>
           <span>🌍</span> Navigation
         </div>
+        <div className={`nav-item ${activeTab === 'tile_detail' ? 'active' : ''}`} onClick={() => onTabChange('tile_detail')}>
+          <span>🏗️</span> Management
+        </div>
         <div className={`nav-item ${activeTab === 'territory' ? 'active' : ''}`} onClick={() => onTabChange('territory')}>
           <span>🚩</span> My Territory
         </div>
@@ -186,12 +247,17 @@ function Sidebar({ activeTab, onTabChange }) {
   )
 }
 
-function Navbar({ player }) {
+function Navbar({ player, onLogout }) {
   if (!player) return <div className="navbar"></div>
   return (
     <div className="navbar">
-      <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>
-        CMD: <span style={{ color: 'var(--accent-primary)' }}>{player.name}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+          CMD: <span style={{ color: 'var(--accent-primary)' }}>{player.name}</span>
+        </div>
+        <button className="btn-small" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }} onClick={onLogout}>
+          Logout
+        </button>
       </div>
       <div className="resource-bar">
         <div className="res-item"><span className="icon">💳</span> <span style={{ color: 'var(--warning)' }}>{player.money.toLocaleString()}</span></div>
@@ -223,9 +289,15 @@ function CharacterCreation({ onComplete }) {
         <p style={{ marginBottom: '2rem', color: 'var(--text-secondary)' }}>
           Species: <strong style={{ color: 'var(--accent-primary)' }}>Cyborg</strong> (Class A)
         </p>
-        <input className="input-field" placeholder="Enter ID" value={name} onChange={e => setName(e.target.value)} />
+        <input
+          className="input-field"
+          placeholder="Enter ID"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && name.trim() && onComplete({ name, type: 'Cyborg', money: 1000, energy: 500, materials: 50 })}
+        />
         <button className="btn-primary" onClick={() => name.trim() && onComplete({ name, type: 'Cyborg', money: 1000, energy: 500, materials: 50 })}>
-          Confirm
+          Confirm Access
         </button>
       </div>
     </div>

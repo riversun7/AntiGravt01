@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TILE_TYPES, VIEWPORT_SIZE, getMovementCost } from '../data/worldData';
 
-function WorldMap({ map, playerPos, onMove, onEnterSector }) {
+function WorldMap({ map, playerPos, selectedTile, onMove, onTileClick, onEnterSector }) {
     if (!map) return <div className="loading-scan">Initializing Satellite Link...</div>;
 
     const [hoverPos, setHoverPos] = useState(null);
@@ -39,13 +39,14 @@ function WorldMap({ map, playerPos, onMove, onEnterSector }) {
                             if (!tile) return <div key={i} className="map-tile type-void"></div>;
 
                             const isPlayerHere = playerPos.x === tile.x && playerPos.y === tile.y;
+                            const isSelected = selectedTile && selectedTile.x === tile.x && selectedTile.y === tile.y;
                             const isHovered = hoverPos && hoverPos === tile;
 
                             return (
                                 <div
                                     key={`${tile.x}-${tile.y}`}
-                                    className={`map-tile type-${tile.type} ${isPlayerHere ? 'active-player' : ''} ${isHovered ? 'hovered' : ''}`}
-                                    onClick={() => onMove(tile.x, tile.y)}
+                                    className={`map-tile type-${tile.type} ${isPlayerHere ? 'active-player' : ''} ${isSelected ? 'selected' : ''} ${isHovered ? 'hovered' : ''}`}
+                                    onClick={() => onTileClick(tile)}
                                     autoFocus
                                     onMouseEnter={() => setHoverPos(tile)}
                                     onMouseLeave={() => setHoverPos(null)}
