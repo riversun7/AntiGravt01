@@ -1,4 +1,3 @@
-import React from 'react';
 import { TILE_TYPES } from '../data/worldData';
 
 function ManagementPanel({ tile, onBack }) {

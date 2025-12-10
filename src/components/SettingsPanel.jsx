@@ -1,4 +1,3 @@
-import React from 'react';
 
 function SettingsPanel({ theme, onThemeChange, onResetData }) {
     return (

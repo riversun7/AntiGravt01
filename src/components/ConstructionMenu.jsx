@@ -1,4 +1,3 @@
-import React from 'react';
 import { BUILDING_TYPES } from '../data/constants';
 
 function ConstructionMenu({ tile, onBuild, onCancel, player }) {

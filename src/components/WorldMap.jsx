@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { TILE_TYPES, VIEWPORT_SIZE, getMovementCost } from '../data/worldData';
+import { useState } from 'react';
+import { TILE_TYPES, VIEWPORT_SIZE } from '../data/worldData';
 
-function WorldMap({ map, playerPos, selectedTile, onMove, onTileClick, onTileDoubleClick, onEnterSector }) {
+function WorldMap({ map, playerPos, selectedTile, onTileClick, onTileDoubleClick, onEnterSector }) {
     const [hoverPos, setHoverPos] = useState(null);
 
     // Initial Loading State handled in render

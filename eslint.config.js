@@ -26,4 +26,16 @@ export default defineConfig([
       'no-unused-vars': 'warn',
     },
   },
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
+    files: ['terra-server/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])

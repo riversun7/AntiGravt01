@@ -1,4 +1,3 @@
-import React from 'react';
 import { getMovementCost, TILE_TYPES } from '../data/worldData';
 
 function MapOverlay({ selectedTile, playerPos, onMove, onManage, onEnter, onClose }) {

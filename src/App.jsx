@@ -1,12 +1,5 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-import WorldMap from './components/WorldMap'
-import InnerMap from './components/InnerMap'
-import Minimap from './components/Minimap'
-import MapOverlay from './components/MapOverlay'
-import SettingsPanel from './components/SettingsPanel'
-import ConstructionMenu from './components/ConstructionMenu'
-import AssetsPanel from './components/AssetsPanel'
 import { generateWorldMap, generateInnerMap, TILE_TYPES, getMovementCost } from './data/worldData'
 
 
@@ -37,6 +30,14 @@ function App() {
 
   const [playerPos, setPlayerPos] = useState({ x: 250, y: 250 }) // Center of large map
   const [selectedTile, setSelectedTile] = useState(null)
+
+  const handleTileSelect = (tile) => {
+    setSelectedTile(tile);
+  }
+
+  const handleEnterManagement = () => {
+    setActiveTab('tile_detail');
+  }
 
   // View State
   const [activeTab, setActiveTab] = useState('world_map');
@@ -77,31 +78,6 @@ function App() {
   // Initial World Gen moved to State Initializer or explicit Event,
   // preventing useEffect setState loops.
 
-  // Ensure Map exists if we switch to dashboard (e.g. after character creation)
-  useEffect(() => {
-    if (gameState === 'dashboard' && !map) {
-      console.log("Generating World (Effect)...");
-      const newMap = generateWorldMap();
-      setMap(newMap);
-      // We can safely add log here as it's a response to state change, not a loop
-      addToLog("Global Satellites Interfaced. 500km Scan Complete.");
-    }
-  }, [gameState, map]);
-
-
-
-
-
-  const handleTileSelect = (tile) => {
-    setSelectedTile(tile);
-  }
-
-  const handleEnterManagement = () => {
-    setActiveTab('tile_detail');
-  }
-
-  // Initial Load & State Management
-  // Initial Load handled by lazy state now.
   // Kept empty to clean up old effect hook.
 
   // Save on state change
@@ -238,6 +214,9 @@ function App() {
       // Simulate DB Save
       localStorage.setItem('terra_user', JSON.stringify(data))
       setPlayer(data);
+      const newMap = generateWorldMap();
+      setMap(newMap);
+      addToLog("Global Satellites Interfaced. 500km Scan Complete.");
       setGameState('dashboard');
     }} />
   }
@@ -329,118 +308,6 @@ function App() {
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-function Sidebar({ activeTab, onTabChange }) {
-  return (
-    <div className="sidebar">
-      <div className="brand-title">TERRA<br />IN-COGNITA</div>
-      <div className="nav-menu">
-        <div className={`nav-item ${activeTab === 'world_map' ? 'active' : ''}`} onClick={() => onTabChange('world_map')}>
-          <span>🌍</span> Navigation
-        </div>
-        <div className={`nav-item ${activeTab === 'tile_detail' ? 'active' : ''}`} onClick={() => onTabChange('tile_detail')}>
-          <span>🏗️</span> Management
-        </div>
-        <div className={`nav-item ${activeTab === 'assets' ? 'active' : ''}`} onClick={() => onTabChange('assets')}>
-          <span>📦</span> Assets
-        </div>
-        <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => onTabChange('settings')}>
-          <span>⚙️</span> Settings
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Navbar({ player, onLogout }) {
-  if (!player) return <div className="navbar"></div>
-  return (
-    <div className="navbar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>
-          CMD: <span style={{ color: 'var(--accent-primary)' }}>{player.name}</span>
-        </div>
-        <button className="btn-small" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }} onClick={onLogout}>
-          Logout
-        </button>
-      </div>
-      <div className="resource-bar">
-        <div className="res-item"><span className="icon">💳</span> <span style={{ color: 'var(--warning)' }}>{player.money.toLocaleString()}</span></div>
-        <div className="res-item"><span className="icon">⚡</span> <span style={{ color: 'var(--success)' }}>{player.energy}</span></div>
-        <div className="res-item"><span className="icon">📦</span> <span>{player.materials}</span></div>
-      </div>
-    </div>
-  )
-}
-
-function StartScreen({ onStart }) {
-  return (
-    <div className="screen-container">
-      <h1 className="title-large">Terra In-cognita</h1>
-      <p style={{ marginBottom: '2rem', color: 'var(--accent-primary)', letterSpacing: '1px' }}>
-        HYPER-SCALE SIMULATION
-      </p>
-      <button className="btn-primary" onClick={onStart}>Initialize System</button>
-    </div>
-  )
-}
-
-function CharacterCreation({ onComplete }) {
-  const [name, setName] = useState('')
-  return (
-    <div className="screen-container">
-      <h2>Identify Yourself</h2>
-      <div className="card" style={{ padding: '2rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '300px' }}>
-        <p style={{ marginBottom: '2rem', color: 'var(--text-secondary)' }}>
-          Species: <strong style={{ color: 'var(--accent-primary)' }}>Cyborg</strong> (Class A)
-        </p>
-        <input
-          className="input-field"
-          placeholder="Enter ID"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && name.trim() && onComplete({
-            name,
-            type: 'Cyborg',
-            money: 1000,
-            energy: 500,
-            materials: 50,
-            inventory: [],
-            human_employees: [],
-            creatures: [],
-            androids: []
-          })}
-        />
-        <button className="btn-primary" onClick={() => name.trim() && onComplete({
-          name,
-          type: 'Cyborg',
-          money: 1000,
-          energy: 500,
-          materials: 50,
-          inventory: [],
-          human_employees: [],
-          creatures: [],
-          androids: []
-        })}>
-          Confirm Access
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function LogPanel({ log }) {
-  return (
-    <div className="log-panel-container" style={{ marginTop: 'auto', maxHeight: '150px', overflowY: 'auto' }}>
-      {log.map((entry, i) => (
-        <div key={i} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
-          <span style={{ color: 'var(--accent-primary)', marginRight: '8px' }}>&gt;</span>
-          {entry}
-        </div>
-      ))}
     </div>
   )
 }

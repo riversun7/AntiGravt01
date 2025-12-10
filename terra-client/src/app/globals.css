@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Magitech Palette Extension */
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-surface: var(--surface);
+  --color-surface-light: var(--surface-light);
+  --color-surface-border: var(--surface-border);
+}
+
+:root {
+  /* Magitech Theme (Dark Mode Default) */
+  --background: #030308; /* Very dark/black blue */
+  --foreground: #ededed;
+  
+  --primary: #00f0ff; /* Neon Cyan */
+  --primary-foreground: #000000;
+  
+  --secondary: #bc13fe; /* Neon Purple */
+  --secondary-foreground: #ffffff;
+  
+  --accent: #ffb800; /* Industrial Gold */
+  
+  --surface: #0a0a12;
+  --surface-light: #141420;
+  --surface-border: #252535;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom Utilities that might not be in standard tailwind yet or are complex */
+@utility glass {
+  background: rgba(10, 10, 18, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@utility glass-card {
+  background: rgba(20, 20, 32, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--surface-border);
+  border-radius: 0.5rem;
+}
+
+@utility glow-text {
+  text-shadow: 0 0 10px var(--primary);
+}

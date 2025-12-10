@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 function AssetsPanel({ player }) {
     const [subTab, setSubTab] = useState('resources'); // resources, humans, creatures, androids

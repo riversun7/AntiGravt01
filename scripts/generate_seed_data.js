@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { generateWorldMap, MAJOR_CITIES, TILE_TYPES } from '../src/data/worldData.js';
+import { generateWorldMap, MAJOR_CITIES } from '../src/data/worldData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

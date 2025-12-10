@@ -1,4 +1,3 @@
-import React from 'react';
 
 function InnerMap({ innerMapData, onBack, onTileClick }) {
     if (!innerMapData) return <div>Loading Local Data...</div>;

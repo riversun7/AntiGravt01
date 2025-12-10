@@ -1,12 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const SEED_SQL_PATH = path.join(__dirname, '../seed.sql');
-const OUTPUT_CONFIG_PATH = path.join(__dirname, '../src/data/dbConfig.json');
+const SEED_SQL_PATH = path.join(process.cwd(), 'seed.sql');
+const OUTPUT_CONFIG_PATH = path.join(process.cwd(), 'src', 'data', 'dbConfig.json');
 
 function syncConfig() {
     try {
