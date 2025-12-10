@@ -142,6 +142,43 @@ app.get('/api/admin/files', (req, res) => {
     }
 });
 
+// Inspect Tables in a DB
+app.get('/api/admin/db/:filename', (req, res) => {
+    const dbPath = path.join(__dirname, 'db', req.params.filename);
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
+
+    try {
+        const tempDb = new db.constructor(dbPath);
+        const tables = tempDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+        tempDb.close();
+        res.json(tables.map(t => t.name));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Inspect Data in a Table
+app.get('/api/admin/db/:filename/:table', (req, res) => {
+    const dbPath = path.join(__dirname, 'db', req.params.filename);
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
+
+    try {
+        const tempDb = new db.constructor(dbPath);
+        // Validate table name to prevent injection/errors (basic check)
+        const tables = tempDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(t => t.name);
+        if (!tables.includes(req.params.table)) {
+            tempDb.close();
+            return res.status(404).json({ error: 'Table not found' });
+        }
+
+        const data = tempDb.prepare(`SELECT * FROM ${req.params.table} LIMIT 100`).all();
+        tempDb.close();
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });

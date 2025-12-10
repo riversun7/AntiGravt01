@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Coins, Diamond, Database, Settings, User } from "lucide-react";
+import { Coins, Diamond, Database, Settings, User, LogOut, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface UserData {
     id: number;
     username: string;
+    role: string;
     cyborg_model: string | null;
     stats: {
         strength: number;
@@ -67,6 +68,31 @@ export default function DashboardPage() {
                     <NavItem icon={<Database />} label="Overview" active />
                     <NavItem icon={<User />} label="Character" />
                     <NavItem icon={<Settings />} label="Settings" />
+
+                    {user.role === 'admin' && (
+                        <div className="pt-4 border-t border-gray-700/50 mt-2">
+                            <button
+                                onClick={() => router.push('/admin')}
+                                className="flex items-center gap-3 p-3 rounded-md transition-colors hover:bg-red-500/10 text-red-400 hover:text-red-300 w-full"
+                            >
+                                <Shield size={20} />
+                                <span className="hidden md:inline font-bold">ADMIN</span>
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="mt-auto px-4 w-full pt-8">
+                        <button
+                            onClick={() => {
+                                localStorage.clear();
+                                window.location.href = '/login';
+                            }}
+                            className="flex items-center gap-3 p-3 text-red-500 hover:bg-red-500/10 rounded-md w-full transition-colors"
+                        >
+                            <LogOut size={20} />
+                            <span className="hidden md:inline font-bold">LOGOUT</span>
+                        </button>
+                    </div>
                 </nav>
             </aside>
 
@@ -129,7 +155,7 @@ export default function DashboardPage() {
                     </motion.div>
                 </div>
             </main>
-        </div>
+        </div >
     );
 }
 

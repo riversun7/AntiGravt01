@@ -35,11 +35,7 @@ export default function LoginPage() {
             localStorage.setItem("terra_username", data.user.username);
             localStorage.setItem("terra_role", data.user.role);
 
-            if (data.user.role === 'admin') {
-                router.push("/admin");
-            } else {
-                router.push("/dashboard");
-            }
+            router.push("/dashboard");
         } catch (err) {
             console.error(err);
             alert("System Error: Connection Failed");
