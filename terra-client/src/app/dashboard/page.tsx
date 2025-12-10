@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Coins, Diamond, Database, Settings, User, LogOut, Shield } from "lucide-react";
+import { Coins, Diamond, Database, Settings, User, LogOut, Shield, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface UserData {
@@ -66,6 +66,7 @@ export default function DashboardPage() {
 
                 <nav className="flex flex-col gap-2 px-4 w-full">
                     <NavItem icon={<Database />} label="Overview" active />
+                    <NavItem icon={<TrendingUp />} label="Market" onClick={() => router.push('/market')} />
                     <NavItem icon={<User />} label="Character" />
                     <NavItem icon={<Settings />} label="Settings" />
 
@@ -185,9 +186,12 @@ function ResourceCard({ icon, value, label }: { icon: React.ReactNode, value: nu
     )
 }
 
-function NavItem({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {
+function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) {
     return (
-        <button className={`flex items-center gap-3 p-3 rounded-md transition-colors ${active ? "bg-primary/10 text-primary border border-primary/20" : "hover:bg-surface-light text-gray-400 hover:text-white"}`}>
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-3 p-3 rounded-md transition-colors ${active ? "bg-primary/10 text-primary border border-primary/20" : "hover:bg-surface-light text-gray-400 hover:text-white"}`}
+        >
             {icon}
             <span className="hidden md:inline font-medium">{label}</span>
         </button>

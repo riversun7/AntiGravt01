@@ -103,6 +103,117 @@ app.put('/api/user/:id', (req, res) => {
     }
 });
 
+// Economy: Market Ticker & APIs
+const MARKET_UPDATE_INTERVAL = 60000; // 1 minute
+
+function updateMarketPrices() {
+    try {
+        const items = db.prepare('SELECT * FROM market_items').all();
+        const updateStmt = db.prepare('UPDATE market_items SET current_price = ?, previous_price = ? WHERE id = ?');
+
+        items.forEach(item => {
+            // Simple random fluctuation: -volatility% to +volatility%
+            const changePercent = (Math.random() * (item.volatility * 2) - item.volatility) / 100;
+            let newPrice = Math.floor(item.current_price * (1 + changePercent));
+
+            // Bounds check (e.g., minimum 10% of base price, max 500% ?)
+            if (newPrice < item.base_price * 0.1) newPrice = Math.floor(item.base_price * 0.1);
+
+            updateStmt.run(newPrice, item.current_price, item.id);
+        });
+        console.log(`[Market] Prices updated at ${new Date().toLocaleTimeString()}`);
+    } catch (e) {
+        console.error("Market Update Error:", e);
+    }
+}
+
+// Start Ticker
+setInterval(updateMarketPrices, MARKET_UPDATE_INTERVAL);
+
+// API: Get Market Items
+app.get('/api/market', (req, res) => {
+    try {
+        const items = db.prepare('SELECT * FROM market_items').all();
+        res.json(items);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// API: Get Inventory
+app.get('/api/inventory/:userId', (req, res) => {
+    try {
+        const inventory = db.prepare(`
+            SELECT ui.*, mi.name, mi.code, mi.description 
+            FROM user_inventory ui 
+            JOIN market_items mi ON ui.item_id = mi.id 
+            WHERE ui.user_id = ?
+        `).all(req.params.userId);
+        res.json(inventory);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// API: Trade (Buy/Sell)
+app.post('/api/market/trade', (req, res) => {
+    const { user_id, item_id, type, quantity } = req.body; // type: 'BUY' or 'SELL'
+
+    if (quantity <= 0) return res.status(400).json({ error: 'Invalid quantity' });
+
+    try {
+        const item = db.prepare('SELECT * FROM market_items WHERE id = ?').get(item_id);
+        const userRes = db.prepare('SELECT * FROM user_resources WHERE user_id = ?').get(user_id);
+
+        if (!item || !userRes) return res.status(404).json({ error: 'Item or User not found' });
+
+        const totalCost = item.current_price * quantity;
+
+        if (type === 'BUY') {
+            if (userRes.gold < totalCost) {
+                return res.status(400).json({ error: 'Insufficient Gold' });
+            }
+
+            // Transaction
+            const buyTx = db.transaction(() => {
+                // Deduct Gold
+                db.prepare('UPDATE user_resources SET gold = gold - ? WHERE user_id = ?').run(totalCost, user_id);
+                // Add Item
+                const limit = db.prepare('SELECT * FROM user_inventory WHERE user_id = ? AND item_id = ?').get(user_id, item_id);
+                if (limit) {
+                    db.prepare('UPDATE user_inventory SET quantity = quantity + ? WHERE user_id = ? AND item_id = ?').run(quantity, user_id, item_id);
+                } else {
+                    db.prepare('INSERT INTO user_inventory (user_id, item_id, quantity) VALUES (?, ?, ?)').run(user_id, item_id, quantity);
+                }
+            });
+            buyTx();
+            res.json({ success: true, message: `Bought ${quantity} ${item.name}` });
+
+        } else if (type === 'SELL') {
+            const inventory = db.prepare('SELECT * FROM user_inventory WHERE user_id = ? AND item_id = ?').get(user_id, item_id);
+            if (!inventory || inventory.quantity < quantity) {
+                return res.status(400).json({ error: 'Insufficient Items' });
+            }
+
+            // Transaction
+            const sellTx = db.transaction(() => {
+                // Add Gold
+                db.prepare('UPDATE user_resources SET gold = gold + ? WHERE user_id = ?').run(totalCost, user_id);
+                // Deduct Item
+                db.prepare('UPDATE user_inventory SET quantity = quantity - ? WHERE user_id = ? AND item_id = ?').run(quantity, user_id, item_id);
+            });
+            sellTx();
+            res.json({ success: true, message: `Sold ${quantity} ${item.name}` });
+
+        } else {
+            res.status(400).json({ error: 'Invalid trade type' });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Admin APIs
 const fs = require('fs');
 const path = require('path');
