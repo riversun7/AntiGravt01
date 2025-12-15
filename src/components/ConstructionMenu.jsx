@@ -1,16 +1,10 @@
-import { BUILDING_TYPES } from '../data/constants';
+import React from 'react';
+import { BUILDINGS } from '../data/buildings';
 
 function ConstructionMenu({ tile, onBuild, onCancel, player }) {
-    console.log("ConstructionMenu rendering with:", { tile, player });
-    console.log("BUILDING_TYPES:", typeof BUILDING_TYPES, BUILDING_TYPES);
     if (!tile) return null;
 
-    if (!BUILDING_TYPES) {
-        console.error("CRITICAL: BUILDING_TYPES is missing!");
-        return <div>Error: Missing Data</div>;
-    }
-
-    const buildings = Object.values(BUILDING_TYPES);
+    const buildings = Object.values(BUILDINGS);
 
     return (
         <div className="construction-menu" style={{
@@ -50,7 +44,12 @@ function ConstructionMenu({ tile, onBuild, onCancel, player }) {
                                     <span style={{ color: 'var(--text-primary)' }}> 📦{b.cost.materials}</span>
                                 </div>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--success)' }}>
-                                    Output: {Object.entries(b.output).map(([k, v]) => `${k.toUpperCase()} +${v}`).join(', ')}
+                                    Prod: {Object.entries(b.production || {}).map(([k, v]) => `${k.toUpperCase()} +${v}`).join(', ')}
+                                </div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>
+                                    {b.consumption && Object.keys(b.consumption).length > 0 &&
+                                        `Use: ${Object.entries(b.consumption).map(([k, v]) => `${k.toUpperCase()} -${v}`).join(', ')}`
+                                    }
                                 </div>
                             </div>
                             <button

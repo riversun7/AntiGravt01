@@ -1,4 +1,6 @@
-import { getMovementCost, TILE_TYPES } from '../data/worldData';
+import React from 'react';
+import { TILE_TYPES } from '../data/worldData';
+import { MapService } from '../services/mapService';
 
 function MapOverlay({ selectedTile, playerPos, onMove, onManage, onEnter, onClose }) {
     if (!selectedTile) return null;
@@ -7,7 +9,7 @@ function MapOverlay({ selectedTile, playerPos, onMove, onManage, onEnter, onClos
     const isAtLocation = dist === 0;
     const isAdjacent = dist === 1;
     const canMove = dist > 0;
-    const moveCost = getMovementCost(selectedTile.type);
+    const moveCost = MapService.getMovementCost(selectedTile.type);
 
     return (
         <div className="map-overlay-card" style={{

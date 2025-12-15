@@ -440,6 +440,23 @@
   opacity: 0.7;
 }
 
+.map-tile.in-territory {
+  box-shadow: inset 0 0 0 1px rgba(255, 50, 50, 0.2);
+  background: rgba(255, 50, 50, 0.05);
+  /* Slight Red Tint */
+}
+
+.map-tile.in-territory::before {
+  content: '';
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 4px;
+  height: 4px;
+  border-top: 1px solid rgba(255, 100, 100, 0.5);
+  border-right: 1px solid rgba(255, 100, 100, 0.5);
+}
+
 .map-tile.type-energy {
   background: rgba(255, 0, 220, 0.05);
 }

@@ -1,16 +1,43 @@
-import { TILE_TYPES } from '../data/worldData';
+import React, { useState } from 'react';
+import { useGame } from '../context/GameContext';
+import { UNIT_TYPES } from '../data/units';
+import { BUILDINGS } from '../data/buildings';
 
 function ManagementPanel({ tile, onBack }) {
-    if (!tile) return <div className="sector-detail">No sector selected.</div>;
+    const { player, setPlayer, log, addToLog } = useGame();
+    const [activeTab, setActiveTab] = useState('personnel'); // facilities, personnel
 
-    // Mock Building Data
-    const facilities = [
-        { id: 1, name: 'Solar Array', status: 'Active', output: '+10 Energy/turn' },
-        { id: 2, name: 'Mineral Extractor', status: 'Idle', output: '+5 Materials/turn' },
-        { id: 3, name: 'Habitation Module', status: 'Optimal', output: 'Population: 50' }
-    ];
+    const handleRecruit = (unitType) => {
+        // Cost Check
+        if (player.money < unitType.cost.money) {
+            addToLog(`Insufficient Credits to recruit ${unitType.name}.`);
+            return;
+        }
+        if (unitType.cost.food && (player.food || 0) < unitType.cost.food) {
+            // We don't have food resource yet, ignore for now or add to player structure
+            // simplifying to just money/energy/materials for MVP
+        }
 
-    const isCity = tile.type === TILE_TYPES.CITY;
+        // Deduct Cost
+        const newMoney = player.money - unitType.cost.money;
+        const newUnits = [...(player.units || []), {
+            ...unitType,
+            instanceId: Date.now(),
+            assignedTo: null
+        }];
+
+        setPlayer(p => ({
+            ...p,
+            money: newMoney,
+            units: newUnits
+        }));
+
+        addToLog(`Recruited: ${unitType.name}.`);
+    };
+
+    const unitList = Object.values(UNIT_TYPES);
+    const ownedUnits = player.units || [];
+    const ownedBuildings = player.buildings || [];
 
     return (
         <div className="management-panel" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -23,80 +50,83 @@ function ManagementPanel({ tile, onBack }) {
                 alignItems: 'center'
             }}>
                 <div>
-                    <h2 style={{ margin: 0 }}>
-                        {tile.data?.name || `Sector [${tile.x}, ${tile.y}]`} - Management
-                    </h2>
-                    <span className="badge" style={{
-                        background: 'var(--bg-primary)',
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '4px',
-                        fontSize: '0.8rem',
-                        marginTop: '0.5rem',
-                        display: 'inline-block',
-                        border: '1px solid var(--accent-primary)'
-                    }}>
-                        {tile.type.toUpperCase()}
-                    </span>
+                    <h2 style={{ margin: 0 }}>Command Center</h2>
+                    {tile && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                            Sector [{tile.x}, {tile.y}] Local Command
+                        </div>
+                    )}
                 </div>
-                <button className="btn-secondary" onClick={onBack}>
-                    ← Return to Orbit
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                        className={`btn-secondary ${activeTab === 'personnel' ? 'active-tab' : ''}`}
+                        onClick={() => setActiveTab('personnel')}
+                        style={{ background: activeTab === 'personnel' ? 'var(--accent-primary)' : '' }}
+                    >
+                        Personnel
+                    </button>
+                    <button
+                        className={`btn-secondary ${activeTab === 'facilities' ? 'active-tab' : ''}`}
+                        onClick={() => setActiveTab('facilities')}
+                        style={{ background: activeTab === 'facilities' ? 'var(--accent-primary)' : '' }}
+                    >
+                        Facilities
+                    </button>
+                </div>
             </div>
 
             <div className="panel-content" style={{ flex: 1, overflowY: 'auto' }}>
 
-                {isCity ? (
-                    <div className="city-overview" style={{ marginBottom: '2rem' }}>
-                        <h3>City Status</h3>
-                        <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-                            <div className="stat-card card">
-                                <div className="label">Population</div>
-                                <div className="value" style={{ fontSize: '1.5rem', color: 'var(--accent-primary)' }}>12,450</div>
-                            </div>
-                            <div className="stat-card card">
-                                <div className="label">Happiness</div>
-                                <div className="value" style={{ fontSize: '1.5rem', color: 'var(--success)' }}>87%</div>
-                            </div>
-                            <div className="stat-card card">
-                                <div className="label">Output</div>
-                                <div className="value" style={{ fontSize: '1.5rem', color: 'var(--warning)' }}>98%</div>
-                            </div>
+                {activeTab === 'facilities' && (
+                    <div className="facilities-section">
+                        <h3>Operational Facilities ({ownedBuildings.length})</h3>
+                        {ownedBuildings.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>No facilities constructed.</p>}
+                        <div className="list-grid">
+                            {ownedBuildings.map((b, i) => (
+                                <div key={i} className="card" style={{ padding: '1rem', marginBottom: '0.5rem' }}>
+                                    <div style={{ fontWeight: 'bold' }}>{b.name}</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--success)' }}>Active (Efficiency: 100%)</div>
+                                </div>
+                            ))}
                         </div>
-                    </div>
-                ) : (
-                    <div className="terrain-overview" style={{ marginBottom: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-                        This sector is currently under development. Construct facilities to exploit local resources.
                     </div>
                 )}
 
-                <h3>Facilities</h3>
-                <div className="facilities-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {facilities.map(facility => (
-                        <div key={facility.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem' }}>
-                            <div>
-                                <div style={{ fontWeight: 'bold' }}>{facility.name}</div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{facility.output}</div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <span className={`status-indicator ${facility.status === 'Active' ? 'active' : ''}`} style={{
-                                    color: facility.status === 'Active' ? 'var(--success)' : 'var(--text-secondary)'
-                                }}>
-                                    ● {facility.status}
-                                </span>
-                                <button className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.3rem 0.8rem' }}>Config</button>
+                {activeTab === 'personnel' && (
+                    <div className="personnel-section">
+                        <div className="recruitment-center" style={{ marginBottom: '2rem' }}>
+                            <h3>Recruitment Protocol</h3>
+                            <div className="recruit-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+                                {unitList.map(u => (
+                                    <div key={u.id} className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div style={{ fontWeight: 'bold' }}>{u.name}</div>
+                                        <div style={{ fontSize: '0.8rem' }}>{u.description}</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--warning)' }}>Cost: ${u.cost.money}</div>
+                                        <button
+                                            className="btn-primary"
+                                            style={{ fontSize: '0.8rem', padding: '0.3rem' }}
+                                            onClick={() => handleRecruit(u)}
+                                            disabled={player.money < u.cost.money}
+                                        >
+                                            Recruit
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    ))}
-                    <button className="card" style={{
-                        border: '1px dashed var(--text-secondary)',
-                        background: 'transparent',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        color: 'var(--text-secondary)'
-                    }}>
-                        + Construct New Facility
-                    </button>
-                </div>
+
+                        <h3>Roster ({ownedUnits.length})</h3>
+                        <div className="roster-list">
+                            {ownedUnits.map(u => (
+                                <div key={u.instanceId} className="card" style={{ padding: '0.5rem', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>{u.name} #{u.instanceId.toString().slice(-4)}</span>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Status: {u.assignedTo ? 'Assigned' : 'Idle'}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
             </div>
         </div>
     );

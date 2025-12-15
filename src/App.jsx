@@ -1,45 +1,34 @@
+
 import { useState, useEffect } from 'react'
 import './App.css'
-import { generateWorldMap, generateInnerMap, TILE_TYPES, getMovementCost } from './data/worldData'
-
-
-
+import WorldMap from './components/WorldMap'
+import InnerMap from './components/InnerMap'
+import Minimap from './components/Minimap'
+import MapOverlay from './components/MapOverlay'
+import SettingsPanel from './components/SettingsPanel'
+import ConstructionMenu from './components/ConstructionMenu'
+import AssetsPanel from './components/AssetsPanel'
+import ManagementPanel from './components/ManagementPanel'
+import ResearchPanel from './components/ResearchPanel'
+import SaveSlotMenu from './components/SaveSlotMenu' // Added
+import { TILE_TYPES } from './data/worldData'
+import { MapService } from './services/mapService'
+import { useGame } from './context/GameContext'
+import { useTranslation } from './i18n/i18n'
 
 function App() {
-  const [gameState, setGameState] = useState(() => {
-    return localStorage.getItem('terra_user') ? 'dashboard' : 'start';
-  });
-  const [player, setPlayer] = useState(() => {
-    try {
-      const stored = localStorage.getItem('terra_user');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
+  const {
+    gameState, player, map, innerMap, playerPos, log,
+    login, loadGame, saveGame, logout,
+    setInnerMap, setPlayer, addToLog, t
+  } = useGame();
 
-  // Global Map State
-  const [map, setMap] = useState(() => {
-    // Generate map immediately if we are in dashboard mode to avoid undefined map state
-    if (localStorage.getItem('terra_user')) {
-      console.log("Generating World (Lazy Init)...");
-      return generateWorldMap();
-    }
-    return null;
-  });
+  // Slot Selection State
+  const [showNameInput, setShowNameInput] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [tempName, setTempName] = useState('');
 
-  const [playerPos, setPlayerPos] = useState({ x: 250, y: 250 }) // Center of large map
-  const [selectedTile, setSelectedTile] = useState(null)
-
-  const handleTileSelect = (tile) => {
-    setSelectedTile(tile);
-  }
-
-  const handleEnterManagement = () => {
-    setActiveTab('tile_detail');
-  }
-
-  // View State
+  // View State (UI only)
   const [activeTab, setActiveTab] = useState('world_map');
   const [viewMode, setViewMode] = useState('ORBIT');
   const [innerMapData, setInnerMapData] = useState(null);
@@ -47,15 +36,11 @@ function App() {
     return localStorage.getItem('terra_theme') || 'cyber';
   });
 
-  const [log, setLog] = useState([])
   const [moving, setMoving] = useState(false)
-  const [constructionTarget, setConstructionTarget] = useState(null) // {x, y} for building
+  const [constructionTarget, setConstructionTarget] = useState(null)
+  const [selectedTile, setSelectedTile] = useState(null)
 
-  const addToLog = (msg) => {
-    setLog(prev => [msg, ...prev].slice(0, 5))
-  }
-
-  // Theme Management Side Effect
+  // Theme Management
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
@@ -68,65 +53,39 @@ function App() {
 
   const handleResetData = () => {
     if (confirm('Are you sure you want to wipe all data? This cannot be undone.')) {
-      localStorage.removeItem('terra_user');
+      logout(); // Use context logout
       localStorage.removeItem('terra_theme');
       location.reload();
     }
   };
 
-  // Initial World Gen
-  // Initial World Gen moved to State Initializer or explicit Event,
-  // preventing useEffect setState loops.
-
-  // Kept empty to clean up old effect hook.
-
-  // Save on state change
-  useEffect(() => {
-    if (player) {
-      localStorage.setItem('terra_user', JSON.stringify(player))
-    }
-  }, [player])
-
-  const handleLogout = () => {
-    localStorage.removeItem('terra_user')
-    setPlayer(null)
-    setGameState('start')
-  }
-
   // World Map Movement
   const movePlayerTo = (targetX, targetY) => {
-    if (moving) return;
-    if (!map) return;
+    if (moving || !map) return;
     if (playerPos.x === targetX && playerPos.y === targetY) return;
 
-    // Simple Manhattan distance for now (no obstacles)
+    // Simple Manhattan distance
     const distX = Math.abs(playerPos.x - targetX);
     const distY = Math.abs(playerPos.y - targetY);
     const totalDist = distX + distY;
 
-    // Base cost calculation (simplified for long distance)
     const targetTile = map[targetY][targetX];
-    const terrainCost = getMovementCost(targetTile.type);
-
-    // Total energy needed (approximate linear cost)
+    const terrainCost = MapService.getMovementCost(targetTile.type);
     const totalEnergyCost = Math.floor(totalDist * terrainCost);
 
     if (player.energy < totalEnergyCost) {
-      addToLog(`Insufficient Energy. Need ${totalEnergyCost} for this trajectory.`);
+      addToLog(`Insufficient Energy.Need ${totalEnergyCost} for this trajectory.`);
       return;
     }
 
-    // Initiate Travel
     setMoving(true);
-    const travelTimeMs = totalDist * 300 * terrainCost; // 300ms per tile base
+    const travelTimeMs = totalDist * 300 * terrainCost;
 
-    addToLog(`Thrusters engaged. ETA: ${(travelTimeMs / 1000).toFixed(1)}s`);
-
-    // visual update of "ghost" or just wait? 
-    // For now, just wait and teleport to simulate travel time, 
-    // ideally we would step through, but let's do direct for v1 of this feature.
+    addToLog(`Thrusters engaged.ETA: ${(travelTimeMs / 1000).toFixed(1)} s`);
 
     setTimeout(() => {
+      // Direct state mutation replaced with setPlayer in context? 
+      // Context exposes setPlayer. We need to respect immutability.
       setPlayer(p => ({ ...p, energy: p.energy - totalEnergyCost }));
       setPlayerPos({ x: targetX, y: targetY });
       setMoving(false);
@@ -134,14 +93,12 @@ function App() {
       if (map[targetY][targetX].type === TILE_TYPES.CITY) {
         addToLog(`Arrived at ${map[targetY][targetX].data.name}. Orbit established.`);
       } else {
-        addToLog(`Arrival confirmed at [${targetX}, ${targetY}].`);
+        addToLog(`Arrival confirmed at[${targetX}, ${targetY}].`);
       }
     }, travelTimeMs);
   };
 
   const handleWorldMove = (x, y) => movePlayerTo(x, y);
-
-
 
   const handleTileDoubleClick = (tile) => {
     movePlayerTo(tile.x, tile.y);
@@ -155,10 +112,10 @@ function App() {
     }
 
     // Generate Local Map
-    const localData = generateInnerMap(currentTile);
+    const localData = MapService.generateInnerMap(currentTile);
     setInnerMapData(localData);
     setViewMode('SURFACE');
-    addToLog(`Initiating Atmosphere Entry... landed at [${currentTile.x}, ${currentTile.y}]`);
+    addToLog(`Initiating Atmosphere Entry... landed at[${currentTile.x}, ${currentTile.y}]`);
   }
 
   const handleExitSector = () => {
@@ -169,7 +126,6 @@ function App() {
   }
 
   const handleInnerTileClick = (x, y, tile) => {
-    // Allow building on empty land or city blocks (redevelopment)
     if (tile.type !== 'empty' && tile.type !== 'city_block') {
       addToLog(`Cannot build on ${tile.type.replace('_', ' ')}.`);
       return;
@@ -184,14 +140,15 @@ function App() {
   const handleConstruct = (building) => {
     if (!constructionTarget || !innerMapData) return;
 
-    // Deduct resources
     setPlayer(p => ({
       ...p,
       money: p.money - building.cost.money,
-      materials: p.materials - building.cost.materials
+      materials: p.materials - building.cost.materials,
+      buildings: [...(p.buildings || []), building] // Add to economy
     }));
 
-    // Update map data (Local State Only for now)
+    // Local Map Data update (Still local for now, effectively "Session" state for inner map)
+    // Could move to context if we want persistence of inner maps later.
     const newTiles = innerMapData.tiles.map((row, rY) =>
       row.map((tile, rX) => {
         if (rY === constructionTarget.y && rX === constructionTarget.x) {
@@ -203,40 +160,87 @@ function App() {
 
     setInnerMapData(prev => ({ ...prev, tiles: newTiles }));
     setConstructionTarget(null);
-    addToLog(`Construction Complete: ${building.name} at [${constructionTarget.x}, ${constructionTarget.y}]`);
+    addToLog(`Construction Complete: ${building.name} at[${constructionTarget.x}, ${constructionTarget.y}]`);
   }
 
-  if (gameState === 'start') {
-    return <StartScreen onStart={() => setGameState('create')} />
+  const handleTileSelect = (tile) => {
+    setSelectedTile(tile);
   }
-  if (gameState === 'create') {
-    return <CharacterCreation onComplete={(data) => {
-      // Simulate DB Save
-      localStorage.setItem('terra_user', JSON.stringify(data))
-      setPlayer(data);
-      const newMap = generateWorldMap();
-      setMap(newMap);
-      addToLog("Global Satellites Interfaced. 500km Scan Complete.");
-      setGameState('dashboard');
-    }} />
+
+  const handleEnterManagement = () => {
+    setActiveTab('tile_detail');
   }
+
+  // --- Render ---
+  if (gameState === 'init') {
+    return (
+      <>
+        {showNameInput ? (
+          <div className="screen-container">
+            <h2 className="title-large">IDENTIFY</h2>
+            <div className="card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <p>Enter Commander Name for Slot {selectedSlot}</p>
+              <input
+                autoFocus
+                className="input-field"
+                placeholder="Commander Name"
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && tempName.trim()) {
+                    login(tempName, selectedSlot);
+                  }
+                }}
+              />
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  if (tempName.trim()) login(tempName, selectedSlot);
+                }}
+              >
+                INITIALIZE
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => setShowNameInput(false)}
+                style={{ marginTop: '1rem' }}
+              >
+                CANCEL
+              </button>
+            </div>
+          </div>
+        ) : (
+          <SaveSlotMenu onSelectSlot={(slotId, isEmpty) => {
+            if (isEmpty) {
+              setSelectedSlot(slotId);
+              setShowNameInput(true);
+            } else {
+              loadGame(slotId);
+            }
+          }} />
+        )}
+      </>
+    );
+  }
+
+  // Fallback for safety
+  if (!player) return <div className="screen-container">Loading Neural Interface...</div>
 
   return (
     <div className="app-layout">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="main-content">
-        <Navbar player={player} onLogout={handleLogout} />
+        <Navbar player={player} onLogout={logout} />
         <div className="content-viewport">
 
-          {/* Main View Container */}
           <div className="view-container">
 
             {activeTab === 'world_map' && (
               <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                   <h3 style={{ color: 'var(--accent-primary)' }}>
-                    {viewMode === 'ORBIT' ? 'Global Orbit Scan' : 'Planetary Surface Link'}
-                    {moving && <span style={{ fontSize: '0.8rem', color: 'var(--warning)' }}> (THRUSTERS ACTIVE...)</span>}
+                    {viewMode === 'ORBIT' ? t('mode.orbit') : t('mode.surface')}
+                    {moving && <span style={{ fontSize: '0.8rem', color: 'var(--warning)' }}> ({t('msg.thrusters')})</span>}
                   </h3>
                 </div>
 
@@ -260,7 +264,6 @@ function App() {
                         onEnter={handleEnterSector}
                         onClose={() => setSelectedTile(null)}
                       />
-                      {/* Floating Minimap */}
                       <div style={{ position: 'absolute', bottom: '20px', right: '20px', zIndex: 100 }}>
                         <Minimap map={map} playerPos={playerPos} />
                       </div>
@@ -298,6 +301,10 @@ function App() {
               <AssetsPanel player={player} />
             )}
 
+            {activeTab === 'research' && (
+              <ResearchPanel />
+            )}
+
             {activeTab === 'settings' && (
               <SettingsPanel
                 theme={theme}
@@ -312,5 +319,129 @@ function App() {
   )
 }
 
+function Sidebar({ activeTab, onTabChange }) {
+  const { t } = useTranslation();
+  return (
+    <div className="sidebar">
+      <div className="brand-title">TERRA<br />IN-COGNITA</div>
+      <div className="nav-menu">
+        <div className={`nav-item ${activeTab === 'world_map' ? 'active' : ''}`} onClick={() => onTabChange('world_map')}>
+          <span>🌍</span> {t('nav.world_map')}
+        </div>
+        <div className={`nav-item ${activeTab === 'tile_detail' ? 'active' : ''}`} onClick={() => onTabChange('tile_detail')}>
+          <span>🏗️</span> {t('nav.tile_detail')}
+        </div>
+        <div className={`nav-item ${activeTab === 'assets' ? 'active' : ''}`} onClick={() => onTabChange('assets')}>
+          <span>📦</span> {t('nav.assets')}
+        </div>
+        <div className={`nav-item ${activeTab === 'research' ? 'active' : ''}`} onClick={() => onTabChange('research')}>
+          <span>🧬</span> Research
+        </div>
+        <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => onTabChange('settings')}>
+          <span>⚙️</span> {t('nav.settings')}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Navbar({ player, onLogout }) {
+  if (!player) return <div className="navbar"></div>
+  return (
+    <div className="navbar">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+          CMD: <span style={{ color: 'var(--accent-primary)' }}>{player.name}</span>
+        </div>
+        <button className="btn-small" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }} onClick={onLogout}>
+          Logout
+        </button>
+      </div>
+      <div className="resource-bar">
+        <div className="res-item"><span className="icon">💳</span> <span style={{ color: 'var(--warning)' }}>{player.money.toLocaleString()}</span></div>
+        <div className="res-item"><span className="icon">⚡</span> <span style={{ color: 'var(--success)' }}>{player.energy}</span></div>
+        <div className="res-item"><span className="icon">📦</span> <span>{player.materials}</span></div>
+        <div className="res-item" style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '1.5rem', marginLeft: '0.5rem' }}>
+          <span className="icon">🛡️</span>
+          <span style={{ color: 'var(--accent-primary)' }}>{player.defenseLevel || 0}</span>
+          <span style={{ margin: '0 0.5rem', color: 'var(--text-secondary)' }}>/</span>
+          <span className="icon">⚠️</span>
+          <span style={{ color: (player.threatLevel || 0) > 80 ? 'var(--danger)' : 'var(--text-secondary)' }}>
+            {Math.floor(player.threatLevel || 0)}%
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StartScreen({ onStart }) {
+  return (
+    <div className="screen-container">
+      <h1 className="title-large">Terra In-cognita</h1>
+      <p style={{ marginBottom: '2rem', color: 'var(--accent-primary)', letterSpacing: '1px' }}>
+        HYPER-SCALE SIMULATION
+      </p>
+      <button className="btn-primary" onClick={onStart}>Initialize System</button>
+    </div>
+  )
+}
+
+function CharacterCreation({ onComplete }) {
+  const [name, setName] = useState('')
+  return (
+    <div className="screen-container">
+      <h2>Identify Yourself</h2>
+      <div className="card" style={{ padding: '2rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '300px' }}>
+        <p style={{ marginBottom: '2rem', color: 'var(--text-secondary)' }}>
+          Species: <strong style={{ color: 'var(--accent-primary)' }}>Cyborg</strong> (Class A)
+        </p>
+        <input
+          className="input-field"
+          placeholder="Enter ID"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && name.trim() && onComplete({
+            name,
+            type: 'Cyborg',
+            money: 1000,
+            energy: 500,
+            materials: 50,
+            inventory: [],
+            human_employees: [],
+            creatures: [],
+            androids: []
+          })}
+        />
+        <button className="btn-primary" onClick={() => name.trim() && onComplete({
+          name,
+          type: 'Cyborg',
+          money: 1000,
+          energy: 500,
+          materials: 50,
+          inventory: [],
+          human_employees: [],
+          creatures: [],
+          androids: []
+        })}>
+          Confirm Access
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function LogPanel({ log }) {
+  return (
+    <div className="log-panel-container" style={{ marginTop: 'auto', maxHeight: '150px', overflowY: 'auto' }}>
+      {log.map((entry, i) => (
+        <div key={i} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+          <span style={{ color: 'var(--accent-primary)', marginRight: '8px' }}>&gt;</span>
+          {entry}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default App
-// Re-verified syntax structure
