@@ -15,6 +15,8 @@ import { TILE_TYPES } from './data/worldData'
 import { MapService } from './services/mapService'
 import { useGame } from './context/GameContext'
 import { useTranslation } from './i18n/i18n'
+import GlobalMap from './components/GlobalMap' // Added
+import TerrainMap from './components/TerrainMap' // Added
 
 function App() {
   const {
@@ -312,6 +314,14 @@ function App() {
                 onResetData={handleResetData}
               />
             )}
+
+            {activeTab === 'global_map' && (
+              <GlobalMap />
+            )}
+
+            {activeTab === 'terrain_map' && (
+              <TerrainMap />
+            )}
           </div>
         </div>
       </div>
@@ -327,6 +337,12 @@ function Sidebar({ activeTab, onTabChange }) {
       <div className="nav-menu">
         <div className={`nav-item ${activeTab === 'world_map' ? 'active' : ''}`} onClick={() => onTabChange('world_map')}>
           <span>🌍</span> {t('nav.world_map')}
+        </div>
+        <div className={`nav-item ${activeTab === 'global_map' ? 'active' : ''}`} onClick={() => onTabChange('global_map')}>
+          <span>🗺️</span> Global Map
+        </div>
+        <div className={`nav-item ${activeTab === 'terrain_map' ? 'active' : ''}`} onClick={() => onTabChange('terrain_map')}>
+          <span>🏔️</span> Terrain Map
         </div>
         <div className={`nav-item ${activeTab === 'tile_detail' ? 'active' : ''}`} onClick={() => onTabChange('tile_detail')}>
           <span>🏗️</span> {t('nav.tile_detail')}
