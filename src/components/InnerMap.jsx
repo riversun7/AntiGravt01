@@ -10,7 +10,19 @@ function InnerMap({ innerMapData, onBack, onTileClick }) {
     return (
         <div className="map-container inner-view">
             <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <button onClick={onBack} className="btn-small">⬅ Return to Orbit</button>
+                <button
+                    onClick={onBack}
+                    className="btn-secondary"
+                    style={{
+                        borderColor: 'var(--accent-primary)',
+                        color: 'var(--accent-primary)',
+                        padding: '0.5rem 1.2rem',
+                        fontWeight: 'bold',
+                        background: 'rgba(0, 240, 255, 0.1)'
+                    }}
+                >
+                    ⬅ RETURN TO ORBIT
+                </button>
                 <h3>Local Sector Surface [{parentTile.x}, {parentTile.y}]</h3>
             </div>
 

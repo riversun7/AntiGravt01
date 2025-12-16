@@ -5,18 +5,19 @@ import WorldMap from './components/WorldMap'
 import InnerMap from './components/InnerMap'
 import Minimap from './components/Minimap'
 import MapOverlay from './components/MapOverlay'
+import WorldMapPanel from './components/WorldMapPanel'
 import SettingsPanel from './components/SettingsPanel'
 import ConstructionMenu from './components/ConstructionMenu'
 import AssetsPanel from './components/AssetsPanel'
 import ManagementPanel from './components/ManagementPanel'
 import ResearchPanel from './components/ResearchPanel'
-import SaveSlotMenu from './components/SaveSlotMenu' // Added
+import SaveSlotMenu from './components/SaveSlotMenu'
 import { TILE_TYPES } from './data/worldData'
 import { MapService } from './services/mapService'
 import { useGame } from './context/GameContext'
 import { useTranslation } from './i18n/i18n'
-import GlobalMap from './components/GlobalMap' // Added
-import TerrainMap from './components/TerrainMap' // Added
+import GlobalMap from './components/GlobalMap'
+import TerrainMap from './components/TerrainMap'
 
 function App() {
   const {
@@ -30,9 +31,10 @@ function App() {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [tempName, setTempName] = useState('');
 
-  // View State (UI only)
+  // View State
   const [activeTab, setActiveTab] = useState('world_map');
   const [viewMode, setViewMode] = useState('ORBIT');
+
   const [innerMapData, setInnerMapData] = useState(null);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('terra_theme') || 'cyber';
@@ -76,34 +78,64 @@ function App() {
     const totalEnergyCost = Math.floor(totalDist * terrainCost);
 
     if (player.energy < totalEnergyCost) {
-      addToLog(`Insufficient Energy.Need ${totalEnergyCost} for this trajectory.`);
+      addToLog(`Insufficient Energy. Need ${totalEnergyCost} for this trajectory.`);
       return;
     }
 
     setMoving(true);
-    const travelTimeMs = totalDist * 300 * terrainCost;
 
-    addToLog(`Thrusters engaged.ETA: ${(travelTimeMs / 1000).toFixed(1)} s`);
+    // Calculate path (simple orthogonal path: Move X first, then Y)
+    const path = [];
+    let currentX = playerPos.x;
+    let currentY = playerPos.y;
 
-    setTimeout(() => {
-      // Direct state mutation replaced with setPlayer in context? 
-      // Context exposes setPlayer. We need to respect immutability.
-      setPlayer(p => ({ ...p, energy: p.energy - totalEnergyCost }));
-      setPlayerPos({ x: targetX, y: targetY });
-      setMoving(false);
+    while (currentX !== targetX) {
+      currentX += (targetX > currentX ? 1 : -1);
+      path.push({ x: currentX, y: currentY });
+    }
+    while (currentY !== targetY) {
+      currentY += (targetY > currentY ? 1 : -1);
+      path.push({ x: targetX, y: currentY });
+    }
 
-      if (map[targetY][targetX].type === TILE_TYPES.CITY) {
-        addToLog(`Arrived at ${map[targetY][targetX].data.name}. Orbit established.`);
-      } else {
-        addToLog(`Arrival confirmed at[${targetX}, ${targetY}].`);
+    // Step Duration based on terrain (speed)
+    // Faster movement for better UX, but still visual
+    const stepDuration = 50 * terrainCost; // 50ms base * terrain penalty
+
+    let stepIndex = 0;
+    const energyPerStep = totalEnergyCost / path.length;
+
+    addToLog(`Thrusters engaged. Calculating trajectory...`);
+
+    const moveInterval = setInterval(() => {
+      if (stepIndex >= path.length) {
+        clearInterval(moveInterval);
+        setMoving(false);
+        setPlayerPos({ x: targetX, y: targetY }); // Ensure final pos matches
+
+        if (map[targetY][targetX].type === TILE_TYPES.CITY) {
+          addToLog(`Arrived at ${map[targetY][targetX].data.name}. Orbit established.`);
+        } else {
+          addToLog(`Arrival confirmed at [${targetX}, ${targetY}].`);
+        }
+        return;
       }
-    }, travelTimeMs);
+
+      const nextPos = path[stepIndex];
+      setPlayerPos(nextPos);
+      setPlayer(p => ({ ...p, energy: Math.max(0, p.energy - energyPerStep) }));
+      stepIndex++;
+    }, stepDuration);
   };
 
   const handleWorldMove = (x, y) => movePlayerTo(x, y);
 
   const handleTileDoubleClick = (tile) => {
-    movePlayerTo(tile.x, tile.y);
+    if (tile.x === playerPos.x && tile.y === playerPos.y) {
+      handleEnterSector();
+    } else {
+      movePlayerTo(tile.x, tile.y);
+    }
   }
 
   const handleEnterSector = () => {
@@ -117,7 +149,7 @@ function App() {
     const localData = MapService.generateInnerMap(currentTile);
     setInnerMapData(localData);
     setViewMode('SURFACE');
-    addToLog(`Initiating Atmosphere Entry... landed at[${currentTile.x}, ${currentTile.y}]`);
+    addToLog(`Initiating Atmosphere Entry... landed at [${currentTile.x}, ${currentTile.y}]`);
   }
 
   const handleExitSector = () => {
@@ -150,7 +182,6 @@ function App() {
     }));
 
     // Local Map Data update (Still local for now, effectively "Session" state for inner map)
-    // Could move to context if we want persistence of inner maps later.
     const newTiles = innerMapData.tiles.map((row, rY) =>
       row.map((tile, rX) => {
         if (rY === constructionTarget.y && rX === constructionTarget.x) {
@@ -162,7 +193,7 @@ function App() {
 
     setInnerMapData(prev => ({ ...prev, tiles: newTiles }));
     setConstructionTarget(null);
-    addToLog(`Construction Complete: ${building.name} at[${constructionTarget.x}, ${constructionTarget.y}]`);
+    addToLog(`Construction Complete: ${building.name} at [${constructionTarget.x}, ${constructionTarget.y}]`);
   }
 
   const handleTileSelect = (tile) => {
@@ -322,6 +353,10 @@ function App() {
             {activeTab === 'terrain_map' && (
               <TerrainMap />
             )}
+
+            {activeTab === 'globe_projection' && (
+              <WorldMapPanel />
+            )}
           </div>
         </div>
       </div>
@@ -356,6 +391,9 @@ function Sidebar({ activeTab, onTabChange }) {
         <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => onTabChange('settings')}>
           <span>⚙️</span> {t('nav.settings')}
         </div>
+        <div className={`nav-item ${activeTab === 'globe_projection' ? 'active' : ''}`} onClick={() => onTabChange('globe_projection')}>
+          <span>🌐</span> World Map
+        </div>
       </div>
     </div>
   )
@@ -386,62 +424,6 @@ function Navbar({ player, onLogout }) {
             {Math.floor(player.threatLevel || 0)}%
           </span>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function StartScreen({ onStart }) {
-  return (
-    <div className="screen-container">
-      <h1 className="title-large">Terra In-cognita</h1>
-      <p style={{ marginBottom: '2rem', color: 'var(--accent-primary)', letterSpacing: '1px' }}>
-        HYPER-SCALE SIMULATION
-      </p>
-      <button className="btn-primary" onClick={onStart}>Initialize System</button>
-    </div>
-  )
-}
-
-function CharacterCreation({ onComplete }) {
-  const [name, setName] = useState('')
-  return (
-    <div className="screen-container">
-      <h2>Identify Yourself</h2>
-      <div className="card" style={{ padding: '2rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '300px' }}>
-        <p style={{ marginBottom: '2rem', color: 'var(--text-secondary)' }}>
-          Species: <strong style={{ color: 'var(--accent-primary)' }}>Cyborg</strong> (Class A)
-        </p>
-        <input
-          className="input-field"
-          placeholder="Enter ID"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && name.trim() && onComplete({
-            name,
-            type: 'Cyborg',
-            money: 1000,
-            energy: 500,
-            materials: 50,
-            inventory: [],
-            human_employees: [],
-            creatures: [],
-            androids: []
-          })}
-        />
-        <button className="btn-primary" onClick={() => name.trim() && onComplete({
-          name,
-          type: 'Cyborg',
-          money: 1000,
-          energy: 500,
-          materials: 50,
-          inventory: [],
-          human_employees: [],
-          creatures: [],
-          androids: []
-        })}>
-          Confirm Access
-        </button>
       </div>
     </div>
   )
