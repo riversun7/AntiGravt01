@@ -370,29 +370,34 @@ function Sidebar({ activeTab, onTabChange }) {
     <div className="sidebar">
       <div className="brand-title">TERRA<br />IN-COGNITA</div>
       <div className="nav-menu">
+        <div className="nav-group-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', margin: '1rem 0 0.5rem 1rem', textTransform: 'uppercase' }}>Command</div>
         <div className={`nav-item ${activeTab === 'world_map' ? 'active' : ''}`} onClick={() => onTabChange('world_map')}>
-          <span>🌍</span> {t('nav.world_map')}
-        </div>
-        <div className={`nav-item ${activeTab === 'global_map' ? 'active' : ''}`} onClick={() => onTabChange('global_map')}>
-          <span>🗺️</span> Global Map
-        </div>
-        <div className={`nav-item ${activeTab === 'terrain_map' ? 'active' : ''}`} onClick={() => onTabChange('terrain_map')}>
-          <span>🏔️</span> Terrain Map
+          <span>🌍</span> Navigation
         </div>
         <div className={`nav-item ${activeTab === 'tile_detail' ? 'active' : ''}`} onClick={() => onTabChange('tile_detail')}>
-          <span>🏗️</span> {t('nav.tile_detail')}
+          <span>🏗️</span> Management
         </div>
         <div className={`nav-item ${activeTab === 'assets' ? 'active' : ''}`} onClick={() => onTabChange('assets')}>
-          <span>📦</span> {t('nav.assets')}
+          <span>📦</span> Assets
         </div>
         <div className={`nav-item ${activeTab === 'research' ? 'active' : ''}`} onClick={() => onTabChange('research')}>
           <span>🧬</span> Research
         </div>
-        <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => onTabChange('settings')}>
-          <span>⚙️</span> {t('nav.settings')}
+
+        <div className="nav-group-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', margin: '1rem 0 0.5rem 1rem', textTransform: 'uppercase' }}>Visual Uplink</div>
+        <div className={`nav-item ${activeTab === 'global_map' ? 'active' : ''}`} onClick={() => onTabChange('global_map')}>
+          <span>🗺️</span> Global Map <span style={{ fontSize: '0.6rem', marginLeft: 'auto', opacity: 0.5 }}>D3</span>
+        </div>
+        <div className={`nav-item ${activeTab === 'terrain_map' ? 'active' : ''}`} onClick={() => onTabChange('terrain_map')}>
+          <span>🏔️</span> Terrain Map <span style={{ fontSize: '0.6rem', marginLeft: 'auto', opacity: 0.5 }}>Leaflet</span>
         </div>
         <div className={`nav-item ${activeTab === 'globe_projection' ? 'active' : ''}`} onClick={() => onTabChange('globe_projection')}>
-          <span>🌐</span> World Map
+          <span>🌐</span> World Map <span style={{ fontSize: '0.6rem', marginLeft: 'auto', opacity: 0.5 }}>ThreeJS</span>
+        </div>
+
+        <div className="nav-group-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', margin: '1rem 0 0.5rem 1rem', textTransform: 'uppercase' }}>System</div>
+        <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => onTabChange('settings')}>
+          <span>⚙️</span> {t('nav.settings')}
         </div>
       </div>
     </div>
