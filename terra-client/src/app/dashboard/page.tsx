@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Coins, Diamond, Database, Settings, User, LogOut, Shield, TrendingUp } from "lucide-react";
+import { Coins, Diamond, Database, Settings, User, LogOut, Shield, TrendingUp, Map } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface UserData {
@@ -54,6 +54,43 @@ export default function DashboardPage() {
             });
     }, [router]);
 
+    const [production, setProduction] = useState<{ gold: number, items: any[] }>({ gold: 0, items: [] });
+
+    // Fetch Production Loop
+    useEffect(() => {
+        if (!user) return;
+        const fetchProduction = () => {
+            fetch(`http://localhost:3001/api/production/pending?user_id=${user.id}`)
+                .then(res => res.json())
+                .then(data => setProduction(data))
+                .catch(console.error);
+        };
+        fetchProduction();
+        const interval = setInterval(fetchProduction, 5000); // Update every 5s
+        return () => clearInterval(interval);
+    }, [user]);
+
+    const handleCollect = async () => {
+        if (!user) return;
+        try {
+            const res = await fetch('http://localhost:3001/api/production/collect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user.id })
+            });
+            const data = await res.json();
+            if (data.success) {
+                // Refresh User Data
+                fetch(`http://localhost:3001/api/user/${user.id}`)
+                    .then(res => res.json())
+                    .then(u => setUser(u));
+                // Reset Production
+                setProduction({ gold: 0, items: [] });
+                alert(`Collected: ${data.gold} Gold, ${data.items} Items`);
+            }
+        } catch (e) { console.error(e); }
+    };
+
     if (!user) return <div className="min-h-screen bg-background text-white flex items-center justify-center">Loading Data Stream...</div>;
 
     return (
@@ -66,6 +103,12 @@ export default function DashboardPage() {
 
                 <nav className="flex flex-col gap-2 px-4 w-full">
                     <NavItem icon={<Database />} label="Overview" active />
+                    <div className="text-xs text-gray-500 font-bold uppercase tracking-wider px-3 mt-4 mb-2">Maps</div>
+                    <NavItem icon={<Map />} label="Tactical Map" onClick={() => router.push('/map')} />
+                    <NavItem icon={<Map />} label="3D Globe" onClick={() => router.push('/map2')} />
+                    <NavItem icon={<Map />} label="Global Map (D3)" onClick={() => router.push('/global-map')} />
+                    <NavItem icon={<Map />} label="Terrain (Leaflet)" onClick={() => router.push('/terrain-map')} />
+                    <div className="text-xs text-gray-500 font-bold uppercase tracking-wider px-3 mt-4 mb-2">Economy</div>
                     <NavItem icon={<TrendingUp />} label="Market" onClick={() => router.push('/market')} />
                     <NavItem icon={<User />} label="Character" />
                     <NavItem icon={<Settings />} label="Settings" />
@@ -135,6 +178,36 @@ export default function DashboardPage() {
                                 {user.cyborg_model === "COMMANDER" ? "🧠" : user.cyborg_model === "EXPLORER" ? "⚡" : "🛡️"}
                             </div>
                             <span className="text-gray-500 text-sm absolute bottom-2">Model: {user.cyborg_model}</span>
+                        </div>
+                    </motion.div>
+
+                    {/* Production Widget */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15 }}
+                        className="glass-card p-6 border border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]"
+                    >
+                        <h2 className="text-lg font-bold text-yellow-400 mb-2 flex items-center gap-2">
+                            <TrendingUp size={18} /> Production
+                        </h2>
+                        <div className="flex flex-col gap-4 mt-4">
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-400 text-sm">Pending Gold</span>
+                                <span className="font-mono text-xl text-yellow-400 font-bold">+{production.gold}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-400 text-sm">Pending Items</span>
+                                <span className="font-mono text-xl text-white font-bold">{production.items?.length || 0}</span>
+                            </div>
+
+                            <button
+                                onClick={handleCollect}
+                                disabled={production.gold === 0 && production.items?.length === 0}
+                                className="mt-2 w-full py-2 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold rounded flex items-center justify-center gap-2 transition-all"
+                            >
+                                COLLECT ALL
+                            </button>
                         </div>
                     </motion.div>
 

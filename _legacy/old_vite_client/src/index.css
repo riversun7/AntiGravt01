@@ -1,0 +1,133 @@
+:root {
+  /* Shared Structural Variables */
+  --font-main: 'Outfit', sans-serif;
+  --font-tech: 'Rajdhani', sans-serif;
+
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  --glass-blur: blur(12px);
+}
+
+/* Default Theme (Cyber) */
+:root[data-theme="cyber"] {
+  --bg-primary: #030408;
+  --bg-secondary: #0b101b;
+  --bg-tertiary: #151a28;
+  --bg-glass: rgba(11, 16, 27, 0.65);
+
+  --text-primary: #f0f4f8;
+  --text-secondary: #94a3b8;
+  --text-dim: #475569;
+
+  --accent-primary: #00f0ff;
+  /* Cyan */
+  --accent-secondary: #7000ff;
+  /* Purple */
+  --accent-glow: rgba(0, 240, 255, 0.5);
+
+  --success: #00ff9d;
+  --warning: #ffb800;
+  --danger: #ff0055;
+
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-active: rgba(0, 240, 255, 0.3);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Pastel Theme */
+:root[data-theme="pastel"] {
+  --bg-primary: #fdf6f6;
+  /* Soft Cream/Rose tint */
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f4eeee;
+  --bg-glass: rgba(255, 255, 255, 0.75);
+
+  --text-primary: #2d3436;
+  /* Dark Gray for contrast */
+  --text-secondary: #636e72;
+  --text-dim: #b2bec3;
+
+  --accent-primary: #ff7675;
+  /* Pastel Pink/Salmon */
+  --accent-secondary: #74b9ff;
+  /* Soft Blue */
+  --accent-glow: rgba(255, 118, 117, 0.4);
+
+  --success: #55efc4;
+  /* Mint */
+  --warning: #ffeaa7;
+  /* Cream Yellow */
+  --danger: #ff6b6b;
+  /* Soft Red */
+
+  --border-color: rgba(0, 0, 0, 0.06);
+  --border-active: rgba(255, 118, 117, 0.4);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow: hidden;
+  /* Prevent body scroll, let app handle it */
+  background-image:
+    radial-gradient(circle at 15% 50%, var(--accent-secondary) 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, var(--accent-primary) 0%, transparent 40%);
+  background-size: cover;
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+::selection {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+button {
+  cursor: pointer;
+  font-family: var(--font-tech);
+  border: none;
+  background: none;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Prevent root scrolling */
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-tech);
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+a:hover {
+  text-shadow: 0 0 8px var(--accent-glow);
+}

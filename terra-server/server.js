@@ -42,9 +42,6 @@ app.post('/api/login', (req, res) => {
                 }
             } else if (username === 'admin' && !user) {
                 // Auto-create admin if trying to login as admin for the first time? No, seeded manually or via script usually.
-                // Let's implement auto-seed for admin in initialization or just handle it here for MVP simplicity if needed,
-                // but typically we seed DB. Let's do it in database.js actually? No, here is dynamic.
-                // Let's stick to: if username is 'admin', require password provided matches DB.
             }
 
             // Update last login
@@ -212,6 +209,245 @@ app.post('/api/market/trade', (req, res) => {
         console.error(err);
         res.status(500).json({ error: err.message });
     }
+});
+
+// Map APIs
+app.get('/api/world-map', (req, res) => {
+    try {
+        const map = db.prepare('SELECT * FROM world_map').all();
+        res.json(map);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update User Position (Move)
+app.post('/api/map/move', (req, res) => {
+    const { userId, targetId } = req.body;
+    try {
+        // Validate targetId format "x_y"
+        if (!/^\d+_\d+$/.test(targetId)) throw new Error("Invalid Format");
+
+        db.prepare('UPDATE users SET current_pos = ? WHERE id = ?').run(targetId, userId);
+        res.json({ success: true, current_pos: targetId });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Build API
+app.post('/api/build', (req, res) => {
+    const { user_id, type, x, y, world_x, world_y } = req.body;
+
+    // Define Costs (Hardcoded for MVP)
+    const COSTS = {
+        'HOUSE': { gold: 100, gem: 0 },
+        'FACTORY': { gold: 500, gem: 0 },
+        'MINE': { gold: 300, gem: 0 },
+        'TURRET': { gold: 200, gem: 0 }
+    };
+
+    const cost = COSTS[type];
+    if (!cost) return res.status(400).json({ error: "Invalid Building Type" });
+
+    try {
+        const userRes = db.prepare('SELECT * FROM user_resources WHERE user_id = ?').get(user_id);
+        if (!userRes || userRes.gold < cost.gold || userRes.gem < cost.gem) {
+            return res.status(400).json({ error: "Insufficient Resources" });
+        }
+
+        // Check if space is occupied
+        const existing = db.prepare('SELECT * FROM user_buildings WHERE world_x = ? AND world_y = ? AND x = ? AND y = ?')
+            .get(world_x, world_y, x, y);
+        if (existing) return res.status(400).json({ error: "Space Occupied" });
+
+        // Transaction
+        const buildTx = db.transaction(() => {
+            // Deduct Resources
+            db.prepare('UPDATE user_resources SET gold = gold - ?, gem = gem - ? WHERE user_id = ?').run(cost.gold, cost.gem, user_id);
+            // Create Building
+            db.prepare('INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y) VALUES (?, ?, ?, ?, ?, ?)')
+                .run(user_id, type, x, y, world_x, world_y);
+        });
+
+        buildTx();
+        res.json({ success: true, message: `Built ${type}` });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Production APIs
+app.get('/api/production/pending', (req, res) => {
+    const { user_id } = req.query;
+    if (!user_id) return res.status(400).json({ error: 'User ID required' });
+
+    try {
+        const buildings = db.prepare('SELECT * FROM user_buildings WHERE user_id = ?').all(user_id);
+        const now = new Date();
+        let totalGold = 0;
+        let totalItems = [];
+
+        buildings.forEach(b => {
+            const lastCollected = new Date(b.last_collected_at);
+            const diffMs = now - lastCollected;
+            const diffMins = Math.floor(diffMs / 60000);
+
+            if (diffMins > 0) {
+                if (b.type === 'HOUSE') {
+                    totalGold += 10 * diffMins;
+                } else if (b.type === 'FACTORY') {
+                    totalGold += 50 * diffMins;
+                } else if (b.type === 'MINE') {
+                    // 1 Iron Ore per min
+                    totalItems.push({ code: 'IRON_ORE', qty: 1 * diffMins });
+                }
+            }
+        });
+
+        // Consolidate Items
+        const consolidatedItems = totalItems.reduce((acc, curr) => {
+            const existing = acc.find(i => i.code === curr.code);
+            if (existing) existing.qty += curr.qty;
+            else acc.push(curr);
+            return acc;
+        }, []);
+
+        res.json({ gold: totalGold, items: consolidatedItems });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/production/collect', (req, res) => {
+    const { user_id } = req.body;
+    try {
+        const buildings = db.prepare('SELECT * FROM user_buildings WHERE user_id = ?').all(user_id);
+        const now = new Date();
+        const nowStr = now.toISOString();
+        let totalGold = 0;
+        let totalItems = [];
+
+        const collectTx = db.transaction(() => {
+            buildings.forEach(b => {
+                const lastCollected = new Date(b.last_collected_at);
+                const diffMs = now - lastCollected;
+                const diffMins = Math.floor(diffMs / 60000);
+
+                if (diffMins > 0) {
+                    if (b.type === 'HOUSE') {
+                        totalGold += 10 * diffMins;
+                    } else if (b.type === 'FACTORY') {
+                        totalGold += 50 * diffMins;
+                    } else if (b.type === 'MINE') {
+                        totalItems.push({ code: 'IRON_ORE', qty: 1 * diffMins });
+                    }
+
+                    // Update timestamp
+                    db.prepare('UPDATE user_buildings SET last_collected_at = ? WHERE id = ?').run(nowStr, b.id);
+                }
+            });
+
+            // Credit Gold
+            if (totalGold > 0) {
+                db.prepare('UPDATE user_resources SET gold = gold + ? WHERE user_id = ?').run(totalGold, user_id);
+            }
+
+            // Credit Items
+            totalItems.forEach(item => {
+                const itemDb = db.prepare('SELECT id FROM market_items WHERE code = ?').get(item.code);
+                if (itemDb) {
+                    const existing = db.prepare('SELECT * FROM user_inventory WHERE user_id = ? AND item_id = ?').get(user_id, itemDb.id);
+                    if (existing) {
+                        db.prepare('UPDATE user_inventory SET quantity = quantity + ? WHERE user_id = ? AND item_id = ?').run(item.qty, user_id, itemDb.id);
+                    } else {
+                        db.prepare('INSERT INTO user_inventory (user_id, item_id, quantity) VALUES (?, ?, ?)').run(user_id, itemDb.id, item.qty);
+                    }
+                }
+            });
+        });
+
+        collectTx();
+        res.json({ success: true, gold: totalGold, items: totalItems.length });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/local-map/:id', (req, res) => {
+    const tileId = req.params.id; // e.g., "5_5"
+
+    // Get Biome
+    const worldTile = db.prepare('SELECT type FROM world_map WHERE id = ?').get(tileId);
+    const biome = worldTile ? worldTile.type : 'PLAIN';
+
+    const [worldX, worldY] = tileId.split('_').map(Number);
+
+    // Generate Clustered Terrain
+    const grid = [];
+    const size = 10;
+
+    // 1. Initialize Base
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            grid.push({ x, y, type: 'BASE' }); // Placeholder
+        }
+    }
+
+    // 2. Apply Biome Logic with Noise Clustering
+    // Fetch User Buildings for this World Tile
+    const buildings = db.prepare('SELECT * FROM user_buildings WHERE world_x = ? AND world_y = ?').all(worldX, worldY);
+
+    grid.forEach(tile => {
+        const seed = (worldX * 100 + worldY) * 1000 + (tile.x * 10 + tile.y);
+        const noise = Math.abs(Math.sin(seed) * 10000) % 1; // 0-1
+
+        let type = 'DIRT';
+
+        // Check if building exists here
+        const building = buildings.find(b => b.x === tile.x && b.y === tile.y);
+        if (building) {
+            tile.type = building.type;
+            tile.building = building; // Pass full info
+        } else {
+            // Natural Terrain Logic
+            if (biome === 'DESERT') {
+                type = 'SAND';
+                if (noise > 0.85) type = 'ROCK';
+                if (noise > 0.96) type = 'OIL_RIG';
+            } else if (biome === 'FOREST') {
+                type = 'GRASS';
+                if (noise > 0.4) type = 'TREE';
+                if (noise > 0.9) type = 'Ruins'; // New!
+            } else if (biome === 'ICE') {
+                type = 'SNOW';
+                if (noise > 0.7) type = 'ICE_WALL';
+            } else if (biome === 'CITY') {
+                type = 'CONCRETE';
+                if (noise > 0.5) type = 'BUILDING';
+                if (noise > 0.9) type = 'FACTORY';
+            } else if (biome === 'MOUNTAIN') {
+                type = 'ROCK';
+                if (noise > 0.8) type = 'ORE'; // Future resource
+            } else {
+                // Plain
+                type = 'GRASS';
+                if (noise > 0.8) type = 'TREE';
+            }
+
+            tile.type = type;
+        }
+    });
+
+    // 3. Cellular Automata Smoothing (Optional - for now just Return Grid)
+    // A simple smoothing pass could make it look more organic:
+    // ... logic omitted for MVP speed ...
+
+    res.json({ id: tileId, grid: grid, biome });
 });
 
 // Admin APIs
