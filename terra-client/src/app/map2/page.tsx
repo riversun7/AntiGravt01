@@ -77,23 +77,23 @@ function InteractiveGlobe({
                 />
             </mesh>
 
-            {/* Selected Tile Marker (Pin) */}
+            {/* Selected Tile Marker (Target) */}
             {selectedTile && (
                 <Marker
                     x={selectedTile.x}
                     y={selectedTile.y}
-                    color="yellow"
-                    label="SELECTED"
+                    color="#fbbf24" // Amber-400
+                    label={selectedTile.name ? selectedTile.name.toUpperCase() : "TARGET"}
                 />
             )}
 
-            {/* User Marker */}
+            {/* User Marker (Self) */}
             {userPos && (
                 <Marker
                     x={parseInt(userPos.split('_')[0])}
                     y={parseInt(userPos.split('_')[1])}
-                    color="#22d3ee"
-                    label="YOU"
+                    color="#22d3ee" // Cyan-400
+                    label="COMMANDER"
                     isUnit
                 />
             )}
@@ -128,36 +128,51 @@ function tileToVector3(x: number, y: number, radius: number) {
 function Marker({ x, y, color, label, isUnit }: { x: number, y: number, color: string, label?: string, isUnit?: boolean }) {
     const pos = useMemo(() => tileToVector3(x, y, 2.0), [x, y]);
 
-    // Orient marker to face outwards from center
-    const lookAtPos = useMemo(() => pos.clone().multiplyScalar(2), [pos]);
+    // Explicitly align the group's "Up" (Y-axis) to the surface normal
+    const quaternion = useMemo(() => {
+        const normal = pos.clone().normalize();
+        return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    }, [pos]);
 
     return (
-        <group position={pos} lookAt={lookAtPos}>
-            {/* Stick */}
-            {!isUnit && (
-                <mesh position={[0, 0, 0.05]} rotation={[Math.PI / 2, 0, 0]}>
-                    <cylinderGeometry args={[0.01, 0.01, 0.1, 8]} />
-                    <meshBasicMaterial color={color} />
-                </mesh>
-            )}
+        <group position={pos} quaternion={quaternion}>
+            {/* Laser/Pole Line from Surface - Aligned with Y-axis (Default) */}
+            <mesh position={[0, 0.15, 0]}>
+                <cylinderGeometry args={[0.002, 0.002, 0.3, 4]} />
+                <meshBasicMaterial color={color} transparent opacity={0.4} blending={THREE.AdditiveBlending} />
+            </mesh>
 
-            {/* Dot/Head */}
-            <mesh position={[0, 0, isUnit ? 0.02 : 0.1]}>
-                <boxGeometry args={[0.03, 0.03, 0.03]} />
+            {/* Base Indicator (Ring on Ground) - Rotate X 90 to lay flat on XZ plane relative to Y-up */}
+            <mesh position={[0, 0.005, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.02, 0.025, 32]} />
+                <meshBasicMaterial color={color} side={THREE.DoubleSide} transparent opacity={0.6} />
+            </mesh>
+
+            {/* Unit/Target Glowing Core */}
+            <mesh position={[0, 0, 0]}>
+                <sphereGeometry args={[0.015, 16, 16]} />
                 <meshBasicMaterial color={color} />
             </mesh>
 
-            {/* Floating Label */}
+            {/* Floating Label - Ultra Minimal & Compact */}
             {label && (
-                <Html position={[0, 0, 0.15]} center distanceFactor={10}>
-                    <div className="bg-black/80 text-white text-[8px] px-1 rounded border border-white/20 whitespace-nowrap">
-                        {label}
+                <Html position={[0.05, 0, 0.2]} center distanceFactor={4} zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
+                    <div className="flex flex-col items-center opacity-80">
+                        <div className={`
+                            text-[6px] font-mono font-bold tracking-widest
+                            ${isUnit ? 'text-cyan-400' : 'text-amber-400'}
+                        `} style={{ textShadow: '0 0 2px currentColor', whiteSpace: 'nowrap' }}>
+                            {label}
+                        </div>
+                        {/* Connecting Line */}
+                        <div className={`w-px h-3 opacity-30 ${isUnit ? 'bg-cyan-500' : 'bg-amber-500'}`} style={{ transform: 'skewX(-10deg)' }}></div>
                     </div>
                 </Html>
             )}
         </group>
     );
 }
+
 
 export default function MapPage3D() {
     const router = useRouter();
