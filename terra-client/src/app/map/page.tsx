@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Map as MapIcon, X, Maximize, MapPin, Flag } from "lucide-react";
+import { ArrowLeft, Map as MapIcon, X, Maximize, MapPin, Flag, Menu, Database, Globe, Coins, User, Shield, LogOut } from "lucide-react";
+
 import BuildMenu from "@/components/map/BuildMenu";
+import SystemMenu from "@/components/SystemMenu";
 
 interface WorldTile {
     id: string; // x_y
@@ -103,10 +105,10 @@ export default function MapPage() {
     // Handle Window Resize for Viewport centering
     // --- MAP STYLE CONFIGURATION ---
     const MAP_STYLES = [
-        { id: 'v8', name: 'TACTICAL (DEFAULT)', file: '/earth_v8_flat_tactical.png', color: 'text-cyan-400' },
-        { id: 'v7', name: 'STRATEGIC', file: '/earth_v7_tactical.png', color: 'text-blue-400' },
-        { id: 'v5', name: 'HYPERION', file: '/earth_v5_hyper.png', color: 'text-purple-400' },
-        { id: 'v3', name: 'SATELLITE', file: '/earth_v3_final.png', color: 'text-green-400' },
+        { id: 'tactical', name: 'TACTICAL', file: '/earth_v8_flat_tactical.png', color: 'text-cyan-400' },
+        { id: 'realistic', name: 'REALISTIC', file: '/maps/realistic.png', color: 'text-green-400' },
+        { id: 'hologram', name: 'HOLOGRAM', file: '/maps/hologram.png', color: 'text-purple-400' },
+        { id: 'strategy', name: 'STRATEGY', file: '/maps/strategy.png', color: 'text-blue-400' },
     ];
     const [currentMap, setCurrentMap] = useState(MAP_STYLES[0]);
 
@@ -294,43 +296,42 @@ export default function MapPage() {
         <div className="min-h-screen bg-background text-white p-4 font-sans overflow-hidden">
             {/* Header */}
             <header className="flex items-center justify-between mb-4 pb-2 border-b border-surface-border">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => router.push("/dashboard")} className="p-2 hover:bg-surface-light rounded-full text-gray-400 hover:text-white">
-                        <ArrowLeft size={24} />
-                    </button>
-                    <button onClick={() => router.push("/map2")} className="px-3 py-1 bg-cyan-900/50 hover:bg-cyan-800 border border-cyan-500/30 rounded text-cyan-300 text-xs font-bold transition-colors">
-                        SWITCH TO STRATEGY VIEW
-                    </button>
-                    <div>
-                        <h1 className="text-xl font-bold flex items-center gap-2 text-cyan-400">
-                            <MapIcon /> PLANETARY SCANNER
-                        </h1>
-                        <p className="text-xs text-gray-500 font-mono">SECTOR: EARTH-PRIME // ORBITAL VIEW</p>
-                    </div>
+                <div className="flex items-center gap-4 relative">
+                    {/* System Menu Component */}
+                    <SystemMenu activePage="map" />
                 </div>
-
-                {/* Map Selector */}
-                <div className="flex gap-2 bg-surface-light p-1 rounded-lg border border-surface-border">
-                    {MAP_STYLES.map(style => (
-                        <button
-                            key={style.id}
-                            onClick={() => setCurrentMap(style)}
-                            className={`px-3 py-1 text-xs font-bold rounded transition-all ${currentMap.id === style.id
-                                    ? `bg-slate-800 ${style.color} shadow-lg ring-1 ring-white/10`
-                                    : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
-                                }`}
-                        >
-                            {style.name}
-                        </button>
-                    ))}
+                <div>
+                    <h1 className="text-xl font-bold flex items-center gap-2 text-cyan-400">
+                        <MapIcon /> PLANETARY SCANNER
+                    </h1>
+                    <p className="text-xs text-gray-500 font-mono">SECTOR: EARTH-PRIME // ORBITAL VIEW</p>
                 </div>
+            </header>
 
-                {userPos && (
+            {/* Map Selector */}
+            <div className="flex gap-2 bg-surface-light p-1 rounded-lg border border-surface-border">
+                {MAP_STYLES.map(style => (
+                    <button
+                        key={style.id}
+                        onClick={() => setCurrentMap(style)}
+                        className={`px-3 py-1 text-xs font-bold rounded transition-all ${currentMap.id === style.id
+                            ? `bg-slate-800 ${style.color} shadow-lg ring-1 ring-white/10`
+                            : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
+                            }`}
+                    >
+                        {style.name}
+                    </button>
+                ))}
+            </div>
+
+            {
+                userPos && (
                     <div className="px-4 py-1 bg-surface-light rounded-full border border-surface-border text-xs font-mono text-green-400 animate-pulse">
                         CURRENT POSITION: {userPos}
                     </div>
-                )}
-            </header>
+                )
+            }
+
 
             <main className="flex h-[calc(100vh-100px)] gap-4">
 
@@ -339,6 +340,22 @@ export default function MapPage() {
 
                     {/* The "World" Container moving inside Viewport */}
                     <div
+                        id="world-map-container"
+                        onClick={(e) => {
+                            // Coordinate-based Interaction (Performance Optimization)
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const y = e.clientY - rect.top;
+
+                            const tileX = Math.floor(x / TILE_W);
+                            const tileY = Math.floor(y / TILE_H);
+
+                            // Find Data
+                            const tile = macroMap.find(t => t.x === tileX && t.y === tileY);
+                            if (tile) {
+                                handleTileClick(tile);
+                            }
+                        }}
                         style={{
                             width: `${mapDimensions.w * TILE_W}px`,
                             height: `${mapDimensions.h * TILE_H}px`,
@@ -348,47 +365,61 @@ export default function MapPage() {
                             backgroundSize: '100% 100%',
                             backgroundRepeat: 'no-repeat'
                         }}
-                        className="relative"
+                        className="relative cursor-crosshair"
                     >
-                        {/* Render Tiles */}
-                        <div
-                            className="absolute inset-0 grid z-10"
-                            style={{
-                                gridTemplateColumns: `repeat(${mapDimensions.w}, ${TILE_W}px)`,
-                                gridTemplateRows: `repeat(${mapDimensions.h}, ${TILE_H}px)`
-                            }}
-                        >
-                            {macroMap.map(tile => {
-                                const isUserHere = userPos === tile.id;
-                                const isSelected = selectedTile?.id === tile.id;
+                        {/* High-Performance Rendering: Only render relevant overlays, not the full grid */}
 
-                                return (
-                                    <div
-                                        key={tile.id}
-                                        onClick={() => handleTileClick(tile)}
-                                        title={`${tile.name} (${tile.type})`}
-                                        className={`
-                                            relative
-                                            ${getTileColor(tile.type)} 
-                                            ${getFactionColor(tile.faction)}
-                                            ${isSelected ? 'ring-2 ring-yellow-400 z-20 shadow-lg bg-yellow-400/20' : ''}
-                                            cursor-pointer
-                                        `}
-                                    >
-                                        {isUserHere && (
-                                            <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
-                                                <div className="text-xl drop-shadow-md filter">🤖</div>
-                                            </div>
-                                        )}
-                                        {tile.faction && !isUserHere && (
-                                            <div className="absolute bottom-1 right-1 opacity-70">
-                                                <div className={`w-2 h-2 rounded-full ${tile.faction === 'TERRAN' ? 'bg-blue-400' : tile.faction === 'IRON' ? 'bg-red-400' : 'bg-purple-400'}`}></div>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        {/* 1. Faction/Territory Overlays (Optional: Only render relevant ones) */}
+                        {macroMap.filter(t => t.faction || t.type === 'CITY').map(tile => (
+                            <div
+                                key={tile.id}
+                                style={{
+                                    position: 'absolute',
+                                    left: tile.x * TILE_W,
+                                    top: tile.y * TILE_H,
+                                    width: TILE_W,
+                                    height: TILE_H
+                                }}
+                                className={`pointer-events-none opacity-40 ${tile.faction === 'TERRAN' ? 'bg-blue-500' :
+                                    tile.faction === 'IRON' ? 'bg-red-500' :
+                                        tile.faction === 'CYBER' ? 'bg-purple-500' : 'bg-yellow-500'
+                                    }`}
+                            />
+                        ))}
+
+                        {/* 2. Selection Highlight */}
+                        {selectedTile && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    left: selectedTile.x * TILE_W,
+                                    top: selectedTile.y * TILE_H,
+                                    width: TILE_W,
+                                    height: TILE_H
+                                }}
+                                className="border-2 border-yellow-400 bg-yellow-400/20 shadow-[0_0_15px_rgba(250,204,21,0.5)] z-30 pointer-events-none animate-pulse"
+                            />
+                        )}
+
+                        {/* 3. User Position Marker */}
+                        {userPos && (() => {
+                            const [ux, uy] = userPos.split('_').map(Number);
+                            return (
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        left: ux * TILE_W,
+                                        top: uy * TILE_H,
+                                        width: TILE_W,
+                                        height: TILE_H
+                                    }}
+                                    className="flex items-center justify-center z-40 pointer-events-none"
+                                >
+                                    <div className="text-2xl filter drop-shadow-[0_0_5px_rgba(34,211,238,0.8)] animate-bounce">🤖</div>
+                                    <div className="absolute inset-0 border border-cyan-400 rounded-full animate-ping opacity-20"></div>
+                                </div>
+                            );
+                        })()}
 
                         {/* SVG Overlay (Inside World Container) */}
                         {userPos && selectedTile && (
@@ -554,6 +585,6 @@ export default function MapPage() {
             </main>
 
             {/* DEBUG PANEL REMOVED */}
-        </div>
+        </div >
     );
 }

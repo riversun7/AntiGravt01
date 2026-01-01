@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Users, FileCode, Database, ArrowLeft } from "lucide-react";
+import SystemMenu from "@/components/SystemMenu";
 
 interface AdminUser {
     id: number;
@@ -69,9 +70,7 @@ export default function AdminPage() {
         <div className="min-h-screen bg-background text-white p-8 font-sans">
             <header className="flex items-center justify-between mb-8 border-b border-surface-border pb-4">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => router.push("/dashboard")} className="p-2 hover:bg-surface-light rounded-full text-gray-400 hover:text-white">
-                        <ArrowLeft size={20} />
-                    </button>
+                    <SystemMenu activePage="admin" />
                     <h1 className="text-2xl font-bold text-red-500 flex items-center gap-2">
                         <Database className="text-red-500" /> ADMIN CONSOLE
                     </h1>

@@ -2,10 +2,11 @@
 
 import React, { useEffect, useRef, useState, useMemo, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Globe, Database, Map as MapIcon, Box, MousePointer2 } from "lucide-react";
+import { ArrowLeft, Globe, Database, Map as MapIcon, Box, MousePointer2, Menu, Settings, Shield, Coins, User, LogOut, Crosshair } from "lucide-react";
 import { Canvas, useLoader, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stars, Html } from "@react-three/drei";
 import * as THREE from "three";
+import SystemMenu from "@/components/SystemMenu";
 
 // Types
 interface WorldTile {
@@ -26,14 +27,16 @@ function InteractiveGlobe({
     userPos,
     tiles,
     onTileClick,
-    selectedTile
+    selectedTile,
+    texturePath
 }: {
     userPos: string | null,
     tiles: Map<string, WorldTile>,
     onTileClick: (x: number, y: number) => void,
-    selectedTile: WorldTile | null
+    selectedTile: WorldTile | null,
+    texturePath: string
 }) {
-    const earthTexture = useLoader(THREE.TextureLoader, "/earth_v8_flat_tactical.png");
+    const earthTexture = useLoader(THREE.TextureLoader, texturePath);
 
     // Raycasting Logic
     const handlePointerDown = (e: any) => {
@@ -159,13 +162,13 @@ function Marker({ x, y, color, label, isUnit }: { x: number, y: number, color: s
                 <Html position={[0.05, 0, 0.2]} center distanceFactor={4} zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
                     <div className="flex flex-col items-center opacity-80">
                         <div className={`
-                            text-[6px] font-mono font-bold tracking-widest
+text - [6px] font - mono font - bold tracking - widest
                             ${isUnit ? 'text-cyan-400' : 'text-amber-400'}
-                        `} style={{ textShadow: '0 0 2px currentColor', whiteSpace: 'nowrap' }}>
+`} style={{ textShadow: '0 0 2px currentColor', whiteSpace: 'nowrap' }}>
                             {label}
                         </div>
                         {/* Connecting Line */}
-                        <div className={`w-px h-3 opacity-30 ${isUnit ? 'bg-cyan-500' : 'bg-amber-500'}`} style={{ transform: 'skewX(-10deg)' }}></div>
+                        <div className={`w - px h - 3 opacity - 30 ${isUnit ? 'bg-cyan-500' : 'bg-amber-500'} `} style={{ transform: 'skewX(-10deg)' }}></div>
                     </div>
                 </Html>
             )}
@@ -180,6 +183,15 @@ export default function MapPage3D() {
     const [userPos, setUserPos] = useState<string | null>(null);
     const [selectedTile, setSelectedTile] = useState<WorldTile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [currentTex, setCurrentTex] = useState("/earth_v8_flat_tactical.png");
+
+    // New Map Candidates
+    const MAP_OPTIONS = [
+        { label: "TACTICAL", path: "/earth_v8_flat_tactical.png" },
+        { label: "REALISTIC", path: "/maps/realistic.png" },
+        { label: "HOLOGRAM", path: "/maps/hologram.png" },
+        { label: "STRATEGY", path: "/maps/strategy.png" }
+    ];
 
     // Fetch Data
     useEffect(() => {
@@ -196,7 +208,7 @@ export default function MapPage3D() {
     }, []);
 
     const handleTileClick = (x: number, y: number) => {
-        const id = `${x}_${y}`;
+        const id = `${x}_${y} `;
         const tile = tiles.get(id);
         if (tile) {
             console.log("Selected Tile 3D:", tile);
@@ -224,11 +236,24 @@ export default function MapPage3D() {
     return (
         <div className="w-full h-screen bg-black relative font-mono overflow-hidden">
             {/* --- TOP BAR: RESOURCES & STATUS --- */}
-            <div className="absolute top-0 left-0 w-full h-16 bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent z-10 flex items-center justify-between px-6 border-b border-cyan-500/20 backdrop-blur-sm">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => router.push("/map")} className="flex items-center gap-2 text-cyan-500 hover:text-cyan-300 transition-colors uppercase text-xs font-bold tracking-widest border border-cyan-500/30 px-3 py-1 rounded">
-                        <ArrowLeft size={14} /> System Exit
-                    </button>
+            <div className="absolute top-0 left-0 w-full h-16 bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent z-50 flex items-center justify-between px-6 border-b border-cyan-500/20 backdrop-blur-sm">
+                <div className="flex items-center gap-4 relative">
+                    {/* System Menu Component */}
+                    <SystemMenu activePage="map2" variant="overlay" />
+
+                    {/* Map Switcher UI */}
+                    <div className="flex gap-1 ml-4 bg-slate-900/50 p-1 rounded border border-slate-700">
+                        {MAP_OPTIONS.map(opt => (
+                            <button
+                                key={opt.label}
+                                onClick={() => setCurrentTex(opt.path)}
+                                className={`text - [9px] px - 2 py - 1 rounded transition - colors uppercase font - bold ${currentTex === opt.path ? "bg-cyan-900 text-cyan-300" : "text-slate-500 hover:text-slate-300"} `}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+
                     <div className="h-6 w-px bg-cyan-800/50 mx-2"></div>
                     <div className="flex flex-col">
                         <span className="text-[10px] text-cyan-600 uppercase tracking-widest">System Time</span>
@@ -343,6 +368,7 @@ export default function MapPage3D() {
                         tiles={tiles}
                         onTileClick={handleTileClick}
                         selectedTile={selectedTile}
+                        texturePath={currentTex}
                     />
                 </Suspense>
 
@@ -362,10 +388,10 @@ export default function MapPage3D() {
 function ResourceItem({ icon, label, value, color }: any) {
     return (
         <div className="flex items-center gap-2">
-            <div className={`opacity-80 ${color}`}>{icon}</div>
+            <div className={`opacity - 80 ${color} `}>{icon}</div>
             <div className="flex flex-col leading-none">
                 <span className="text-[9px] text-slate-500 font-bold">{label}</span>
-                <span className={`text-sm font-bold ${color}`}>{value}</span>
+                <span className={`text - sm font - bold ${color} `}>{value}</span>
             </div>
         </div>
     );
@@ -375,7 +401,7 @@ function InfoBox({ label, value, highlight }: any) {
     return (
         <div className="bg-slate-800/50 p-2 rounded border border-slate-700">
             <div className="text-[9px] text-slate-500 uppercase mb-1">{label}</div>
-            <div className={`text-sm font-bold ${highlight ? 'text-cyan-400' : 'text-slate-200'}`}>{value}</div>
+            <div className={`text - sm font - bold ${highlight ? 'text-cyan-400' : 'text-slate-200'} `}>{value}</div>
         </div>
     );
 }
@@ -386,13 +412,13 @@ function ActionButton({ icon, label, active, onClick, hotkey }: any) {
             disabled={!active}
             onClick={onClick}
             className={`
-                relative group flex flex-col items-center justify-center w-20 h-20 rounded 
-                border transition-all duration-200
+                relative group flex flex - col items - center justify - center w - 20 h - 20 rounded 
+                border transition - all duration - 200
                 ${active
                     ? 'bg-slate-800 border-cyan-500/50 hover:bg-cyan-900/30 hover:border-cyan-400 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)]'
                     : 'bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed'
                 }
-            `}
+`}
         >
             <div className="mb-1 transform group-hover:scale-110 transition-transform">{icon}</div>
             <div className="text-[10px] font-bold tracking-wider">{label}</div>

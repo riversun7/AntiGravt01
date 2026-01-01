@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Coins, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Package } from "lucide-react";
+import SystemMenu from "@/components/SystemMenu";
 
 interface MarketItem {
     id: number;
@@ -109,9 +110,7 @@ export default function MarketPage() {
             {/* Header */}
             <header className="flex items-center justify-between mb-8 pb-4 border-b border-surface-border">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => router.push("/dashboard")} className="p-2 hover:bg-surface-light rounded-full text-gray-400 hover:text-white">
-                        <ArrowLeft size={24} />
-                    </button>
+                    <SystemMenu activePage="market" />
                     <div>
                         <h1 className="text-2xl font-bold flex items-center gap-2 text-cyan-400">
                             <TrendingUp /> CITY MARKET

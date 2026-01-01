@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Cpu, Shield, Zap, ArrowRight, Loader2, Info } from "lucide-react";
 import { motion } from "framer-motion";
+import SystemMenu from "@/components/SystemMenu";
 
 const CYBORG_MODELS = [
     {
@@ -59,7 +60,10 @@ export default function CreateCharacterPage() {
     };
 
     return (
-        <div className="min-h-screen bg-background text-white flex flex-col items-center justify-center p-4">
+        <div className="min-h-screen bg-background text-white flex flex-col items-center justify-center p-4 relative">
+            <div className="absolute top-4 left-4">
+                <SystemMenu activePage="character" />
+            </div>
             <div className="max-w-4xl w-full">
                 <header className="text-center mb-12">
                     <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary via-white to-secondary">

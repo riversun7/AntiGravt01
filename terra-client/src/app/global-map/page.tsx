@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
+import SystemMenu from "@/components/SystemMenu";
 import * as d3 from 'd3';
 import * as topojson from 'topojson-client';
 
@@ -88,9 +89,7 @@ export default function GlobalMapPage() {
         <div className="min-h-screen bg-background text-white p-4 overflow-hidden">
             <header className="flex items-center justify-between mb-4 pb-2 border-b border-surface-border">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => router.push("/dashboard")} className="p-2 hover:bg-surface-light rounded-full text-gray-400 hover:text-white">
-                        <ArrowLeft size={24} />
-                    </button>
+                    <SystemMenu activePage="global-map" />
                     <div>
                         <h1 className="text-xl font-bold flex items-center gap-2 text-cyan-400">
                             🗺️ GLOBAL MAP (D3)

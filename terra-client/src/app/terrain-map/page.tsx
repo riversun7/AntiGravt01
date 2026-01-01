@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
+import SystemMenu from "@/components/SystemMenu";
 import dynamic from 'next/dynamic';
 
 // Leaflet은 클라이언트 사이드에서만 작동하므로 동적 import 사용
@@ -55,11 +56,9 @@ export default function TerrainMapPage() {
 
     return (
         <div className="min-h-screen bg-background text-white p-4 overflow-hidden">
-            <header className="flex items-center justify-between mb-4 pb-2 border-b border-surface-border">
+            <header className="flex items-center justify-between mb-4 pb-2 border-b border-surface-border relative z-50">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => router.push("/dashboard")} className="p-2 hover:bg-surface-light rounded-full text-gray-400 hover:text-white">
-                        <ArrowLeft size={24} />
-                    </button>
+                    <SystemMenu activePage="terrain" />
                     <div>
                         <h1 className="text-xl font-bold flex items-center gap-2 text-cyan-400">
                             🏔️ TERRAIN MAP (LEAFLET)
