@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Menu, Database, Globe, Map as MapIcon, Coins, User, Shield, LogOut } from "lucide-react";
+import { Menu, Database, Globe, Map as MapIcon, Coins, User, Shield, LogOut, Settings } from "lucide-react";
 
 interface SystemMenuProps {
-    activePage?: 'dashboard' | 'map' | 'map2' | 'global-map' | 'terrain' | 'market' | 'character' | 'admin';
+    activePage?: 'dashboard' | 'map' | 'map2' | 'global-map' | 'terrain' | 'market' | 'character' | 'admin' | 'settings';
     variant?: 'default' | 'overlay'; // default for normal pages, overlay for maps
 }
 
@@ -86,7 +86,7 @@ export default function SystemMenu({ activePage, variant = 'default' }: SystemMe
                             icon={<User size={14} />}
                             label="CHARACTER"
                             isActive={activePage === 'character'}
-                            onClick={() => router.push('/create-character')}
+                            onClick={() => router.push('/character')}
                         />
                         <MenuItem
                             icon={<Shield size={14} />}
@@ -94,6 +94,13 @@ export default function SystemMenu({ activePage, variant = 'default' }: SystemMe
                             color="text-red-400"
                             isActive={activePage === 'admin'}
                             onClick={() => router.push('/admin')}
+                        />
+
+                        <MenuItem
+                            icon={<Settings size={14} />}
+                            label="SETTINGS"
+                            isActive={activePage === 'settings'}
+                            onClick={() => router.push('/settings')}
                         />
 
                         <div className="h-px bg-slate-800 my-1"></div>

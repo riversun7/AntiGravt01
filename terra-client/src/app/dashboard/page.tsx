@@ -120,8 +120,8 @@ export default function DashboardPage() {
                     <NavItem icon={<Map />} label="Terrain (Leaflet)" onClick={() => router.push('/terrain-map')} />
                     <div className="text-xs text-gray-500 font-bold uppercase tracking-wider px-3 mt-4 mb-2">Economy</div>
                     <NavItem icon={<TrendingUp />} label="Market" onClick={() => router.push('/market')} />
-                    <NavItem icon={<User />} label="Character" />
-                    <NavItem icon={<Settings />} label="Settings" />
+                    <NavItem icon={<User />} label="Character" onClick={() => router.push('/character')} />
+                    <NavItem icon={<Settings />} label="Settings" onClick={() => router.push('/settings')} />
 
                     {user.role === 'admin' && (
                         <div className="pt-4 border-t border-gray-700/50 mt-2">

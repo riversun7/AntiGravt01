@@ -254,24 +254,91 @@ function initSchema() {
         console.log("World Map seed error:", e);
     }
 
-    // Seed Market Items (Commodities)
+    const createUserEquipmentTable = `
+    CREATE TABLE IF NOT EXISTS user_equipment (
+        user_id INTEGER,
+        slot TEXT NOT NULL, -- HEAD, BODY, ARMS, LEGS, CORE, WEAPON
+        item_id INTEGER,
+        PRIMARY KEY (user_id, slot),
+        FOREIGN KEY(user_id) REFERENCES users(id),
+        FOREIGN KEY(item_id) REFERENCES market_items(id)
+    );`;
+
+    db.exec(createUserEquipmentTable);
+
+    // Migration: Update market_items schema
     try {
-        const itemsCount = db.prepare('SELECT count(*) as count FROM market_items').get();
-        if (itemsCount.count === 0) {
-            const items = [
-                { name: 'Iron Ore', code: 'IRON_ORE', price: 50, vol: 10, desc: 'Raw material mined from the earth.' },
-                { name: 'Wheat', code: 'WHEAT', price: 30, vol: 15, desc: 'Basic food source associated with 1st Gen Industry.' },
-                { name: 'Steel', code: 'STEEL', price: 150, vol: 8, desc: 'Refined alloy used for construction and arms.' },
-                { name: 'Flour', code: 'FLOUR', price: 80, vol: 12, desc: 'Processed food ingredient.' },
-                { name: 'Cyborg Parts', code: 'CYBORG_PARTS', price: 500, vol: 20, desc: 'High-tech components for cybernetic upgrades.' }
+        const itemCols = db.prepare('PRAGMA table_info(market_items)').all();
+        const hasType = itemCols.some(c => c.name === 'type');
+        if (!hasType) {
+            db.exec("ALTER TABLE market_items ADD COLUMN type TEXT DEFAULT 'RESOURCE'"); // RESOURCE, EQUIPMENT
+            db.exec("ALTER TABLE market_items ADD COLUMN slot TEXT DEFAULT NULL");
+            db.exec("ALTER TABLE market_items ADD COLUMN stats TEXT DEFAULT '{}'"); // JSON string
+            console.log("Migrated market_items table: added type, slot, stats");
+
+            // Re-seed items to include equipment if needed, or just insert new ones
+            // For simplicity in this env, we'll insert if not exists below
+        }
+    } catch (e) { console.log("Migration error (market_items):", e); }
+
+    // Seed Market Items (Commodities + Equipment)
+    try {
+        // ALWAYS try to seed new items (logic inside checks for existence)
+        if (true) {
+            const newItems = [
+                // -- HEAD --
+                { name: 'Titanium Helmet', code: 'TITANIUM_HELM', price: 1200, vol: 5, desc: 'Standard issue infantry protection.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ constitution: 3, wisdom: 1 }) },
+                { name: 'Cyber Eye Mk.I', code: 'CYBER_EYE_1', price: 800, vol: 5, desc: 'Basic optical enhancement.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ wisdom: 2, accuracy: 5 }) },
+                { name: 'Tactical Visor', code: 'TAC_VISOR', price: 1500, vol: 6, desc: 'HUD with threat detection.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ wisdom: 4, accuracy: 8 }) },
+                { name: 'Neural Link Interface', code: 'NEURAL_LINK', price: 3500, vol: 8, desc: 'Direct brain-computer interface.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ intelligence: 8, wisdom: 5 }) },
+
+                // -- BODY --
+                { name: 'Titanium Plating', code: 'TITANIUM_PLATE', price: 1800, vol: 5, desc: 'Heavy duty chest protection.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ constitution: 8 }) },
+                { name: 'Carbon Fiber Vest', code: 'CARBON_VEST', price: 1200, vol: 4, desc: 'Lightweight and durable.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ constitution: 4, agility: 2 }) },
+                { name: 'Reactive Armor', code: 'REACTIVE_ARMOR', price: 4000, vol: 7, desc: 'Explodes outward on impact.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ constitution: 12, strength: 2 }) },
+                { name: 'Stealth Suit', code: 'STEALTH_SUIT', price: 5000, vol: 9, desc: 'Active camouflage coating.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ agility: 8, constitution: 2 }) },
+
+                // -- ARMS --
+                { name: 'Hydraulic Arms', code: 'HYDRA_ARMS', price: 1500, vol: 5, desc: 'Increases lifting capacity.', type: 'EQUIPMENT', slot: 'ARMS', stats: JSON.stringify({ strength: 5 }) },
+                { name: 'Stabilizer Grips', code: 'STAB_GRIPS', price: 1100, vol: 4, desc: 'Recoil reduction system.', type: 'EQUIPMENT', slot: 'ARMS', stats: JSON.stringify({ dexterity: 4, accuracy: 5 }) },
+                { name: 'Power Gauntlets', code: 'POWER_GAUNTLET', price: 2200, vol: 6, desc: 'Crushes rock and bone.', type: 'EQUIPMENT', slot: 'ARMS', stats: JSON.stringify({ strength: 8 }) },
+                { name: 'Nano-Weave Sleeves', code: 'NANO_SLEEVES', price: 1800, vol: 5, desc: 'Self-repairing fabric.', type: 'EQUIPMENT', slot: 'ARMS', stats: JSON.stringify({ constitution: 3, dexterity: 3 }) },
+
+                // -- LEGS --
+                { name: 'Servo Legs', code: 'SERVO_LEGS', price: 1400, vol: 5, desc: 'Assisted walking servos.', type: 'EQUIPMENT', slot: 'LEGS', stats: JSON.stringify({ agility: 4, strength: 1 }) },
+                { name: 'Jump Jets', code: 'JUMP_JETS', price: 2500, vol: 7, desc: 'Short-range thrusters.', type: 'EQUIPMENT', slot: 'LEGS', stats: JSON.stringify({ agility: 8 }) },
+                { name: 'Magnetic Boots', code: 'MAG_BOOTS', price: 1000, vol: 3, desc: 'Adheres to metal surfaces.', type: 'EQUIPMENT', slot: 'LEGS', stats: JSON.stringify({ dexterity: 3, constitution: 2 }) },
+                { name: 'Sprinter Pistons', code: 'SPRINT_PISTONS', price: 2100, vol: 6, desc: 'Optimized for high speed.', type: 'EQUIPMENT', slot: 'LEGS', stats: JSON.stringify({ agility: 7 }) },
+
+                // -- CORE --
+                { name: 'Fusion Core', code: 'FUSION_CORE', price: 3000, vol: 2, desc: 'Standard fusion battery.', type: 'EQUIPMENT', slot: 'CORE', stats: JSON.stringify({ intelligence: 5, energy: 100 }) },
+                { name: 'Antimatter Cell', code: 'ANTIMATTER_CELL', price: 8000, vol: 10, desc: 'High-risk high-output power.', type: 'EQUIPMENT', slot: 'CORE', stats: JSON.stringify({ intelligence: 10, energy: 200 }) },
+                { name: 'Solar Converter', code: 'SOLAR_CONV', price: 1500, vol: 3, desc: 'Renewable energy drip.', type: 'EQUIPMENT', slot: 'CORE', stats: JSON.stringify({ wisdom: 4, energy: 50 }) },
+                { name: 'Overclock Module', code: 'OC_MODULE', price: 4500, vol: 8, desc: 'Push systems beyond limits.', type: 'EQUIPMENT', slot: 'CORE', stats: JSON.stringify({ agility: 5, strength: 5, energy: -20 }) },
+
+                // -- WEAPON --
+                { name: 'Plasma Cutter', code: 'PLASMA_CUTTER', price: 2000, vol: 8, desc: 'Mining tool weaponized.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 15 }) },
+                { name: 'Laser Rifle', code: 'LASER_RIFLE', price: 3500, vol: 7, desc: 'Precision energy weapon.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 25, accuracy: 10 }) },
+                { name: 'Railgun Prototype', code: 'RAILGUN_PROTO', price: 6000, vol: 9, desc: 'Devastating kinetic impact.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 45, agility: -2 }) },
+                { name: 'Shock Baton', code: 'SHOCK_BATON', price: 800, vol: 4, desc: 'Non-lethal pacification.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 8, dexterity: 2 }) },
+                { name: 'Nanite Swarm Canister', code: 'NANO_SWARM', price: 4500, vol: 8, desc: 'Unleashes consuming bots.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 20, wisdom: 5 }) }
             ];
 
-            const insertItem = db.prepare('INSERT INTO market_items (name, code, base_price, current_price, volatility, description) VALUES (?, ?, ?, ?, ?, ?)');
-            items.forEach(item => {
-                insertItem.run(item.name, item.code, item.price, item.price, item.vol, item.desc);
+            const insertItem = db.prepare('INSERT INTO market_items (name, code, base_price, current_price, volatility, description, type, slot, stats) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            newItems.forEach(item => {
+                // Check if exists first to avoid duplicate code error
+                const exists = db.prepare('SELECT id FROM market_items WHERE code = ?').get(item.code);
+                if (!exists) {
+                    insertItem.run(item.name, item.code, item.price, item.price, item.vol, item.desc, item.type, item.slot, item.stats);
+                }
             });
-            console.log("Market items seeded.");
+            console.log("Equipment seeded.");
         }
+
+        // Ensure initial resources have types
+        const updateResource = db.prepare("UPDATE market_items SET type = 'RESOURCE' WHERE type IS NULL");
+        updateResource.run();
+
     } catch (e) {
         console.log("Market seed error:", e);
     }

@@ -56,7 +56,7 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// 2. Get User Info (with resources)
+// 2. Get User Info (with resources & equipment)
 app.get('/api/user/:id', (req, res) => {
     try {
         const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
@@ -65,7 +65,15 @@ app.get('/api/user/:id', (req, res) => {
         const resources = db.prepare('SELECT * FROM user_resources WHERE user_id = ?').get(req.params.id);
         const stats = db.prepare('SELECT * FROM user_stats WHERE user_id = ?').get(req.params.id);
 
-        res.json({ ...user, resources, stats });
+        // Fetch Equipment with Item Details
+        const equipment = db.prepare(`
+            SELECT ue.*, mi.name, mi.code, mi.description, mi.stats, mi.type 
+            FROM user_equipment ue
+            JOIN market_items mi ON ue.item_id = mi.id
+            WHERE ue.user_id = ?
+        `).all(req.params.id);
+
+        res.json({ ...user, resources, stats, equipment });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal server error' });
@@ -97,6 +105,73 @@ app.put('/api/user/:id', (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 4. Equipment APIs
+app.post('/api/equipment/equip', (req, res) => {
+    const { userId, itemId, slot } = req.body;
+    try {
+        const equipTx = db.transaction(() => {
+            // 1. Check Inventory
+            const invItem = db.prepare('SELECT * FROM user_inventory WHERE user_id = ? AND item_id = ?').get(userId, itemId);
+            if (!invItem || invItem.quantity < 1) throw new Error("Item not in inventory");
+
+            // 2. Check Item Validity
+            const item = db.prepare('SELECT * FROM market_items WHERE id = ?').get(itemId);
+            if (!item || item.type !== 'EQUIPMENT' || item.slot !== slot) throw new Error("Invalid item for this slot");
+
+            // 3. Check Slot (Unequip existing if any)
+            const existing = db.prepare('SELECT * FROM user_equipment WHERE user_id = ? AND slot = ?').get(userId, slot);
+            if (existing) {
+                // Return to inventory
+                const existsInInv = db.prepare('SELECT * FROM user_inventory WHERE user_id = ? AND item_id = ?').get(userId, existing.item_id);
+                if (existsInInv) {
+                    db.prepare('UPDATE user_inventory SET quantity = quantity + 1 WHERE user_id = ? AND item_id = ?').run(userId, existing.item_id);
+                } else {
+                    db.prepare('INSERT INTO user_inventory (user_id, item_id, quantity) VALUES (?, ?, 1)').run(userId, existing.item_id);
+                }
+                // Remove from equip
+                db.prepare('DELETE FROM user_equipment WHERE user_id = ? AND slot = ?').run(userId, slot);
+            }
+
+            // 4. Equip New Item
+            db.prepare('INSERT INTO user_equipment (user_id, slot, item_id) VALUES (?, ?, ?)').run(userId, slot, itemId);
+
+            // 5. Remove from Inventory
+            db.prepare('UPDATE user_inventory SET quantity = quantity - 1 WHERE user_id = ? AND item_id = ?').run(userId, itemId);
+        });
+
+        equipTx();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+app.post('/api/equipment/unequip', (req, res) => {
+    const { userId, slot } = req.body;
+    try {
+        const unequipTx = db.transaction(() => {
+            const existing = db.prepare('SELECT * FROM user_equipment WHERE user_id = ? AND slot = ?').get(userId, slot);
+            if (!existing) throw new Error("Slot empty");
+
+            // Return to inventory
+            const existsInInv = db.prepare('SELECT * FROM user_inventory WHERE user_id = ? AND item_id = ?').get(userId, existing.item_id);
+            if (existsInInv) {
+                db.prepare('UPDATE user_inventory SET quantity = quantity + 1 WHERE user_id = ? AND item_id = ?').run(userId, existing.item_id);
+            } else {
+                db.prepare('INSERT INTO user_inventory (user_id, item_id, quantity) VALUES (?, ?, 1)').run(userId, existing.item_id);
+            }
+
+            // Remove from equip
+            db.prepare('DELETE FROM user_equipment WHERE user_id = ? AND slot = ?').run(userId, slot);
+        });
+
+        unequipTx();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
     }
 });
 

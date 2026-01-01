@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Cpu, Shield, Zap, ArrowRight, Loader2, Info } from "lucide-react";
 import { motion } from "framer-motion";
@@ -50,7 +50,7 @@ export default function CreateCharacterPage() {
 
             if (!res.ok) throw new Error("Initialization failed");
 
-            router.push("/dashboard");
+            router.push("/character");
         } catch (err) {
             console.error(err);
             alert("Error: Core Initialization Failed");
@@ -58,6 +58,20 @@ export default function CreateCharacterPage() {
             setLoading(false);
         }
     };
+
+    // Check if already initialized
+    useEffect(() => {
+        const userId = localStorage.getItem("terra_user_id");
+        if (userId) {
+            fetch(`http://localhost:3001/api/user/${userId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.cyborg_model) {
+                        router.push("/character");
+                    }
+                });
+        }
+    }, [router]);
 
     return (
         <div className="min-h-screen bg-background text-white flex flex-col items-center justify-center p-4 relative">
