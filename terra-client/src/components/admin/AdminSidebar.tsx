@@ -8,12 +8,14 @@ import {
     Database,
     ClipboardList,
     PenTool,
-    ArrowLeft
+    ArrowLeft,
+    Send
 } from "lucide-react";
 
 const menuItems = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Users", href: "/admin/users", icon: Users },
+    { name: "Mail Console", href: "/admin/mail", icon: Send },
     { name: "DB Inspector", href: "/admin/db-inspector", icon: Database },
     { name: "DB Designer", href: "/admin/db-designer", icon: PenTool },
     { name: "Planning", href: "/admin/planning", icon: ClipboardList },

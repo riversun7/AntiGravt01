@@ -216,7 +216,7 @@ app.get('/api/market', (req, res) => {
 app.get('/api/inventory/:userId', (req, res) => {
     try {
         const inventory = db.prepare(`
-            SELECT ui.*, mi.name, mi.code, mi.description 
+            SELECT ui.*, mi.id as id, mi.name, mi.code, mi.description, mi.type, mi.slot, mi.stats 
             FROM user_inventory ui 
             JOIN market_items mi ON ui.item_id = mi.id 
             WHERE ui.user_id = ?
@@ -598,6 +598,125 @@ app.get('/api/admin/db/:filename/:table', (req, res) => {
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// Admin: Update User Stats/Resources
+app.post('/api/admin/users/:id/update', (req, res) => {
+    const userId = req.params.id;
+    const { gold, gem, strength, dexterity, constitution, intelligence, wisdom, agility } = req.body;
+
+    try {
+        const tx = db.transaction(() => {
+            if (gold !== undefined || gem !== undefined) {
+                db.prepare('UPDATE user_resources SET gold = COALESCE(?, gold), gem = COALESCE(?, gem) WHERE user_id = ?')
+                    .run(gold, gem, userId);
+            }
+            if (strength !== undefined) {
+                db.prepare(`
+                    UPDATE user_stats 
+                    SET strength = COALESCE(?, strength),
+                        dexterity = COALESCE(?, dexterity),
+                        constitution = COALESCE(?, constitution),
+                        intelligence = COALESCE(?, intelligence),
+                        wisdom = COALESCE(?, wisdom),
+                        agility = COALESCE(?, agility)
+                    WHERE user_id = ?
+                `).run(strength, dexterity, constitution, intelligence, wisdom, agility, userId);
+            }
+        });
+        tx();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Admin: Send Mail
+app.post('/api/admin/mail/send', (req, res) => {
+    const { recipientId, title, content, items, scheduledAt } = req.body;
+    // items: stringified JSON [{"code":"GOLD", "qty":100}, ...]
+
+    try {
+        const sendTx = db.transaction(() => {
+            let recipients = [];
+            if (recipientId === 'ALL') {
+                recipients = db.prepare('SELECT id FROM users').all().map(u => u.id);
+            } else {
+                recipients = [recipientId];
+            }
+
+            const insert = db.prepare(`
+                INSERT INTO mail (recipient_id, title, content, items, scheduled_at) 
+                VALUES (?, ?, ?, ?, ?)
+            `);
+
+            const scheduleTime = scheduledAt || new Date().toISOString();
+
+            recipients.forEach(rid => {
+                insert.run(rid, title, content, items, scheduleTime);
+            });
+        });
+
+        sendTx();
+        res.json({ success: true, count: recipientId === 'ALL' ? 'All Users' : 1 });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// User: Get Mail
+app.get('/api/mail/:userId', (req, res) => {
+    try {
+        const mails = db.prepare(`
+            SELECT * FROM mail 
+            WHERE recipient_id = ? 
+            AND scheduled_at <= datetime('now', 'localtime')
+            ORDER BY created_at DESC
+        `).all(req.params.userId);
+        res.json(mails);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// User: Claim Mail
+app.post('/api/mail/claim', (req, res) => {
+    const { mailId, userId } = req.body;
+    try {
+        const tx = db.transaction(() => {
+            const mail = db.prepare('SELECT * FROM mail WHERE id = ? AND recipient_id = ?').get(mailId, userId);
+            if (!mail) throw new Error("Mail not found");
+            if (mail.is_claimed) throw new Error("Already claimed");
+
+            // Process Items
+            const items = JSON.parse(mail.items || '[]');
+            items.forEach(item => {
+                if (item.code === 'GOLD') {
+                    db.prepare('UPDATE user_resources SET gold = gold + ? WHERE user_id = ?').run(item.qty, userId);
+                } else if (item.code === 'GEM') {
+                    db.prepare('UPDATE user_resources SET gem = gem + ? WHERE user_id = ?').run(item.qty, userId);
+                } else {
+                    // Item
+                    const marketItem = db.prepare('SELECT id FROM market_items WHERE code = ?').get(item.code);
+                    if (marketItem) {
+                        const existing = db.prepare('SELECT * FROM user_inventory WHERE user_id = ? AND item_id = ?').get(userId, marketItem.id);
+                        if (existing) {
+                            db.prepare('UPDATE user_inventory SET quantity = quantity + ? WHERE user_id = ? AND item_id = ?').run(item.qty, userId, marketItem.id);
+                        } else {
+                            db.prepare('INSERT INTO user_inventory (user_id, item_id, quantity) VALUES (?, ?, ?)').run(userId, marketItem.id, item.qty);
+                        }
+                    }
+                }
+            });
+
+            db.prepare('UPDATE mail SET is_claimed = 1 WHERE id = ?').run(mailId);
+        });
+        tx();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
     }
 });
 

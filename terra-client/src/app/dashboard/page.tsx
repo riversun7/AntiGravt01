@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import { Coins, Diamond, Database, Settings, User, LogOut, Shield, TrendingUp, Map } from "lucide-react";
 import { motion } from "framer-motion";
 
+interface Equipment {
+    slot: string;
+    item_id: number;
+    name: string;
+    code: string;
+    description: string;
+    stats: string;
+}
+
 interface UserData {
     id: number;
     username: string;
@@ -22,6 +31,7 @@ interface UserData {
         gold: number;
         gem: number;
     };
+    equipment: Equipment[];
 }
 
 export default function DashboardPage() {
@@ -100,6 +110,28 @@ export default function DashboardPage() {
             }
         } catch (e) { console.error(e); }
     };
+
+    // Calculate Total Stats
+    const calculateTotalStats = () => {
+        if (!user) return { strength: 0, agility: 0, intelligence: 0, wisdom: 0, dexterity: 0, constitution: 0 };
+        const total = { ...user.stats };
+        user.equipment?.forEach(equip => {
+            if (equip.stats) {
+                try {
+                    const bonuses = JSON.parse(equip.stats);
+                    Object.entries(bonuses).forEach(([key, val]) => {
+                        const statKey = key.toLowerCase() as keyof typeof total;
+                        if (total[statKey] !== undefined) {
+                            total[statKey] += Number(val);
+                        }
+                    });
+                } catch (e) { }
+            }
+        });
+        return total;
+    };
+
+    const effectiveStats = calculateTotalStats();
 
     if (!user) return <div className="min-h-screen bg-background text-white flex items-center justify-center">Loading Data Stream...</div>;
 
@@ -229,12 +261,12 @@ export default function DashboardPage() {
                     >
                         <h2 className="text-lg font-bold text-secondary mb-4">Cyborg Parameters</h2>
                         <div className="space-y-3">
-                            <StatRow label="Strength (힘)" value={user.stats?.strength} color="text-red-500" />
-                            <StatRow label="Constitution (체력)" value={user.stats?.constitution} color="text-orange-500" />
-                            <StatRow label="Dexterity (재주)" value={user.stats?.dexterity} color="text-yellow-400" />
-                            <StatRow label="Agility (민첩)" value={user.stats?.agility} color="text-green-400" />
-                            <StatRow label="Intelligence (지능)" value={user.stats?.intelligence} color="text-blue-400" />
-                            <StatRow label="Wisdom (지혜)" value={user.stats?.wisdom} color="text-purple-400" />
+                            <StatRow label="Strength (힘)" value={effectiveStats.strength} base={user.stats.strength} color="text-red-500" />
+                            <StatRow label="Constitution (체력)" value={effectiveStats.constitution} base={user.stats.constitution} color="text-orange-500" />
+                            <StatRow label="Dexterity (재주)" value={effectiveStats.dexterity} base={user.stats.dexterity} color="text-yellow-400" />
+                            <StatRow label="Agility (민첩)" value={effectiveStats.agility} base={user.stats.agility} color="text-green-400" />
+                            <StatRow label="Intelligence (지능)" value={effectiveStats.intelligence} base={user.stats.intelligence} color="text-blue-400" />
+                            <StatRow label="Wisdom (지혜)" value={effectiveStats.wisdom} base={user.stats.wisdom} color="text-purple-400" />
                         </div>
                     </motion.div>
                 </div>
@@ -243,15 +275,22 @@ export default function DashboardPage() {
     );
 }
 
-function StatRow({ label, value, color }: { label: string, value: number | undefined, color: string }) {
+function StatRow({ label, value, base, color }: { label: string, value: number | undefined, base: number | undefined, color: string }) {
+    const val = value || 0;
+    const bas = base || 0;
+    const bonus = val - bas;
+
     return (
         <div className="flex justify-between items-center text-sm">
             <span className="text-gray-400">{label}</span>
             <div className="flex items-center gap-2">
-                <div className={`w-32 h-2 bg-surface-border rounded-full overflow-hidden`}>
-                    <div className={`h-full ${color.replace('text-', 'bg-')}`} style={{ width: `${(value || 0) * 10}%` }} />
+                <div className={`w-32 h-2 bg-surface-border rounded-full overflow-hidden flex`}>
+                    <div className={`h-full bg-slate-500`} style={{ width: `${bas * 8}%` }} />
+                    {bonus > 0 && (
+                        <div className={`h-full ${color.replace('text-', 'bg-')}`} style={{ width: `${bonus * 8}%` }} />
+                    )}
                 </div>
-                <span className={`font-mono font-bold ${color}`}>{value}</span>
+                <span className={`font-mono font-bold ${color}`}>{val}</span>
             </div>
         </div>
     )

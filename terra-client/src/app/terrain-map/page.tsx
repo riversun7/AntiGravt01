@@ -56,7 +56,7 @@ export default function TerrainMapPage() {
 
     return (
         <div className="min-h-screen bg-background text-white p-4 overflow-hidden">
-            <header className="flex items-center justify-between mb-4 pb-2 border-b border-surface-border relative z-50">
+            <header className="flex items-center justify-between mb-4 pb-2 border-b border-surface-border relative z-[2000]">
                 <div className="flex items-center gap-4">
                     <SystemMenu activePage="terrain" />
                     <div>

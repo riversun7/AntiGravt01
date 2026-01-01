@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Menu, Database, Globe, Map as MapIcon, Coins, User, Shield, LogOut, Settings } from "lucide-react";
 
+import Mailbox from "@/components/Mailbox";
+
 interface SystemMenuProps {
     activePage?: 'dashboard' | 'map' | 'map2' | 'global-map' | 'terrain' | 'market' | 'character' | 'admin' | 'settings';
     variant?: 'default' | 'overlay'; // default for normal pages, overlay for maps
@@ -23,7 +25,7 @@ export default function SystemMenu({ activePage, variant = 'default' }: SystemMe
         : "absolute top-12 left-0";
 
     return (
-        <div className="relative z-[100]">
+        <div className="relative z-[100] flex gap-2">
             {/* System Menu Button */}
             <button
                 onClick={() => setShowMenu(!showMenu)}
@@ -31,6 +33,8 @@ export default function SystemMenu({ activePage, variant = 'default' }: SystemMe
             >
                 <Menu size={16} /> SYSTEM ACCESS
             </button>
+
+            <Mailbox />
 
             {/* Dropdown Menu */}
             {showMenu && (

@@ -93,6 +93,19 @@ function initSchema() {
         faction TEXT DEFAULT NULL -- 'TERRAN', 'CYBER', 'IRON', 'NEUTRAL'
     );`;
 
+    const createMailTable = `
+    CREATE TABLE IF NOT EXISTS mail (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipient_id INTEGER, -- NULL for Public/All
+        sender_id INTEGER DEFAULT 0, -- 0 for System
+        title TEXT NOT NULL,
+        content TEXT,
+        items TEXT DEFAULT '[]', -- JSON: [{code, qty}]
+        is_claimed INTEGER DEFAULT 0, -- 0: False, 1: True
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        scheduled_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`;
+
     db.exec(createUsersTable);
 
     // Migration: Add current_pos to users if not exists
@@ -135,6 +148,7 @@ function initSchema() {
     } catch (e) { console.error("Error checking world_map table for faction column:", e); }
 
     db.exec(createWorldMapTable);
+    db.exec(createMailTable);
 
     // Seed World Map (160x80) - High Res Earth Like v4
     try {

@@ -1,0 +1,223 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Send, Users, Package, Calendar } from "lucide-react";
+import { AdminUser } from "@/types/admin";
+import SearchableSelect from "@/components/ui/SearchableSelect";
+import DateTimePicker from "@/components/ui/DateTimePicker";
+
+interface MarketItem {
+    id: number;
+    name: string;
+    code: string;
+    type: string;
+}
+
+export default function AdminMailPage() {
+    const [users, setUsers] = useState<AdminUser[]>([]);
+    const [items, setItems] = useState<MarketItem[]>([]);
+
+    // Form State
+    const [recipient, setRecipient] = useState<string | number>("ALL"); // 'ALL' or userId
+    const [title, setTitle] = useState("");
+    const [content, setContent] = useState("");
+    const [attachedItems, setAttachedItems] = useState<{ code: string, qty: number }[]>([]);
+    const [scheduledAt, setScheduledAt] = useState("");
+    const [notification, setNotification] = useState<string | null>(null);
+
+    // Item Picker State
+    const [selectedItemCode, setSelectedItemCode] = useState<string | number>("");
+    const [itemQty, setItemQty] = useState(1);
+
+    useEffect(() => {
+        // Fetch Users
+        fetch("http://localhost:3001/api/admin/users")
+            .then(res => res.json())
+            .then(data => setUsers(data));
+
+        // Fetch Items
+        fetch("http://localhost:3001/api/market")
+            .then(res => res.json())
+            .then(data => setItems(data));
+    }, []);
+
+    const handleAddItem = () => {
+        if (!selectedItemCode || itemQty <= 0) return;
+        setAttachedItems(prev => [...prev, { code: String(selectedItemCode), qty: itemQty }]);
+        setSelectedItemCode("");
+        setItemQty(1);
+    };
+
+    const handleRemoveItem = (idx: number) => {
+        setAttachedItems(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const handleSend = () => {
+        if (!title.trim()) {
+            alert("Title is required");
+            return;
+        }
+
+        const payload = {
+            recipientId: recipient,
+            title,
+            content,
+            items: JSON.stringify(attachedItems),
+            scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null
+        };
+
+        fetch("http://localhost:3001/api/admin/mail/send", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    setNotification(`Mail sent to ${data.count} recipients!`);
+                    setTitle("");
+                    setContent("");
+                    setAttachedItems([]);
+                    setScheduledAt("");
+                    setTimeout(() => setNotification(null), 3000);
+                } else {
+                    alert("Failed: " + data.error);
+                }
+            });
+    };
+
+    // Prepare Options for SearchableSelect
+    const userOptions = [
+        { label: "ALL USERS (Mass Mail)", value: "ALL", category: "System" },
+        ...users.map(u => ({
+            label: u.username,
+            value: u.id,
+            category: "Users",
+            subtext: `ID: ${u.id} | ${u.role}`
+        }))
+    ];
+
+    const itemOptions = [
+        { label: "Gold (Currency)", value: "GOLD", category: "Currencies" },
+        { label: "Gem (Premium)", value: "GEM", category: "Currencies" },
+        ...items.map(i => ({
+            label: i.name,
+            value: i.code,
+            category: i.type,
+            subtext: `Code: ${i.code}`
+        }))
+    ];
+
+    return (
+        <div className="max-w-4xl mx-auto">
+            {notification && (
+                <div className="fixed top-4 right-4 bg-green-500 text-black px-6 py-3 rounded shadow-lg font-bold z-50 animate-bounce">
+                    {notification}
+                </div>
+            )}
+
+            <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
+                <Send size={24} className="text-cyan-400" /> Mail Console
+            </h2>
+
+            <div className="bg-surface border border-surface-border p-6 rounded-xl space-y-6 shadow-2xl">
+
+                {/* Recipient */}
+                <div className="z-20 relative">
+                    <SearchableSelect
+                        label="Recipient"
+                        options={userOptions}
+                        value={recipient}
+                        onChange={setRecipient}
+                        placeholder="Select Recipient..."
+                    />
+                </div>
+
+                {/* Message */}
+                <div className="grid grid-cols-1 gap-4">
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-2">Title</label>
+                        <input
+                            type="text"
+                            className="w-full bg-surface-dark border border-surface-border rounded p-3 text-white focus:border-cyan-500 outline-none transition-colors"
+                            placeholder="Event Rewards / System Notice"
+                            value={title}
+                            onChange={e => setTitle(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-2">Content</label>
+                        <textarea
+                            className="w-full bg-surface-dark border border-surface-border rounded p-3 text-white h-32 focus:border-cyan-500 outline-none resize-none transition-colors"
+                            placeholder="Write your message here..."
+                            value={content}
+                            onChange={e => setContent(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {/* Items */}
+                <div className="bg-black/20 p-4 rounded-lg border border-dashed border-slate-700 z-10 relative">
+                    <label className="block text-sm text-gray-400 mb-4 flex items-center gap-2">
+                        <Package size={16} /> Attachments
+                    </label>
+
+                    <div className="flex gap-2 mb-4 items-start">
+                        <div className="flex-1">
+                            <SearchableSelect
+                                options={itemOptions}
+                                value={selectedItemCode}
+                                onChange={setSelectedItemCode}
+                                placeholder="Search Item..."
+                            />
+                        </div>
+                        <input
+                            type="number"
+                            className="w-20 bg-surface-dark border border-surface-border rounded p-3 text-white text-center h-[50px] font-mono"
+                            value={itemQty}
+                            onChange={e => setItemQty(Math.max(1, Number(e.target.value)))}
+                        />
+                        <button
+                            onClick={handleAddItem}
+                            className="px-6 h-[50px] bg-slate-700 hover:bg-slate-600 text-white rounded font-bold transition-colors"
+                        >
+                            Add
+                        </button>
+                    </div>
+
+                    {/* Attached List */}
+                    <div className="flex flex-wrap gap-2 min-h-[40px]">
+                        {attachedItems.length === 0 && <span className="text-gray-600 text-sm italic py-2">No items attached</span>}
+                        {attachedItems.map((item, idx) => (
+                            <div key={idx} className="bg-cyan-900/30 border border-cyan-800 px-3 py-1 rounded-full flex items-center gap-2 text-sm text-cyan-200 animate-in zoom-in duration-200">
+                                <span className="font-mono">{item.code}</span>
+                                <span className="bg-black/30 px-2 rounded text-cyan-400 font-bold">x{item.qty}</span>
+                                <button onClick={() => handleRemoveItem(idx)} className="text-cyan-500 hover:text-white ml-1">×</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Scheduler */}
+                <div className="z-0 relative">
+                    <DateTimePicker
+                        label="Schedule (Optional)"
+                        value={scheduledAt}
+                        onChange={setScheduledAt}
+                    />
+                    <p className="text-xs text-gray-500 mt-1 pl-1">Leave empty to send immediately.</p>
+                </div>
+
+                <div className="pt-4 border-t border-slate-800 flex justify-end">
+                    <button
+                        onClick={handleSend}
+                        className="flex items-center gap-2 px-8 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded shadow-lg shadow-cyan-900/20 transition-all hover:scale-105 active:scale-95"
+                    >
+                        <Send size={18} /> Send Mail
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    );
+}

@@ -381,7 +381,31 @@ function TabButton({ active, onClick, icon, label }: { active: boolean, onClick:
     );
 }
 
+
 function OverviewTab({ user }: { user: UserData }) {
+    // Calculate Total Stats (Base + Equipment)
+    const calculateTotalStats = () => {
+        const total = { ...user.stats };
+        user.equipment?.forEach(equip => {
+            if (equip.stats) {
+                try {
+                    const bonuses = JSON.parse(equip.stats);
+                    Object.entries(bonuses).forEach(([key, val]) => {
+                        const statKey = key.toLowerCase() as keyof typeof total;
+                        if (total[statKey] !== undefined) {
+                            total[statKey] += Number(val);
+                        }
+                    });
+                } catch (e) {
+                    console.error("Failed to parse stats for item", equip.name);
+                }
+            }
+        });
+        return total;
+    };
+
+    const effectiveStats = calculateTotalStats();
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Col: Visual */}
@@ -410,15 +434,15 @@ function OverviewTab({ user }: { user: UserData }) {
                     {/* Primary Stats */}
                     <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-800">
                         <h3 className="text-cyan-400 font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <Cpu size={18} /> Core Attributes
+                            <Cpu size={18} /> Core Attributes (Effective)
                         </h3>
                         <div className="space-y-4">
-                            <StatBar label="Strength" value={user.stats.strength} color="bg-red-500" />
-                            <StatBar label="Dexterity" value={user.stats.dexterity} color="bg-yellow-500" />
-                            <StatBar label="Constitution" value={user.stats.constitution} color="bg-orange-500" />
-                            <StatBar label="Intelligence" value={user.stats.intelligence} color="bg-blue-500" />
-                            <StatBar label="Wisdom" value={user.stats.wisdom} color="bg-purple-500" />
-                            <StatBar label="Agility" value={user.stats.agility} color="bg-green-500" />
+                            <StatBar label="Strength" value={effectiveStats.strength} base={user.stats.strength} color="bg-red-500" />
+                            <StatBar label="Dexterity" value={effectiveStats.dexterity} base={user.stats.dexterity} color="bg-yellow-500" />
+                            <StatBar label="Constitution" value={effectiveStats.constitution} base={user.stats.constitution} color="bg-orange-500" />
+                            <StatBar label="Intelligence" value={effectiveStats.intelligence} base={user.stats.intelligence} color="bg-blue-500" />
+                            <StatBar label="Wisdom" value={effectiveStats.wisdom} base={user.stats.wisdom} color="bg-purple-500" />
+                            <StatBar label="Agility" value={effectiveStats.agility} base={user.stats.agility} color="bg-green-500" />
                         </div>
                     </div>
 
@@ -429,8 +453,8 @@ function OverviewTab({ user }: { user: UserData }) {
                         </h3>
 
                         <div className="flex-1 grid grid-cols-2 gap-4">
-                            <InfoBox label="Combat Power" value="???" />
-                            <InfoBox label="Defense Rating" value="???" />
+                            <InfoBox label="Combat Power" value={String(Math.floor((effectiveStats.strength + effectiveStats.intelligence) * 2.5))} />
+                            <InfoBox label="Defense Rating" value={String(Math.floor((effectiveStats.constitution + effectiveStats.agility) * 1.5))} />
                             <InfoBox label="Energy Output" value="100%" />
                             <InfoBox label="Condition" value="Optimal" highlight />
                         </div>
@@ -580,19 +604,32 @@ function InfoBox({ label, value, highlight }: { label: string, value: string, hi
     )
 }
 
-function StatBar({ label, value, color }: { label: string, value: number, color: string }) {
+function StatBar({ label, value, base, color }: { label: string, value: number, base: number, color: string }) {
+    const bonus = value - base;
+
     return (
         <div className="flex items-center gap-4">
             <span className="w-24 text-sm font-bold text-slate-400 uppercase text-right">{label}</span>
-            <div className="flex-1 h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 relative">
+            <div className="flex-1 h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 relative flex">
                 <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${value * 10}%` }}
+                    animate={{ width: `${base * 8}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
-                    className={`h-full ${color} shadow-[0_0_10px_currentColor]`}
+                    className={`h-full bg-slate-600 shadow-[0_0_10px_rgba(255,255,255,0.2)]`}
                 />
+                {bonus > 0 && (
+                    <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${bonus * 8}%` }}
+                        transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
+                        className={`h-full ${color} shadow-[0_0_10px_currentColor]`}
+                    />
+                )}
             </div>
-            <span className="w-8 text-sm font-mono font-bold text-slate-300 text-right">{value}</span>
+            <span className="w-12 text-sm font-mono font-bold text-slate-300 text-right flex justify-end gap-1">
+                <span>{value}</span>
+                {bonus > 0 && <span className="text-cyan-400 text-[10px] self-start">+{bonus}</span>}
+            </span>
         </div>
     );
 }

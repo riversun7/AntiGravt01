@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, Database, Server, Activity } from "lucide-react";
+import Link from "next/link";
+import { Users, Database, Server, Activity, Send } from "lucide-react";
 import { AdminUser } from "@/types/admin";
 
 export default function AdminDashboardPage() {
@@ -46,6 +47,21 @@ export default function AdminDashboardPage() {
                     icon={<Server className="text-purple-400" />}
                     subtext="Response time < 50ms"
                 />
+
+                {/* Shortcut Card */}
+                <Link href="/admin/mail" className="group relative overflow-hidden rounded-lg bg-gradient-to-br from-cyan-900/50 to-blue-900/50 p-6 border border-cyan-500/30 hover:border-cyan-400 transition-all shadow-lg hover:shadow-cyan-500/20">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity scale-150 transform translate-x-2 -translate-y-2">
+                        <Send size={48} className="text-white" />
+                    </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2 text-cyan-300">
+                            <Send size={20} />
+                            <span className="font-bold uppercase tracking-wider text-xs">Quick Action</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-1">Mail Console</h3>
+                        <p className="text-xs text-cyan-200/70">Send items & messages</p>
+                    </div>
+                </Link>
             </div>
 
             <div className="p-6 bg-surface border border-surface-border rounded-lg">
