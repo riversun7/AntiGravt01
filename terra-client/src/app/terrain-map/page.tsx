@@ -22,16 +22,13 @@ const Popup = dynamic(
     () => import('react-leaflet').then(mod => mod.Popup),
     { ssr: false }
 );
-const useMap = dynamic(
-    () => import('react-leaflet').then(mod => mod.useMap),
-    { ssr: false }
-);
+
 
 function MapResizer() {
     useEffect(() => {
         // Leaflet 맵 초기화를 위한 코드
         import('leaflet').then(L => {
-            delete L.Icon.Default.prototype._getIconUrl;
+            delete (L.Icon.Default.prototype as any)._getIconUrl;
             L.Icon.Default.mergeOptions({
                 iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
                 iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -44,7 +41,7 @@ function MapResizer() {
 
 export default function TerrainMapPage() {
     const router = useRouter();
-    const [position, setPosition] = useState([51.505, -0.09]); // Default: London
+    const [position, setPosition] = useState<[number, number]>([51.505, -0.09]); // Default: London
     const [isClient, setIsClient] = useState(false);
 
     useEffect(() => {

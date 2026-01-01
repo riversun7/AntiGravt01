@@ -30,7 +30,7 @@ function InnerMap({ innerMapData, onBack, onTileClick }) {
                 {tiles.map((row, y) => (
                     <div key={y} className="map-row">
                         {row.map((tile, x) => (
-                            <div
+                            <button
                                 key={`${x}-${y}`}
                                 className={`map-tile inner-tile type-${tile.type}`}
                                 title={`Local [${x},${y}] ${tile.type}`}
@@ -42,7 +42,7 @@ function InnerMap({ innerMapData, onBack, onTileClick }) {
                                 {tile.type === 'mineral_deposit' && '💎'}
                                 {tile.type === 'tree' && '🌲'}
                                 {tile.building && '🏭'}
-                            </div>
+                            </button>
                         ))}
                     </div>
                 ))}

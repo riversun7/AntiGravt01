@@ -10,10 +10,10 @@ const WORLD_ATLAS_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-11
 
 export default function GlobalMapPage() {
     const router = useRouter();
-    const [geographies, setGeographies] = useState([]);
+    const [geographies, setGeographies] = useState<any[]>([]);
     const [transform, setTransform] = useState(d3.zoomIdentity);
-    const svgRef = useRef(null);
-    const containerRef = useRef(null);
+    const svgRef = useRef<SVGSVGElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
     const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, content: '' });
 
@@ -38,7 +38,7 @@ export default function GlobalMapPage() {
             .then(response => response.json())
             .then(worldData => {
                 const countries = topojson.feature(worldData, worldData.objects.countries);
-                setGeographies(countries.features);
+                setGeographies((countries as any).features);
             })
             .catch(err => console.error("Error fetching world atlas data:", err));
     }, []);
@@ -63,14 +63,14 @@ export default function GlobalMapPage() {
                 setTransform(event.transform);
             });
 
-        svg.call(zoomBehavior);
+        svg.call(zoomBehavior as any);
 
         return () => {
             svg.on('.zoom', null);
         };
     }, [dimensions]);
 
-    const handleMouseMove = (event, geo) => {
+    const handleMouseMove = (event: any, geo: any) => {
         const countryName = geo.properties?.name || 'Unknown Sector';
         setTooltip({
             show: true,
@@ -115,10 +115,10 @@ export default function GlobalMapPage() {
                                     cursor: 'pointer'
                                 }}
                                 onMouseEnter={(e) => {
-                                    e.target.style.fill = 'rgba(0, 240, 255, 0.2)';
+                                    (e.target as SVGPathElement).style.fill = 'rgba(0, 240, 255, 0.2)';
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.target.style.fill = 'rgba(30, 40, 55, 1)';
+                                    (e.target as SVGPathElement).style.fill = 'rgba(30, 40, 55, 1)';
                                     handleMouseLeave();
                                 }}
                                 onMouseMove={(e) => handleMouseMove(e, geo)}

@@ -1,5 +1,5 @@
-import React from 'react';
-import { TILE_TYPES } from '../data/worldData';
+
+
 import { MapService } from '../services/mapService';
 
 function MapOverlay({ selectedTile, playerPos, onMove, onManage, onEnter, onClose }) {
@@ -45,7 +45,7 @@ function MapOverlay({ selectedTile, playerPos, onMove, onManage, onEnter, onClos
             </h3>
 
             <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                Type: <strong style={{ color: (selectedTile.type === TILE_TYPES.CITY ? 'var(--warning)' : 'inherit') }}>
+                Type: <strong style={{ color: (selectedTile.type === 'city' ? 'var(--warning)' : 'inherit') }}>
                     {selectedTile.type.toUpperCase()}
                 </strong>
                 {selectedTile.data?.name && (
@@ -73,7 +73,7 @@ function MapOverlay({ selectedTile, playerPos, onMove, onManage, onEnter, onClos
                     </button>
                 )}
 
-                {(isAtLocation || isAdjacent) && selectedTile.type !== TILE_TYPES.OCEAN && (
+                {(isAtLocation || isAdjacent) && selectedTile.type !== 'ocean' && (
                     <button
                         className="btn-primary"
                         onClick={onManage}

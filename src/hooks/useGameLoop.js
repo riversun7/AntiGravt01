@@ -114,5 +114,5 @@ export const useGameLoop = (gameState, player, setPlayer, map, tickRate = 1000) 
         }, tickRate);
 
         return () => clearInterval(interval);
-    }, [gameState, setPlayer, tickRate]); // removed player dependency to avoid interval reset on every change, relying on functional state update
+    }, [gameState, setPlayer, tickRate, player]); // added player dependency
 };

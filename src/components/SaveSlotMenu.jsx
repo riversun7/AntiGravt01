@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 function SaveSlotMenu({ onSelectSlot }) {
     const [slots, setSlots] = useState([
@@ -28,7 +28,7 @@ function SaveSlotMenu({ onSelectSlot }) {
         onSelectSlot(slot.id, slot.empty);
     };
 
-    const handleDelete = (e, id) => {
+    const handleDelete = (e, id) => { // eslint-disable-line no-unused-vars
         e.stopPropagation();
         if (window.confirm("Delete this save file?")) {
             localStorage.removeItem(`terra_save_${id}`);

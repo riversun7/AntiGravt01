@@ -35,6 +35,16 @@ export default function DashboardPage() {
             return;
         }
 
+        // Check Session Expiration (3 Hours)
+        const loginTime = localStorage.getItem("terra_login_timestamp");
+        const THREE_HOURS = 3 * 60 * 60 * 1000;
+        if (!loginTime || Date.now() - parseInt(loginTime) > THREE_HOURS) {
+            console.log("Session expired or invalid");
+            localStorage.clear();
+            router.push("/login");
+            return;
+        }
+
         fetch(`http://localhost:3001/api/user/${userId}`)
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to fetch user");

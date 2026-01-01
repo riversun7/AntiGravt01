@@ -34,6 +34,7 @@ export default function LoginPage() {
             localStorage.setItem("terra_user_id", data.user.id);
             localStorage.setItem("terra_username", data.user.username);
             localStorage.setItem("terra_role", data.user.role);
+            localStorage.setItem("terra_login_timestamp", Date.now().toString());
 
             router.push("/dashboard");
         } catch (err) {

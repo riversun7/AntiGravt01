@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { BUILDINGS } from '../data/buildings';
 
 function ConstructionMenu({ tile, onBuild, onCancel, player }) {

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { TILE_TYPES, VIEWPORT_SIZE, MAJOR_CITIES } from '../data/worldData';
+import { useState } from 'react';
+import { VIEWPORT_SIZE, MAJOR_CITIES } from '../data/worldData';
 
-function WorldMap({ map, playerPos, selectedTile, onMove, onTileClick, onTileDoubleClick, onEnterSector }) {
+function WorldMap({ map, playerPos, selectedTile, onTileClick, onTileDoubleClick, onEnterSector }) {
     const [hoverPos, setHoverPos] = useState(null);
 
     // Initial Loading State handled in render
@@ -46,21 +46,20 @@ function WorldMap({ map, playerPos, selectedTile, onMove, onTileClick, onTileDou
                             const isTerritory = MAJOR_CITIES.some(c => Math.abs(c.x - tile.x) < 8 && Math.abs(c.y - tile.y) < 8);
 
                             return (
-                                <div
+                                <button
                                     key={`${tile.x}-${tile.y}`}
                                     className={`map-tile type-${tile.type} ${isPlayerHere ? 'active-player' : ''} ${isSelected ? 'selected' : ''} ${isHovered ? 'hovered' : ''} ${isTerritory ? 'in-territory' : ''}`}
                                     onClick={() => onTileClick(tile)}
                                     onDoubleClick={() => onTileDoubleClick(tile)}
-                                    autoFocus
                                     onMouseEnter={() => setHoverPos(tile)}
                                     onMouseLeave={() => setHoverPos(null)}
                                 >
                                     {/* Icons */}
-                                    {tile.type === TILE_TYPES.CITY && <span className="icon">🏙️</span>}
+                                    {tile.type === 'city' && <span className="icon">🏙️</span>}
                                     {/* {tile.type === TILE_TYPES.MOUNTAIN && <span className="icon">⛰️</span>} */}
 
                                     {isPlayerHere && <div className="player-avatar">🚀</div>}
-                                </div>
+                                </button>
                             );
                         })}
                     </div>

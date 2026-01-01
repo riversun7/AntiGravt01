@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useGame } from '../context/GameContext';
 import { TECH_TREE } from '../data/techTree';
 

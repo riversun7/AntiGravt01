@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import WorldMap from './components/WorldMap'
-import InnerMap from './components/InnerMap'
+
 import Minimap from './components/Minimap'
 import MapOverlay from './components/MapOverlay'
 import WorldMapPanel from './components/WorldMapPanel'
@@ -12,7 +12,7 @@ import AssetsPanel from './components/AssetsPanel'
 import ManagementPanel from './components/ManagementPanel'
 import ResearchPanel from './components/ResearchPanel'
 import SaveSlotMenu from './components/SaveSlotMenu'
-import { TILE_TYPES } from './data/worldData'
+
 import { MapService } from './services/mapService'
 import { useGame } from './context/GameContext'
 import { useTranslation } from './i18n/i18n'
@@ -21,9 +21,9 @@ import TerrainMap from './components/TerrainMap'
 
 function App() {
   const {
-    gameState, player, map, innerMap, playerPos, log,
-    login, loadGame, saveGame, logout,
-    setInnerMap, setPlayer, addToLog, t
+    gameState, player, map, playerPos, log,
+    login, loadGame, logout,
+    setPlayer, addToLog, t, setPlayerPos
   } = useGame();
 
   // Slot Selection State
@@ -113,7 +113,7 @@ function App() {
         setMoving(false);
         setPlayerPos({ x: targetX, y: targetY }); // Ensure final pos matches
 
-        if (map[targetY][targetX].type === TILE_TYPES.CITY) {
+        if (map[targetY][targetX].type === 'city') {
           addToLog(`Arrived at ${map[targetY][targetX].data.name}. Orbit established.`);
         } else {
           addToLog(`Arrival confirmed at [${targetX}, ${targetY}].`);
@@ -140,7 +140,7 @@ function App() {
 
   const handleEnterSector = () => {
     const currentTile = map[playerPos.y][playerPos.x];
-    if (currentTile.type === TILE_TYPES.OCEAN) {
+    if (currentTile.type === 'ocean') {
       addToLog("Cannot land on Ocean without specialized equipment.");
       return;
     }
@@ -214,7 +214,6 @@ function App() {
             <div className="card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <p>Enter Commander Name for Slot {selectedSlot}</p>
               <input
-                autoFocus
                 className="input-field"
                 placeholder="Commander Name"
                 value={tempName}
@@ -371,34 +370,34 @@ function Sidebar({ activeTab, onTabChange }) {
       <div className="brand-title">TERRA<br />IN-COGNITA</div>
       <div className="nav-menu">
         <div className="nav-group-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', margin: '1rem 0 0.5rem 1rem', textTransform: 'uppercase' }}>Command</div>
-        <div className={`nav-item ${activeTab === 'world_map' ? 'active' : ''}`} onClick={() => onTabChange('world_map')}>
+        <button className={`nav-item ${activeTab === 'world_map' ? 'active' : ''}`} onClick={() => onTabChange('world_map')}>
           <span>🌍</span> Navigation
-        </div>
-        <div className={`nav-item ${activeTab === 'tile_detail' ? 'active' : ''}`} onClick={() => onTabChange('tile_detail')}>
+        </button>
+        <button className={`nav-item ${activeTab === 'tile_detail' ? 'active' : ''}`} onClick={() => onTabChange('tile_detail')}>
           <span>🏗️</span> Management
-        </div>
-        <div className={`nav-item ${activeTab === 'assets' ? 'active' : ''}`} onClick={() => onTabChange('assets')}>
+        </button>
+        <button className={`nav-item ${activeTab === 'assets' ? 'active' : ''}`} onClick={() => onTabChange('assets')}>
           <span>📦</span> Assets
-        </div>
-        <div className={`nav-item ${activeTab === 'research' ? 'active' : ''}`} onClick={() => onTabChange('research')}>
+        </button>
+        <button className={`nav-item ${activeTab === 'research' ? 'active' : ''}`} onClick={() => onTabChange('research')}>
           <span>🧬</span> Research
-        </div>
+        </button>
 
         <div className="nav-group-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', margin: '1rem 0 0.5rem 1rem', textTransform: 'uppercase' }}>Visual Uplink</div>
-        <div className={`nav-item ${activeTab === 'global_map' ? 'active' : ''}`} onClick={() => onTabChange('global_map')}>
+        <button className={`nav-item ${activeTab === 'global_map' ? 'active' : ''}`} onClick={() => onTabChange('global_map')}>
           <span>🗺️</span> Global Map <span style={{ fontSize: '0.6rem', marginLeft: 'auto', opacity: 0.5 }}>D3</span>
-        </div>
-        <div className={`nav-item ${activeTab === 'terrain_map' ? 'active' : ''}`} onClick={() => onTabChange('terrain_map')}>
-          <span>🏔️</span> Terrain Map <span style={{ fontSize: '0.6rem', marginLeft: 'auto', opacity: 0.5 }}>Leaflet</span>
-        </div>
-        <div className={`nav-item ${activeTab === 'globe_projection' ? 'active' : ''}`} onClick={() => onTabChange('globe_projection')}>
-          <span>🌐</span> World Map <span style={{ fontSize: '0.6rem', marginLeft: 'auto', opacity: 0.5 }}>ThreeJS</span>
-        </div>
+        </button>
+        <button className={`nav-item ${activeTab === 'terrain_map' ? 'active' : ''}`} onClick={() => onTabChange('terrain_map')}>
+          <span>🏔️</span> Terrain Map <span style={{ fontSize: '0.6rem', marginLeft: 'auto', opacity: 0.5 }>Leaflet</span>
+        </button>
+        <button className={`nav-item ${activeTab === 'globe_projection' ? 'active' : ''}`} onClick={() => onTabChange('globe_projection')}>
+          <span>🌐</span> World Map <span style={{ fontSize: '0.6rem', marginLeft: 'auto', opacity: 0.5 }>ThreeJS</span>
+        </button>
 
         <div className="nav-group-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', margin: '1rem 0 0.5rem 1rem', textTransform: 'uppercase' }}>System</div>
-        <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => onTabChange('settings')}>
+        <button className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => onTabChange('settings')}>
           <span>⚙️</span> {t('nav.settings')}
-        </div>
+        </button>
       </div>
     </div>
   )

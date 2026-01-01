@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -23,7 +23,7 @@ const MapResizer = () => {
 }
 
 const TerrainMap = () => {
-    const [position, setPosition] = useState([51.505, -0.09]); // Default: London
+    const [position] = useState([51.505, -0.09]); // Default: London
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>

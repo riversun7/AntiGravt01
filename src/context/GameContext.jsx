@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { MapService } from '../services/mapService';
-import { TILE_TYPES } from '../data/worldData';
+
 import { useGameLoop } from '../hooks/useGameLoop';
 import { useTranslation } from '../i18n/i18n';
 

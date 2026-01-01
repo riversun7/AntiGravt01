@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { UNIT_TYPES } from '../data/units';
-import { BUILDINGS } from '../data/buildings';
 
-function ManagementPanel({ tile, onBack }) {
-    const { player, setPlayer, log, addToLog } = useGame();
+
+function ManagementPanel({ tile }) {
+    const { player, setPlayer, addToLog } = useGame();
     const [activeTab, setActiveTab] = useState('personnel'); // facilities, personnel
 
     const handleRecruit = (unitType) => {

@@ -132,7 +132,7 @@ function initSchema() {
             db.exec('DROP TABLE world_map');
             console.log("Dropped legacy world_map table.");
         }
-    } catch (e) { }
+    } catch (e) { console.error("Error checking world_map table for faction column:", e); }
 
     db.exec(createWorldMapTable);
 
