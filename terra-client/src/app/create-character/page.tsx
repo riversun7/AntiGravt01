@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Cpu, Shield, Zap, ArrowRight, Loader2, Info } from "lucide-react";
+import { Cpu, Zap, Shield, ArrowRight, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import SystemMenu from "@/components/SystemMenu";
 

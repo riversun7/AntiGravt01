@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Coins, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Package } from "lucide-react";
 import SystemMenu from "@/components/SystemMenu";
@@ -39,8 +39,11 @@ export default function MarketPage() {
 
     const userId = typeof window !== 'undefined' ? localStorage.getItem("terra_user_id") : null;
 
-    const fetchData = async () => {
-        if (!userId) return;
+    const fetchData = useCallback(async () => {
+        if (!userId) {
+            router.push('/login'); // Use router here
+            return;
+        }
         setLoading(true);
         try {
             // Fetch Market
@@ -62,7 +65,7 @@ export default function MarketPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [userId, router, setLoading, setItems, setInventory, setUserGold]);
 
     useEffect(() => {
         if (!userId) {
@@ -73,7 +76,7 @@ export default function MarketPage() {
         // Auto refresh price every 30s to stay relatively synced
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
-    }, [userId]);
+    }, [userId, fetchData, router]);
 
     const handleTrade = async () => {
         if (!selectedItem || !userId) return;

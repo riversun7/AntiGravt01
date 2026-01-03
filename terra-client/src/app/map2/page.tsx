@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo, Suspense } from "react";
+import React, { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Globe, Database, Map as MapIcon, Box, MousePointer2, Menu, Settings, Shield, Coins, User, LogOut, Crosshair } from "lucide-react";
-import { Canvas, useLoader, useFrame } from "@react-three/fiber";
+import { Globe, Database, Map as MapIcon, Box, MousePointer2 } from "lucide-react";
+import { Canvas, useLoader, useFrame, ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, Stars, Html } from "@react-three/drei";
 import * as THREE from "three";
 import SystemMenu from "@/components/SystemMenu";
@@ -17,6 +17,27 @@ interface WorldTile {
     faction?: string;
     owner_id?: number;
     name?: string; // Add optional name
+}
+
+interface ResourceItemProps {
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+    color: string;
+}
+
+interface InfoBoxProps {
+    label: string;
+    value: string;
+    highlight?: boolean;
+}
+
+interface ActionButtonProps {
+    icon: React.ReactNode;
+    label: string;
+    active: boolean;
+    onClick: () => void;
+    hotkey: string;
 }
 
 // Map Constants matching Server Generation
@@ -39,7 +60,7 @@ function InteractiveGlobe({
     const earthTexture = useLoader(THREE.TextureLoader, texturePath);
 
     // Raycasting Logic
-    const handlePointerDown = (e: any) => {
+    const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
         // e.uv contains the texture coordinate [0..1, 0..1]
         if (!e.uv) return;
 
@@ -178,7 +199,6 @@ text - [6px] font - mono font - bold tracking - widest
 
 
 export default function MapPage3D() {
-    const router = useRouter();
     const [tiles, setTiles] = useState<Map<string, WorldTile>>(new Map());
     const [userPos, setUserPos] = useState<string | null>(null);
     const [selectedTile, setSelectedTile] = useState<WorldTile | null>(null);
@@ -211,7 +231,7 @@ export default function MapPage3D() {
         const id = `${x}_${y} `;
         const tile = tiles.get(id);
         if (tile) {
-            console.log("Selected Tile 3D:", tile);
+
             setSelectedTile(tile);
         } else {
             // Emulate implicit tile if not in DB (empty ocean etc)
@@ -269,7 +289,7 @@ export default function MapPage3D() {
                 </div>
 
                 <div className="text-xs text-slate-500 uppercase tracking-widest">
-                    <span className="text-cyan-500 animate-pulse">● ONLINE</span> // COMMANDER
+                    <span className="text-cyan-500 animate-pulse">● ONLINE</span> { /* COMMANDER */ }
                 </div>
             </div>
 
@@ -342,14 +362,14 @@ export default function MapPage3D() {
                         icon={<Database size={20} />}
                         label="SCAN"
                         active={!!selectedTile}
-                        onClick={() => console.log("Scan")}
+                        onClick={() => { }}
                         hotkey="S"
                     />
                     <ActionButton
                         icon={<Box size={20} />}
                         label="BUILD"
                         active={!!selectedTile}
-                        onClick={() => console.log("Build")}
+                        onClick={() => { }}
                         hotkey="B"
                     />
                 </div>
@@ -385,7 +405,7 @@ export default function MapPage3D() {
 }
 
 // UI Components
-function ResourceItem({ icon, label, value, color }: any) {
+function ResourceItem({ icon, label, value, color }: ResourceItemProps) {
     return (
         <div className="flex items-center gap-2">
             <div className={`opacity - 80 ${color} `}>{icon}</div>
@@ -397,7 +417,7 @@ function ResourceItem({ icon, label, value, color }: any) {
     );
 }
 
-function InfoBox({ label, value, highlight }: any) {
+function InfoBox({ label, value, highlight }: InfoBoxProps) {
     return (
         <div className="bg-slate-800/50 p-2 rounded border border-slate-700">
             <div className="text-[9px] text-slate-500 uppercase mb-1">{label}</div>
@@ -406,7 +426,7 @@ function InfoBox({ label, value, highlight }: any) {
     );
 }
 
-function ActionButton({ icon, label, active, onClick, hotkey }: any) {
+function ActionButton({ icon, label, active, onClick, hotkey }: ActionButtonProps) {
     return (
         <button
             disabled={!active}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import mermaid from 'mermaid';
 import { Save, Plus, Trash2, Database, GripVertical, X, ZoomIn, ZoomOut, Move, Filter, Link as LinkIcon } from 'lucide-react';
 
@@ -44,6 +44,59 @@ const DEFAULT_TABLES: DBTable[] = [
     }
 ];
 
+const generateMermaidCode = (visibleTables: DBTable[]) => {
+    let code = 'erDiagram\n';
+
+    // Render Tables
+    visibleTables.forEach(table => {
+        code += `    ${table.name.replace(/\s+/g, '_') || 'UNNAMED'} {\n`;
+        table.columns.forEach(col => {
+            const type = col.type || 'string';
+            const name = col.name || 'new_col';
+            const keyLabel = col.isKey ? 'PK' : (col.isFk ? 'FK' : '');
+            code += `        ${type} ${name} ${keyLabel}\n`;
+        });
+        code += `    }\n`;
+    });
+
+    // Render Relationships using Visible Tables
+    visibleTables.forEach(table => {
+        table.columns.forEach(col => {
+            if (col.isFk && col.fkTargetTableId) {
+                const targetTable = visibleTables.find(t => t.id === col.fkTargetTableId);
+                if (targetTable) {
+                    // RELATION: TARGET ||--o{ SOURCE
+                    const tName = targetTable.name.replace(/\s+/g, '_');
+                    const sName = table.name.replace(/\s+/g, '_');
+                    code += `    ${tName} ||--o{ ${sName} : "${col.name}"\n`;
+                }
+            }
+        });
+    });
+
+    return code;
+};
+
+const renderDiagram = async (code: string, mermaidRef: React.RefObject<HTMLDivElement | null>, setRenderError: React.Dispatch<React.SetStateAction<string | null>>) => {
+    if (!mermaidRef.current) return;
+    // Don't render empty diagram if no tables
+    if (!code.includes('{')) {
+        mermaidRef.current.innerHTML = '<div class="text-gray-600 text-sm">No tables to display</div>';
+        setRenderError(null);
+        return;
+    }
+
+    try {
+        mermaidRef.current.innerHTML = '';
+        const id = `mermaid-${Date.now()}`;
+        const { svg } = await mermaid.render(id, code);
+        mermaidRef.current.innerHTML = svg;
+        setRenderError(null);
+    } catch (_err: unknown) {
+        setRenderError("Syntax or Render Error");
+    }
+};
+
 export default function DBDesignerPage() {
     const [tables, setTables] = useState<DBTable[]>(DEFAULT_TABLES);
     const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -83,62 +136,8 @@ export default function DBDesignerPage() {
             : tables.filter(t => t.schema === activeSchemaFilter);
 
         const code = generateMermaidCode(filteredTables);
-        renderDiagram(code);
-    }, [tables, activeSchemaFilter]);
-
-    const generateMermaidCode = (visibleTables: DBTable[]) => {
-        let code = 'erDiagram\n';
-
-        // Render Tables
-        visibleTables.forEach(table => {
-            code += `    ${table.name.replace(/\s+/g, '_') || 'UNNAMED'} {\n`;
-            table.columns.forEach(col => {
-                const type = col.type || 'string';
-                const name = col.name || 'new_col';
-                const keyLabel = col.isKey ? 'PK' : (col.isFk ? 'FK' : '');
-                code += `        ${type} ${name} ${keyLabel}\n`;
-            });
-            code += `    }\n`;
-        });
-
-        // Render Relationships using Visible Tables
-        visibleTables.forEach(table => {
-            table.columns.forEach(col => {
-                if (col.isFk && col.fkTargetTableId) {
-                    const targetTable = visibleTables.find(t => t.id === col.fkTargetTableId);
-                    if (targetTable) {
-                        // RELATION: TARGET ||--o{ SOURCE
-                        const tName = targetTable.name.replace(/\s+/g, '_');
-                        const sName = table.name.replace(/\s+/g, '_');
-                        code += `    ${tName} ||--o{ ${sName} : "${col.name}"\n`;
-                    }
-                }
-            });
-        });
-
-        return code;
-    };
-
-    const renderDiagram = async (code: string) => {
-        if (!mermaidRef.current) return;
-        // Don't render empty diagram if no tables
-        if (!code.includes('{')) {
-            mermaidRef.current.innerHTML = '<div class="text-gray-600 text-sm">No tables to display</div>';
-            return;
-        }
-
-        try {
-            mermaidRef.current.innerHTML = '';
-            const id = `mermaid-${Date.now()}`;
-            const { svg } = await mermaid.render(id, code);
-            mermaidRef.current.innerHTML = svg;
-            setRenderError(null);
-        } catch (err) {
-            // Mermaid throws messy errors, suppress console spam slightly
-            // console.error('Mermaid render error:', err);
-            setRenderError("Syntax or Render Error");
-        }
-    };
+        renderDiagram(code, mermaidRef, setRenderError);
+    }, [tables, activeSchemaFilter, mermaidRef, setRenderError]);
 
     const handleSave = () => {
         localStorage.setItem('terra_db_gui_state_v2', JSON.stringify(tables));
@@ -148,7 +147,7 @@ export default function DBDesignerPage() {
     // --- Table Operations ---
     const addTable = () => {
         // Generate a unique name
-        let nameBase = 'NEW_TABLE';
+        const nameBase = 'NEW_TABLE';
         let counter = 1;
         let newName = nameBase;
 
@@ -167,7 +166,7 @@ export default function DBDesignerPage() {
         setSelectedTableId(newTable.id);
     };
 
-    const updateTable = (id: string, field: keyof DBTable, value: any) => {
+    const updateTable = (id: string, field: keyof DBTable, value: DBTable[typeof field]) => {
         setTables(tables.map(t => t.id === id ? { ...t, [field]: value } : t));
     };
 
@@ -188,7 +187,7 @@ export default function DBDesignerPage() {
         ));
     };
 
-    const updateColumn = (tableId: string, colId: string, field: keyof DBColumn, value: any) => {
+    const updateColumn = (tableId: string, colId: string, field: keyof DBColumn, value: DBColumn[typeof field]) => {
         setTables(tables.map(t =>
             t.id === tableId
                 ? {
@@ -239,6 +238,8 @@ export default function DBDesignerPage() {
 
     // Get unique schemas for filter
     const schemas = Array.from(new Set(tables.map(t => t.schema || 'PUBLIC'))).sort();
+
+    const filteredTables = activeSchemaFilter === 'ALL' ? tables : tables.filter(t => t.schema === activeSchemaFilter);
 
     return (
         <div className="h-full flex flex-col">

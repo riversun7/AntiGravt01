@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import SystemMenu from "@/components/SystemMenu";
 import { Settings, Monitor, Languages, ChevronDown, Check } from "lucide-react";
 

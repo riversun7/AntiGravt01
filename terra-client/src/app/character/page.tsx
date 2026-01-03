@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, Shield, Cpu, Zap, Box, Activity, Layers, Info, X, ChevronRight, Check } from "lucide-react";
+import { User, Shield, Cpu, Box, Activity, Layers, X, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import SystemMenu from "@/components/SystemMenu";
 import ItemIcon from "@/components/ItemIcon";
@@ -60,7 +60,7 @@ export default function CharacterPage() {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
-    const fetchUser = () => {
+    const fetchUser = useCallback(() => {
         const userId = localStorage.getItem("terra_user_id");
         if (!userId) {
             router.push("/login");
@@ -83,9 +83,9 @@ export default function CharacterPage() {
                 console.error(err);
                 router.push("/login");
             });
-    };
+    }, [router]);
 
-    const fetchInventory = () => {
+    const fetchInventory = useCallback(() => {
         const userId = localStorage.getItem("terra_user_id");
         if (!userId) return;
 
@@ -106,12 +106,12 @@ export default function CharacterPage() {
                 console.error("Inventory fetch error:", err);
                 setInventory([]);
             });
-    };
+    }, []);
 
     useEffect(() => {
         fetchUser();
         fetchInventory(); // Always fetch inventory for equip logic
-    }, []);
+    }, [fetchUser, fetchInventory]);
 
     const handleEquip = async (item: Item, slot?: string) => {
         const targetSlot = slot || item.slot;
@@ -199,7 +199,7 @@ export default function CharacterPage() {
                             {user.username}
                         </h1>
                         <p className="text-slate-400 max-w-lg">
-                            Model: <span className="text-cyan-300 font-bold">{user.cyborg_model}</span> // Status: <span className="text-emerald-400">OPERATIONAL</span>
+                            Model: <span className="text-cyan-300 font-bold">{user.cyborg_model}</span> { /* Status: <span className="text-emerald-400">OPERATIONAL</span> */ }
                         </p>
                     </div>
 
@@ -250,7 +250,7 @@ export default function CharacterPage() {
                             <ItemIcon item={selectedItem} size="lg" className="rounded-xl shadow-lg shadow-cyan-500/10" />
                             <div>
                                 <div className="text-xs text-cyan-400 uppercase tracking-widest mb-1">
-                                    {('slot' in selectedItem) ? (selectedItem as any).slot : 'RESOURCE'}
+                                    {('slot' in selectedItem && typeof selectedItem.slot === 'string') ? (selectedItem as Equipment).slot : 'RESOURCE'}
                                 </div>
                                 <h2 className="text-2xl font-bold text-white">{selectedItem.name}</h2>
                                 <div className="text-xs text-slate-500 font-mono mt-1">{selectedItem.code}</div>
@@ -275,7 +275,7 @@ export default function CharacterPage() {
                                                     <span className="text-cyan-300 font-mono font-bold">+{String(val)}</span>
                                                 </div>
                                             ));
-                                        } catch (e) {
+                                        } catch (_e) {
                                             return <div className="text-xs text-red-400">Stats Error</div>;
                                         }
                                     })()}
@@ -321,7 +321,7 @@ export default function CharacterPage() {
 
                         {slotCandidates.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-12 text-slate-500 bg-slate-950 rounded border border-slate-800 border-dashed">
-                                <Box size={48} className="mb-4 opacity-20" />
+                                <Box size={48} className="mb-4 opacity-50" />
                                 <p>No compatible modules found in inventory.</p>
                                 <button onClick={() => { setActiveTab('modules'); setSelectedSlot(null); }} className="mt-4 text-cyan-400 text-sm hover:underline">
                                     Check Market
@@ -329,8 +329,8 @@ export default function CharacterPage() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-2">
-                                {slotCandidates.map(item => (
-                                    <div key={item.id} className="flex items-center gap-4 p-3 bg-slate-950 border border-slate-800 rounded hover:border-cyan-500/50 cursor-pointer group transition-all" onClick={() => handleEquip(item, selectedSlot)}>
+                                {slotCandidates.map((item, i) => (
+                                    <div key={i} className="flex items-center gap-4 p-3 bg-slate-950 border border-slate-800 rounded hover:border-cyan-500/50 cursor-pointer group transition-all" onClick={() => handleEquip(item, selectedSlot)}>
                                         <div className="relative">
                                             <ItemIcon item={item} size="md" className="rounded" />
                                         </div>
@@ -363,10 +363,8 @@ export default function CharacterPage() {
 // Sub-Components
 // ----------------------------------------------------------------------
 
-// Helper for Auto-Generated Icons
-// Moved to src/components/ItemIcon.tsx
 
-function TabButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: any, label: string }) {
+function TabButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
     return (
         <button
             onClick={onClick}
@@ -389,13 +387,12 @@ function OverviewTab({ user }: { user: UserData }) {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.1),transparent)]" />
 
                 {/* Character Model Avatar */}
-                <div className="relative w-64 h-64 filter drop-shadow-[0_0_20px_rgba(34,211,238,0.3)] transition-all duration-500 group-hover:scale-105 group-hover:drop-shadow-[0_0_30px_rgba(34,211,238,0.5)]">
-                    <img
-                        src={`https://api.dicebear.com/9.x/bottts/svg?seed=${user.username}`}
-                        alt="Character Avatar"
-                        className="w-full h-full object-contain"
-                    />
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                    src={`https://api.dicebear.com/9.x/bottts/svg?seed=${user.username}`}
+                    alt="Character Avatar"
+                    className="w-full h-full object-contain"
+                />
 
                 <div className="absolute bottom-6 left-0 right-0 text-center">
                     <div className="inline-block px-4 py-1 bg-slate-950/80 border border-slate-700 rounded-full text-xs text-slate-400">
@@ -486,6 +483,7 @@ function LoadoutTab({ user, onSlotClick }: { user: UserData, onSlotClick: (slot:
 
             {/* Center Avatar */}
             <div className="relative z-10 w-64 h-64 filter drop-shadow-[0_0_30px_rgba(34,211,238,0.4)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                     src={`https://api.dicebear.com/9.x/bottts/svg?seed=${user.username}`}
                     alt="Current Loadout"
@@ -577,7 +575,7 @@ function InfoBox({ label, value, highlight }: { label: string, value: string, hi
             <span className="text-slate-500 text-xs uppercase font-bold mb-1">{label}</span>
             <span className={`text-xl font-bold font-mono ${highlight ? "text-emerald-400" : "text-white"}`}>{value}</span>
         </div>
-    )
+    </div>
 }
 
 function StatBar({ label, value, color }: { label: string, value: number, color: string }) {
