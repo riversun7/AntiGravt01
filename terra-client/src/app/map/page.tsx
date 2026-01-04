@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Map as MapIcon, X, Maximize, MapPin, Flag, Menu, Database, Globe, Coins, User, Shield, LogOut } from "lucide-react";
+import { Map as MapIcon, Maximize, X, Hammer, Zap, Lock } from "lucide-react";
 
 import BuildMenu from "@/components/map/BuildMenu";
 import SystemMenu from "@/components/SystemMenu";
@@ -27,7 +27,6 @@ export default function MapPage() {
     const [macroMap, setMacroMap] = useState<WorldTile[]>([]);
     const [mapDimensions, setMapDimensions] = useState({ w: 20, h: 20 });
     const [isMapLoading, setIsMapLoading] = useState(true);
-    const [mapError, setMapError] = useState<string | null>(null);
     const [selectedTile, setSelectedTile] = useState<WorldTile | null>(null);
     const [localMap, setLocalMap] = useState<LocalTile[]>([]);
     const [loadingLocal, setLoadingLocal] = useState(false);
@@ -42,7 +41,7 @@ export default function MapPage() {
     useEffect(() => {
         // Init: Get User ID and Position from Correct Storage Key
         const storedUserId = localStorage.getItem('terra_user_id');
-        console.log("Map Page Init: Stored UserID -> ", storedUserId);
+
 
         setIsMapLoading(true);
 
@@ -71,7 +70,7 @@ export default function MapPage() {
                 return res.json();
             })
             .then(data => {
-                console.log("Fetched World Map -> ", data.length + " tiles");
+
                 // Calculate Dimensions
                 if (data.length > 0) {
                     const maxX = Math.max(...data.map((t: WorldTile) => t.x));
@@ -83,10 +82,10 @@ export default function MapPage() {
             })
             .catch(err => {
                 console.error(err);
-                setMapError(err.message);
+
                 setIsMapLoading(false);
             });
-    }, []);
+    }, [router]);
 
     // --- CAMERA & VIEWPORT LOGIC ---
     // Correction for 16:9 Image Aspect Ratio on a 2:1 Grid
@@ -96,8 +95,7 @@ export default function MapPage() {
     const TILE_W = 35;
     const TILE_H = 40;
 
-    const VIEWPORT_WIDTH = 1200; // Approximate viewport width (responsive handled via CSS)
-    const VIEWPORT_HEIGHT = 600;
+
 
     const [viewportSize, setViewportSize] = useState({ w: 0, h: 0 });
     const [cameraPos, setCameraPos] = useState({ x: 0, y: 0 });
@@ -243,29 +241,13 @@ export default function MapPage() {
             }
         } catch (e) {
             console.error(e);
-            alert("Build Error");
+            alert("Build Error: " + e);
         }
     };
 
-    const getTileColor = (type: string) => {
-        // Transparent Overlay Strategy for Background Image
-        switch (type) {
-            case 'CITY': return 'bg-slate-900/40 border border-cyan-500/50 shadow-[0_0_15px_rgba(34,211,238,0.3)] backdrop-blur-[1px]';
-            // Subtle tints for interaction feedback, but mostly let the image show through
-            case 'OCEAN': return 'hover:bg-cyan-500/10 transition-colors duration-300';
-            case 'PLAIN': return 'hover:bg-green-500/10 transition-colors duration-300';
-            default: return 'hover:bg-white/5 transition-colors duration-300';
-        }
-    };
 
-    const getFactionColor = (faction?: string) => {
-        switch (faction) {
-            case 'TERRAN': return 'ring-1 ring-blue-500/50 shadow-[0_0_10px_rgba(59,130,246,0.2)] bg-blue-900/10';
-            case 'CYBER': return 'ring-1 ring-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.2)] bg-purple-900/10';
-            case 'IRON': return 'ring-1 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)] bg-red-900/10';
-            default: return '';
-        }
-    };
+
+
 
     const getLocalTileColor = (type: string) => {
         switch (type) {
@@ -584,7 +566,5 @@ export default function MapPage() {
 
             </main>
 
-            {/* DEBUG PANEL REMOVED */}
-        </div >
-    );
+        </div >);
 }

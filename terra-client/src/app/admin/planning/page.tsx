@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Plus, X, ArrowRight, ArrowLeft, Trash2, Tag, Edit3, Save, Copy, Check, Settings, Layout } from 'lucide-react';
+import { Plus, X, ArrowRight, ArrowLeft, Trash2, Save, Copy, Settings, Layout } from 'lucide-react';
 
 // --- Types ---
 interface TaskCategory {
@@ -16,6 +16,21 @@ interface Task {
     description: string;
     status: 'TODO' | 'IN_PROGRESS' | 'DONE';
     categoryId: string;
+    createdAt: number;
+}
+
+interface TaskV2Old {
+    id: string;
+    content: string;
+    status: Task['status'];
+    category: string;
+    createdAt: number;
+}
+
+interface TaskV1Old {
+    id: string;
+    content: string;
+    status: Task['status'];
     createdAt: number;
 }
 
@@ -41,9 +56,74 @@ export default function PlanningPage() {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [categories, setCategories] = useState<TaskCategory[]>(DEFAULT_CATEGORIES);
 
+    // Initial Load
+    useEffect(() => {
+        // Load Categories
+        const savedCats = localStorage.getItem('terra_admin_categories');
+        if (savedCats) {
+            try {
+                setCategories(JSON.parse(savedCats));
+            } catch (e) {
+                console.error("Failed to parse categories", e);
+            }
+        }
+
+        // Load Tasks (including migrations)
+        const savedTasks = localStorage.getItem('terra_admin_tasks_v3');
+        if (savedTasks) {
+            try {
+                setTasks(JSON.parse(savedTasks));
+                return;
+            } catch (e) {
+                console.error("Failed to parse tasks_v3", e);
+            }
+        }
+
+        const v2Tasks = localStorage.getItem('terra_admin_tasks_v2');
+        if (v2Tasks) {
+            try {
+                const oldTasks = JSON.parse(v2Tasks);
+                const migrated = oldTasks.map((t: TaskV2Old) => ({
+                    id: t.id,
+                    title: t.content,
+                    description: '',
+                    status: t.status,
+                    categoryId: t.category === 'ALL' ? 'ADMIN' : t.category,
+                    createdAt: t.createdAt
+                }));
+                localStorage.setItem('terra_admin_tasks_v3', JSON.stringify(migrated));
+                localStorage.removeItem('terra_admin_tasks_v2');
+                setTasks(migrated);
+                return;
+            } catch (e) {
+                console.error("Migration v2 -> v3 failed", e);
+            }
+        }
+
+        const v1Tasks = localStorage.getItem('terra_admin_tasks');
+        if (v1Tasks) {
+            try {
+                const oldTasks = JSON.parse(v1Tasks);
+                const migrated = oldTasks.map((t: TaskV1Old) => ({
+                    id: t.id,
+                    title: t.content,
+                    description: '',
+                    status: t.status,
+                    categoryId: 'ADMIN',
+                    createdAt: t.createdAt
+                }));
+                localStorage.setItem('terra_admin_tasks_v3', JSON.stringify(migrated));
+                localStorage.removeItem('terra_admin_tasks');
+                setTasks(migrated);
+            } catch (e) {
+                console.error("Migration v1 -> v3 failed", e);
+            }
+        }
+    }, []);
+
     // UI State
     const [activeTab, setActiveTab] = useState<string>('ALL');
-    const [isLoaded, setIsLoaded] = useState(false);
+    const [isLoaded] = useState(true);
 
     // Modal State (Task)
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -51,59 +131,8 @@ export default function PlanningPage() {
 
     // Modal State (Category Manager)
     const [isCatModalOpen, setIsCatModalOpen] = useState(false);
-    const [editingCategory, setEditingCategory] = useState<TaskCategory | null>(null);
 
     // --- Persistence & Migration ---
-    useEffect(() => {
-        // Load Categories
-        const savedCats = localStorage.getItem('terra_admin_categories');
-        if (savedCats) {
-            setCategories(JSON.parse(savedCats));
-        }
-
-        // Load Tasks (v3)
-        const savedTasks = localStorage.getItem('terra_admin_tasks_v3');
-        if (savedTasks) {
-            setTasks(JSON.parse(savedTasks));
-        } else {
-            // Migration v2 -> v3
-            const v2Tasks = localStorage.getItem('terra_admin_tasks_v2');
-            if (v2Tasks) {
-                try {
-                    const oldTasks = JSON.parse(v2Tasks);
-                    const migrated = oldTasks.map((t: any) => ({
-                        id: t.id,
-                        title: t.content, // Map content to title
-                        description: '', // Default empty desc
-                        status: t.status,
-                        categoryId: t.category === 'ALL' ? 'ADMIN' : t.category,
-                        createdAt: t.createdAt
-                    }));
-                    setTasks(migrated);
-                } catch (e) {
-                    console.error("Migration failed", e);
-                }
-            } else {
-                // Migration v1 -> v3 (fallback)
-                const v1Tasks = localStorage.getItem('terra_admin_tasks');
-                if (v1Tasks) {
-                    try {
-                        const oldTasks = JSON.parse(v1Tasks);
-                        const migrated = oldTasks.map((t: any) => ({
-                            id: t.id,
-                            title: t.content,
-                            description: '',
-                            status: t.status,
-                            categoryId: 'ADMIN', // Default
-                            createdAt: t.createdAt
-                        }));
-                        setTasks(migrated);
-                    } catch (e) { console.error(e); }
-                }
-            }
-        }
-        setIsLoaded(true);
-    }, []);
 
     useEffect(() => {
         if (isLoaded) {
@@ -333,7 +362,7 @@ Current Status: ${task.status}
                                     <select
                                         className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
                                         value={currentTask.status}
-                                        onChange={e => setCurrentTask({ ...currentTask, status: e.target.value as any })}
+                                        onChange={e => setCurrentTask({ ...currentTask, status: e.target.value as Task['status'] })}
                                     >
                                         {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
                                     </select>

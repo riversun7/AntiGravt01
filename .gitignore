@@ -1,7 +1,43 @@
-#ignore
+# Dependencies
 node_modules
-.next
-dist
+.pnp
+.pnp.js
+
+# Testing
+coverage
+
+# Next.js
+.next/
+out/
+
+# Production
+build/
+dist/
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local Env Files
 .env
-terra.db
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+*.sqlite
+*.db
+terra-server/db/
+terra-server/game.db
+
+# Temporary
 temp_reference*
+*.log
+

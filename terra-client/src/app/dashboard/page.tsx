@@ -34,6 +34,13 @@ interface UserData {
     equipment: Equipment[];
 }
 
+
+
+interface ProductionItem {
+    code: string;
+    qty: number;
+}
+
 export default function DashboardPage() {
     const [user, setUser] = useState<UserData | null>(null);
     const router = useRouter();
@@ -45,11 +52,11 @@ export default function DashboardPage() {
             return;
         }
 
-        // Check Session Expiration (3 Hours)
+
         const loginTime = localStorage.getItem("terra_login_timestamp");
         const THREE_HOURS = 3 * 60 * 60 * 1000;
         if (!loginTime || Date.now() - parseInt(loginTime) > THREE_HOURS) {
-            console.log("Session expired or invalid");
+
             localStorage.clear();
             router.push("/login");
             return;
@@ -74,9 +81,9 @@ export default function DashboardPage() {
             });
     }, [router]);
 
-    const [production, setProduction] = useState<{ gold: number, items: any[] }>({ gold: 0, items: [] });
+    const [production, setProduction] = useState<{ gold: number, items: ProductionItem[] }>({ gold: 0, items: [] });
 
-    // Fetch Production Loop
+
     useEffect(() => {
         if (!user) return;
         const fetchProduction = () => {
@@ -106,7 +113,7 @@ export default function DashboardPage() {
                     .then(u => setUser(u));
                 // Reset Production
                 setProduction({ gold: 0, items: [] });
-                alert(`Collected: ${data.gold} Gold, ${data.items} Items`);
+
             }
         } catch (e) { console.error(e); }
     };

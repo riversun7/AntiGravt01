@@ -118,7 +118,7 @@ export default function SystemMenu({ activePage, variant = 'default' }: SystemMe
     );
 }
 
-function MenuItem({ icon, label, onClick, isActive, color = "text-slate-300" }: { icon: any, label: string, onClick: () => void, isActive?: boolean, color?: string }) {
+function MenuItem({ icon, label, onClick, isActive, color = "text-slate-300" }: { icon: React.ReactNode, label: string, onClick: () => void, isActive?: boolean, color?: string }) {
     const activeClass = isActive
         ? "bg-cyan-900/40 text-cyan-300 border border-cyan-500/30"
         : `hover:bg-cyan-900/20 ${color}`;

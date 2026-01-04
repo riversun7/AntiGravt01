@@ -2,16 +2,27 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useMemo } from "react";
-import { ArrowLeft } from "lucide-react";
 import SystemMenu from "@/components/SystemMenu";
 import * as d3 from 'd3';
 import * as topojson from 'topojson-client';
 
+interface GeoJSONFeature {
+    type: string;
+    properties: {
+        name: string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        [key: string]: any;
+    };
+    geometry: {
+        type: string;
+        coordinates: number[] | number[][] | number[][][];
+    };
+}
+
 const WORLD_ATLAS_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
 export default function GlobalMapPage() {
-    const router = useRouter();
-    const [geographies, setGeographies] = useState<any[]>([]);
+    const [geographies, setGeographies] = useState<GeoJSONFeature[]>([]);
     const [transform, setTransform] = useState(d3.zoomIdentity);
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -38,8 +49,8 @@ export default function GlobalMapPage() {
         fetch(WORLD_ATLAS_URL)
             .then(response => response.json())
             .then(worldData => {
-                const countries = topojson.feature(worldData, worldData.objects.countries);
-                setGeographies((countries as any).features);
+                const countries = topojson.feature(worldData, worldData.objects.countries) as any;
+                setGeographies(countries.features as GeoJSONFeature[]);
             })
             .catch(err => console.error("Error fetching world atlas data:", err));
     }, []);
@@ -71,7 +82,7 @@ export default function GlobalMapPage() {
         };
     }, [dimensions]);
 
-    const handleMouseMove = (event: any, geo: any) => {
+    const handleMouseMove = (event: React.MouseEvent, geo: GeoJSONFeature) => {
         const countryName = geo.properties?.name || 'Unknown Sector';
         setTooltip({
             show: true,
@@ -105,7 +116,7 @@ export default function GlobalMapPage() {
                         {geographies.map((geo, i) => (
                             <path
                                 key={geo.properties?.name + i}
-                                d={pathGenerator(geo) || ''}
+                                d={pathGenerator(geo as any) || ''}
                                 style={{
                                     fill: 'rgba(30, 40, 55, 1)',
                                     stroke: 'rgba(0, 240, 255, 0.2)',
@@ -113,15 +124,14 @@ export default function GlobalMapPage() {
                                     transition: 'fill 0.2s ease',
                                     cursor: 'pointer'
                                 }}
-                                onMouseEnter={(e) => {
+                                onMouseEnter={(e: React.MouseEvent<SVGPathElement>) => {
                                     (e.target as SVGPathElement).style.fill = 'rgba(0, 240, 255, 0.2)';
                                 }}
-                                onMouseLeave={(e) => {
+                                onMouseLeave={(e: React.MouseEvent<SVGPathElement>) => {
                                     (e.target as SVGPathElement).style.fill = 'rgba(30, 40, 55, 1)';
                                     handleMouseLeave();
                                 }}
-                                onMouseMove={(e) => handleMouseMove(e, geo)}
-                            />
+                                onMouseMove={(e: React.MouseEvent<SVGPathElement>) => handleMouseMove(e, geo)} />
                         ))}
                     </g>
                 </svg>
