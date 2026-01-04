@@ -199,7 +199,7 @@ export default function CharacterPage() {
                             {user.username}
                         </h1>
                         <p className="text-slate-400 max-w-lg">
-                            Model: <span className="text-cyan-300 font-bold">{user.cyborg_model}</span> { /* Status: <span className="text-emerald-400">OPERATIONAL</span> */ }
+                            Model: <span className="text-cyan-300 font-bold">{user.cyborg_model}</span> { /* Status: <span className="text-emerald-400">OPERATIONAL</span> */}
                         </p>
                     </div>
 
@@ -599,7 +599,7 @@ function InfoBox({ label, value, highlight }: { label: string, value: string, hi
             <span className="text-slate-500 text-xs uppercase font-bold mb-1">{label}</span>
             <span className={`text-xl font-bold font-mono ${highlight ? "text-emerald-400" : "text-white"}`}>{value}</span>
         </div>
-    </div>
+    );
 }
 
 function StatBar({ label, value, base, color }: { label: string, value: number, base: number, color: string }) {
