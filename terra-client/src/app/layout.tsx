@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   description: "Explore the infinite unknown. Manage, Expand, Survive.",
 };
 
+import { ToastProvider } from "@/context/ToastContext";
+import ToastSystem from "@/components/ui/ToastSystem";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,7 +30,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <ToastProvider>
+          <ToastSystem />
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

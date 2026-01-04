@@ -23,6 +23,8 @@ export default function AdminMailPage() {
     const [content, setContent] = useState("");
     const [attachedItems, setAttachedItems] = useState<{ code: string, qty: number }[]>([]);
     const [scheduledAt, setScheduledAt] = useState("");
+    const [expirationMode, setExpirationMode] = useState("NEVER");
+    const [customExpiresAt, setCustomExpiresAt] = useState("");
     const [notification, setNotification] = useState<string | null>(null);
 
     // Item Picker State
@@ -58,12 +60,26 @@ export default function AdminMailPage() {
             return;
         }
 
+        // Calculate Expiration
+        let finalExpiresAt: string | null = null;
+        if (expirationMode !== 'NEVER') {
+            const now = new Date();
+            if (expirationMode === '1_DAY') now.setDate(now.getDate() + 1);
+            if (expirationMode === '7_DAYS') now.setDate(now.getDate() + 7);
+            if (expirationMode === '30_DAYS') now.setDate(now.getDate() + 30);
+
+            finalExpiresAt = (expirationMode === 'CUSTOM' && customExpiresAt)
+                ? new Date(customExpiresAt).toISOString()
+                : now.toISOString();
+        }
+
         const payload = {
             recipientId: recipient,
             title,
             content,
             items: JSON.stringify(attachedItems),
-            scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null
+            scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+            expiresAt: finalExpiresAt
         };
 
         fetch("http://localhost:3001/api/admin/mail/send", {
@@ -198,14 +214,41 @@ export default function AdminMailPage() {
                     </div>
                 </div>
 
-                {/* Scheduler */}
-                <div className="z-0 relative">
-                    <DateTimePicker
-                        label="Schedule (Optional)"
-                        value={scheduledAt}
-                        onChange={setScheduledAt}
-                    />
-                    <p className="text-xs text-gray-500 mt-1 pl-1">Leave empty to send immediately.</p>
+                {/* Scheduling & Expiration */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="z-0 relative">
+                        <DateTimePicker
+                            label="Schedule Delivery (Optional)"
+                            value={scheduledAt}
+                            onChange={setScheduledAt}
+                        />
+                        <p className="text-xs text-gray-500 mt-1 pl-1">Leave empty to send immediately.</p>
+                    </div>
+
+                    <div className="z-0 relative">
+                        <label className="block text-sm text-gray-400 mb-2">Expiration</label>
+                        <select
+                            className="w-full bg-surface-dark border border-surface-border rounded p-3 text-white outline-none focus:border-cyan-500 transition-colors"
+                            value={expirationMode}
+                            onChange={e => setExpirationMode(e.target.value)}
+                        >
+                            <option value="NEVER">Never Expires</option>
+                            <option value="1_DAY">1 Day</option>
+                            <option value="7_DAYS">7 Days</option>
+                            <option value="30_DAYS">30 Days</option>
+                            <option value="CUSTOM">Custom Date...</option>
+                        </select>
+
+                        {expirationMode === 'CUSTOM' && (
+                            <div className="mt-2">
+                                <DateTimePicker
+                                    label="Expires At"
+                                    value={customExpiresAt}
+                                    onChange={setCustomExpiresAt}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="pt-4 border-t border-slate-800 flex justify-end">
@@ -216,7 +259,76 @@ export default function AdminMailPage() {
                         <Send size={18} /> Send Mail
                     </button>
                 </div>
+            </div>
 
+            {/* Sent History */}
+            <SentHistory />
+        </div>
+    );
+}
+
+function SentHistory() {
+    const [logs, setLogs] = useState<any[]>([]);
+
+    const fetchHistory = () => {
+        fetch("http://localhost:3001/api/admin/mail/history")
+            .then(res => res.json())
+            .then(data => setLogs(data));
+    };
+
+    useEffect(() => {
+        fetchHistory();
+        const interval = setInterval(fetchHistory, 5000);
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="mt-8">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <Calendar size={20} className="text-gray-400" /> Sent History (Last 100)
+            </h3>
+            <div className="bg-surface border border-surface-border rounded-xl overflow-hidden shadow-lg">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-black/40 text-gray-400 text-sm border-b border-surface-border">
+                                <th className="p-4">ID</th>
+                                <th className="p-4">To</th>
+                                <th className="p-4">Title</th>
+                                <th className="p-4">Items</th>
+                                <th className="p-4">Time</th>
+                                <th className="p-4">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-sm">
+                            {logs.map(log => (
+                                <tr key={log.id} className="border-b border-surface-border/50 hover:bg-white/5 transition-colors">
+                                    <td className="p-4 font-mono text-gray-500">#{log.id}</td>
+                                    <td className="p-4">
+                                        <span className="text-cyan-300 font-bold">{log.username || 'Unknown'}</span>
+                                        <span className="text-xs text-gray-600 ml-2">({log.recipient_id})</span>
+                                    </td>
+                                    <td className="p-4 text-white">{log.title}</td>
+                                    <td className="p-4 text-gray-400">
+                                        {log.items === '[]' ? '-' : (
+                                            <span className="text-yellow-500 text-xs bg-yellow-900/20 px-2 py-1 rounded border border-yellow-700/30">
+                                                Attached
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="p-4 text-gray-500 text-xs">
+                                        {new Date(log.created_at).toLocaleString()}
+                                    </td>
+                                    <td className="p-4">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${log.is_claimed ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-400'}`}>
+                                            {log.is_claimed ? 'CLAIMED' : 'UNREAD'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

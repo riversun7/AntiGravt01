@@ -647,19 +647,36 @@ app.post('/api/admin/mail/send', (req, res) => {
             }
 
             const insert = db.prepare(`
-                INSERT INTO mail (recipient_id, title, content, items, scheduled_at) 
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO mail (recipient_id, title, content, items, scheduled_at, expires_at) 
+                VALUES (?, ?, ?, ?, ?, ?)
             `);
 
             const scheduleTime = scheduledAt || new Date().toISOString();
+            const expireTime = req.body.expiresAt || null;
 
             recipients.forEach(rid => {
-                insert.run(rid, title, content, items, scheduleTime);
+                insert.run(rid, title, content, items, scheduleTime, expireTime);
             });
         });
 
         sendTx();
         res.json({ success: true, count: recipientId === 'ALL' ? 'All Users' : 1 });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Admin: Get Mail History
+app.get('/api/admin/mail/history', (req, res) => {
+    try {
+        const history = db.prepare(`
+            SELECT m.*, u.username 
+            FROM mail m 
+            LEFT JOIN users u ON m.recipient_id = u.id 
+            ORDER BY m.created_at DESC 
+            LIMIT 100
+        `).all();
+        res.json(history);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -671,9 +688,12 @@ app.get('/api/mail/:userId', (req, res) => {
         const mails = db.prepare(`
             SELECT * FROM mail 
             WHERE recipient_id = ? 
-            AND scheduled_at <= datetime('now', 'localtime')
+            AND datetime(scheduled_at) <= datetime('now')
+            AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))
             ORDER BY created_at DESC
         `).all(req.params.userId);
+        // console.log(`[MailDebug] Fetching for user ${req.params.userId}. Found ${mails.length} msgs.`);
+
         res.json(mails);
     } catch (err) {
         console.error(err);

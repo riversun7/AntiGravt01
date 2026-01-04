@@ -203,14 +203,14 @@ export default function MapPage3D() {
     const [userPos, setUserPos] = useState<string | null>(null);
     const [selectedTile, setSelectedTile] = useState<WorldTile | null>(null);
     const [loading, setLoading] = useState(true);
-    const [currentTex, setCurrentTex] = useState("/earth_v8_flat_tactical.png");
+    const [currentTex, setCurrentTex] = useState("/maps/tactical_v4.png");
 
     // New Map Candidates
     const MAP_OPTIONS = [
-        { label: "TACTICAL", path: "/earth_v8_flat_tactical.png" },
-        { label: "REALISTIC", path: "/maps/realistic.png" },
-        { label: "HOLOGRAM", path: "/maps/hologram.png" },
-        { label: "STRATEGY", path: "/maps/strategy.png" }
+        { label: "TACTICAL", path: "/maps/tactical_v4.png" },
+        { label: "REALISTIC", path: "/maps/realistic_final_4k.png" },
+        { label: "HOLOGRAM", path: "/maps/hologram_v4.png" },
+        { label: "STRATEGY", path: "/maps/strategy_v3.png" }
     ];
 
     // Fetch Data
@@ -289,7 +289,7 @@ export default function MapPage3D() {
                 </div>
 
                 <div className="text-xs text-slate-500 uppercase tracking-widest">
-                    <span className="text-cyan-500 animate-pulse">● ONLINE</span> { /* COMMANDER */ }
+                    <span className="text-cyan-500 animate-pulse">● ONLINE</span> { /* COMMANDER */}
                 </div>
             </div>
 

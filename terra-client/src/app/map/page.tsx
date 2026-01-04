@@ -103,10 +103,10 @@ export default function MapPage() {
     // Handle Window Resize for Viewport centering
     // --- MAP STYLE CONFIGURATION ---
     const MAP_STYLES = [
-        { id: 'tactical', name: 'TACTICAL', file: '/earth_v8_flat_tactical.png', color: 'text-cyan-400' },
-        { id: 'realistic', name: 'REALISTIC', file: '/maps/realistic.png', color: 'text-green-400' },
-        { id: 'hologram', name: 'HOLOGRAM', file: '/maps/hologram.png', color: 'text-purple-400' },
-        { id: 'strategy', name: 'STRATEGY', file: '/maps/strategy.png', color: 'text-blue-400' },
+        { id: 'tactical', name: 'TACTICAL', file: '/maps/tactical_v4.png', color: 'text-cyan-400' },
+        { id: 'realistic', name: 'REALISTIC', file: '/maps/realistic_final_4k.png', color: 'text-green-400' },
+        { id: 'hologram', name: 'HOLOGRAM', file: '/maps/hologram_v4.png', color: 'text-purple-400' },
+        { id: 'strategy', name: 'STRATEGY', file: '/maps/strategy_v3.png', color: 'text-blue-400' },
     ];
     const [currentMap, setCurrentMap] = useState(MAP_STYLES[0]);
 

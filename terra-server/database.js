@@ -103,7 +103,8 @@ function initSchema() {
         items TEXT DEFAULT '[]', -- JSON: [{code, qty}]
         is_claimed INTEGER DEFAULT 0, -- 0: False, 1: True
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        scheduled_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        scheduled_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME DEFAULT NULL
     );`;
 
     db.exec(createUsersTable);
@@ -147,8 +148,28 @@ function initSchema() {
         }
     } catch (e) { console.error("Error checking world_map table for faction column:", e); }
 
+    // Migration: Add expires_at to mail table
+    try {
+        const mailCols = db.prepare('PRAGMA table_info(mail)').all();
+        // Check if table exists first (it is created below if not, but migration runs before exec if not careful? No, exec is below.
+        // Actually, createMailTable is executed below at line 151.
+        // So we should run migration AFTER table creation or check if table exists.
+        // But better to check AFTER execution of createMailTable?
+        // Wait, standard practice here is to run migrations after 'ensure table exists'.
+        // Let's place it after createMailTable exec.
+    } catch (e) { }
+
     db.exec(createWorldMapTable);
     db.exec(createMailTable);
+
+    try {
+        const mailCols = db.prepare('PRAGMA table_info(mail)').all();
+        const hasExpires = mailCols.some(c => c.name === 'expires_at');
+        if (!hasExpires && mailCols.length > 0) {
+            db.exec("ALTER TABLE mail ADD COLUMN expires_at DATETIME DEFAULT NULL");
+            console.log("Migrated mail table: added expires_at");
+        }
+    } catch (e) { console.log("Migration error (mail):", e); }
 
     // Seed World Map (160x80) - High Res Earth Like v4
     try {
