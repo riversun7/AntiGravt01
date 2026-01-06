@@ -130,4 +130,9 @@ npm run dev
 다양한 레벨의 전장을 시각화합니다.
 -   **Tactical Map (2D)**: 타일 기반 전술 지도, Canvas API 사용.
 -   **Global Map (3D/D3)**: 전 세계 구체 시각화 및 노드 연결.
--   **Terrain Map**: 위성 지도 스타일의 지형 정보.
+-   **Terrain Map (Game Mode)**: Leaflet 기반의 위성 지도/지형 모드입니다.
+    -   **GPS Tracking**: 사용자 실시간 위치 추적 및 이동 제한 시스템 (기본 10km 반경).
+    -   **Admin Mode**: 관리자 계정('1')을 위한 확장된 이동 범위(100km) 및 고속 이동(100km/s).
+    -   **Building System**: 건물 건설, 자원 수집, 유닛 배치, 건물 파괴 기능 (Floating Game Panel 통합).
+    -   **Unit Management**: 보유 하수인 전체 목록 조회, 상태(Active/Idle) 모니터링 및 건물 배치.
+    -   **Floating UI**: 정보, 유닛, 건물, 건설, 설정을 통합한 모바일 친화적 탭 인터페이스.
