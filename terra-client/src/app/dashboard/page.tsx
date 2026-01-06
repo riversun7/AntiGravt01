@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Coins, Diamond, Database, Settings, User, LogOut, Shield, TrendingUp, Map } from "lucide-react";
 import { motion } from "framer-motion";
+import Mailbox from "@/components/Mailbox";
 
 interface Equipment {
     slot: string;
@@ -33,8 +34,6 @@ interface UserData {
     };
     equipment: Equipment[];
 }
-
-
 
 interface ProductionItem {
     code: string;
@@ -198,7 +197,9 @@ export default function DashboardPage() {
                 <header className="flex justify-between items-center mb-12">
                     <h1 className="text-3xl font-bold uppercase tracking-widest">Command Center</h1>
 
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 items-center">
+                        <Mailbox />
+                        <div className="h-8 w-px bg-gray-700 mx-2"></div>
                         <ResourceCard icon={<Coins className="text-yellow-400" />} value={user.resources?.gold ?? 0} label="GOLD" />
                         <ResourceCard icon={<Diamond className="text-cyan-400" />} value={user.resources?.gem ?? 0} label="GEM" />
                     </div>

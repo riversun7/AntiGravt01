@@ -175,10 +175,186 @@ app.post('/api/equipment/unequip', (req, res) => {
     }
 });
 
+// 5. Character System API (Cyborg & Minions)
+
+// --- Cyborg Endpoints ---
+app.get('/api/character/:userId/cyborg', (req, res) => {
+    try {
+        const userId = req.params.userId;
+        let cyborg = db.prepare('SELECT * FROM character_cyborg WHERE user_id = ?').get(userId);
+
+        // Auto-create if missing (fallback)
+        if (!cyborg) {
+            const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+            if (user) {
+                db.prepare('INSERT INTO character_cyborg (user_id, name) VALUES (?, ?)').run(userId, 'Cyborg');
+                cyborg = db.prepare('SELECT * FROM character_cyborg WHERE user_id = ?').get(userId);
+            }
+        }
+
+        if (!cyborg) return res.status(404).json({ error: 'User not found' });
+
+        // Get equipment (Main character uses user_equipment)
+        const equipment = db.prepare(`
+            SELECT ue.*, mi.name, mi.type, mi.rarity, mi.image, mi.stats 
+            FROM user_equipment ue 
+            JOIN market_items mi ON ue.item_id = mi.id 
+            WHERE ue.user_id = ?
+        `).all(userId);
+
+        res.json({ cyborg, equipment });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.put('/api/character/:userId/cyborg', (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const { name } = req.body;
+
+        if (name) {
+            db.prepare('UPDATE character_cyborg SET name = ? WHERE user_id = ?').run(name, userId);
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Minion Endpoints ---
+app.get('/api/character/:userId/minions', (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const minions = db.prepare('SELECT * FROM character_minion WHERE user_id = ?').all(userId);
+        res.json({ minions });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/character/:userId/minion/:minionId', (req, res) => {
+    try {
+        const { userId, minionId } = req.params;
+        const minion = db.prepare('SELECT * FROM character_minion WHERE id = ? AND user_id = ?').get(minionId, userId);
+
+        if (!minion) return res.status(404).json({ error: 'Minion not found' });
+
+        const equipment = db.prepare(`
+            SELECT me.*, mi.name, mi.type, mi.rarity, mi.image, mi.stats 
+            FROM minion_equipment me 
+            JOIN market_items mi ON me.item_id = mi.id 
+            WHERE me.minion_id = ?
+        `).all(minionId);
+
+        const skills = db.prepare('SELECT * FROM minion_skills WHERE minion_id = ?').all(minionId);
+
+        res.json({ minion, equipment, skills });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create Minion (Production/Gacha)
+app.post('/api/character/:userId/minion', (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const { type, name, species } = req.body; // type: human, android, creature
+
+        if (!['human', 'android', 'creature'].includes(type)) {
+            return res.status(400).json({ error: 'Invalid minion type' });
+        }
+
+        // Production Logic (Simplified)
+        let stats = {
+            str: 5, dex: 5, con: 5, agi: 5, int: 5, wis: 5,
+            lifespan: null, battery: 100, fuel: 100
+        };
+
+        if (type === 'human') {
+            stats.lifespan = 80; // Years? Or game ticks? Let's say game units.
+            stats.str = 3; stats.int = 7; // Humans smart?
+        } else if (type === 'creature') {
+            stats.lifespan = 50;
+            stats.str = 8; stats.con = 8; // Creatures strong
+        } else if (type === 'android') {
+            stats.lifespan = null; // Immortal
+            stats.str = 10; stats.defense = 10; // Androids tough
+        }
+
+        const result = db.prepare(`
+            INSERT INTO character_minion 
+            (user_id, type, name, strength, dexterity, constitution, agility, intelligence, wisdom, lifespan, battery, fuel, species)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(userId, type, name, stats.str, stats.dex, stats.con, stats.agi, stats.int, stats.wis, stats.lifespan, stats.battery, stats.fuel, species);
+
+        res.json({ success: true, minionId: result.lastInsertRowid });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/character/:userId/minion/:minionId', (req, res) => {
+    try {
+        const { userId, minionId } = req.params;
+        const result = db.prepare('DELETE FROM character_minion WHERE id = ? AND user_id = ?').run(minionId, userId);
+        if (result.changes === 0) return res.status(404).json({ error: 'Minion not found' });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Minion Actions
+app.post('/api/character/:userId/minion/:minionId/rest', (req, res) => {
+    try {
+        const { minionId } = req.params;
+        // Reset fatigue
+        db.prepare('UPDATE character_minion SET fatigue = 0 WHERE id = ?').run(minionId);
+        res.json({ success: true, message: "Minion fully rested" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/character/:userId/minion/:minionId/charge', (req, res) => { // Android only
+    try {
+        const { minionId } = req.params;
+        // Reset battery
+        db.prepare('UPDATE character_minion SET battery = 100 WHERE id = ?').run(minionId);
+        res.json({ success: true, message: "Android battery charged" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/character/:userId/minion/:minionId/feed', (req, res) => { // Organic only
+    try {
+        const { minionId } = req.params;
+        // Improve loyalty?
+        db.prepare('UPDATE character_minion SET loyalty = MIN(100, loyalty + 10) WHERE id = ?').run(minionId);
+        res.json({ success: true, message: "Minion fed, loyalty increased" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Economy: Market Ticker & APIs
 // Economy: Market Ticker & APIs
 const MARKET_UPDATE_INTERVAL = 60000; // 1 minute
 
+// Global System Configuration
+let SYSTEM_CONFIG = {
+    market_fluctuation: true,
+    npc_activity: true,
+    client_polling_rate: 'NORMAL' // Reserved for future client-sync
+};
+
 function updateMarketPrices() {
+    if (!SYSTEM_CONFIG.market_fluctuation) return; // Skip if disabled
+
     try {
         const items = db.prepare('SELECT * FROM market_items').all();
         const updateStmt = db.prepare('UPDATE market_items SET current_price = ?, previous_price = ? WHERE id = ?');
@@ -201,6 +377,20 @@ function updateMarketPrices() {
 
 // Start Ticker
 setInterval(updateMarketPrices, MARKET_UPDATE_INTERVAL);
+
+// API: System Configuration
+app.get('/api/admin/system/config', (req, res) => {
+    res.json(SYSTEM_CONFIG);
+});
+
+app.post('/api/admin/system/config', (req, res) => {
+    const { market_fluctuation, npc_activity } = req.body;
+    if (market_fluctuation !== undefined) SYSTEM_CONFIG.market_fluctuation = market_fluctuation;
+    if (npc_activity !== undefined) SYSTEM_CONFIG.npc_activity = npc_activity;
+
+    console.log('[System] Config Updated:', SYSTEM_CONFIG);
+    res.json({ success: true, config: SYSTEM_CONFIG });
+});
 
 // API: Get Market Items
 app.get('/api/market', (req, res) => {
@@ -737,6 +927,88 @@ app.post('/api/mail/claim', (req, res) => {
         res.json({ success: true });
     } catch (err) {
         res.status(400).json({ error: err.message });
+    }
+});
+
+// --- Admin Task Persistence --- //
+
+// Get All Tasks & Categories
+app.get('/api/admin/planning', (req, res) => {
+    try {
+        const tasksRaw = db.prepare('SELECT * FROM admin_tasks ORDER BY created_at DESC').all();
+        const tasks = tasksRaw.map(t => ({
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            status: t.status,
+            categoryId: t.category_id,
+            createdAt: t.created_at
+        }));
+        const categories = db.prepare('SELECT * FROM admin_categories').all();
+        res.json({ tasks, categories });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create/Update Task
+app.post('/api/admin/tasks', (req, res) => {
+    const { id, title, description, status, categoryId, createdAt } = req.body;
+    try {
+        const stmt = db.prepare(`
+            INSERT INTO admin_tasks (id, title, description, status, category_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            description = excluded.description,
+            status = excluded.status,
+            category_id = excluded.category_id
+        `);
+        stmt.run(id, title, description, status, categoryId, createdAt || Date.now());
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete Task
+app.delete('/api/admin/tasks/:id', (req, res) => {
+    try {
+        db.prepare('DELETE FROM admin_tasks WHERE id = ?').run(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Sync Categories (Full Sync or Single Update - Implementing Single/Bulk Upsert for simplicity)
+app.post('/api/admin/categories', (req, res) => {
+    const categories = req.body; // Expects Array
+    try {
+        const tx = db.transaction(() => {
+            const stmt = db.prepare(`
+                INSERT INTO admin_categories (id, label, color)
+                VALUES (?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                label = excluded.label,
+                color = excluded.color
+            `);
+            categories.forEach(c => stmt.run(c.id, c.label, c.color));
+        });
+        tx();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete Category
+app.delete('/api/admin/categories/:id', (req, res) => {
+    try {
+        db.prepare('DELETE FROM admin_categories WHERE id = ?').run(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 

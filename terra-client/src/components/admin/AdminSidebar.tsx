@@ -9,7 +9,8 @@ import {
     ClipboardList,
     PenTool,
     ArrowLeft,
-    Send
+    Send,
+    Server
 } from "lucide-react";
 
 const menuItems = [
@@ -18,6 +19,7 @@ const menuItems = [
     { name: "Mail Console", href: "/admin/mail", icon: Send },
     { name: "DB Inspector", href: "/admin/db-inspector", icon: Database },
     { name: "DB Designer", href: "/admin/db-designer", icon: PenTool },
+    { name: "System Node", href: "/admin/system", icon: Server },
     { name: "Planning", href: "/admin/planning", icon: ClipboardList },
 ];
 

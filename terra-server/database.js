@@ -9,7 +9,7 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const dbPath = path.join(dbDir, 'terra.db');
-const db = new Database(dbPath, { verbose: console.log });
+const db = new Database(dbPath);
 
 // Initialize Schema
 function initSchema() {
@@ -54,7 +54,12 @@ function initSchema() {
         current_price INTEGER NOT NULL,
         previous_price INTEGER DEFAULT NULL,
         volatility INTEGER NOT NULL,
-        description TEXT
+        description TEXT,
+        type TEXT DEFAULT 'RESOURCE',
+        slot TEXT DEFAULT NULL,
+        stats TEXT DEFAULT '{}',
+        rarity TEXT DEFAULT 'common',
+        image TEXT DEFAULT NULL
     );`;
 
     const createUserInventoryTable = `
@@ -105,6 +110,115 @@ function initSchema() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         scheduled_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME DEFAULT NULL
+    );`;
+
+    const createAdminTasksTable = `
+    CREATE TABLE IF NOT EXISTS admin_tasks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT DEFAULT 'TODO',
+        category_id TEXT DEFAULT 'ADMIN',
+        created_at INTEGER
+    );`;
+
+    const createAdminCategoriesTable = `
+    CREATE TABLE IF NOT EXISTS admin_categories (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        color TEXT DEFAULT 'bg-gray-500'
+    );`;
+
+    // New Character System: Cyborg (main) + Minions (human/android/creature)
+    const createCharacterCyborgTable = `
+    CREATE TABLE IF NOT EXISTS character_cyborg (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER UNIQUE NOT NULL,
+        name TEXT DEFAULT 'Cyborg',
+        level INTEGER DEFAULT 1,
+        exp INTEGER DEFAULT 0,
+        
+        -- Base Stats (used to calculate HP/MP)
+        strength INTEGER DEFAULT 10,
+        dexterity INTEGER DEFAULT 10,
+        constitution INTEGER DEFAULT 10,
+        agility INTEGER DEFAULT 10,
+        intelligence INTEGER DEFAULT 10,
+        wisdom INTEGER DEFAULT 10,
+        
+        -- Calculated Stats (HP = constitution * 10 + strength * 5, MP = wisdom * 8 + intelligence * 6)
+        hp INTEGER DEFAULT 150,
+        mp INTEGER DEFAULT 140,
+        
+        -- Cyborg-specific
+        parts_tier INTEGER DEFAULT 1,
+        genetic_tier INTEGER DEFAULT 1,
+        
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`;
+
+    const createCharacterMinionTable = `
+    CREATE TABLE IF NOT EXISTS character_minion (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        type TEXT CHECK(type IN ('human','android','creature')) NOT NULL,
+        name TEXT NOT NULL,
+        level INTEGER DEFAULT 1,
+        exp INTEGER DEFAULT 0,
+        
+        -- Base Stats (used to calculate HP/MP)
+        strength INTEGER DEFAULT 5,
+        dexterity INTEGER DEFAULT 5,
+        constitution INTEGER DEFAULT 5,
+        agility INTEGER DEFAULT 5,
+        intelligence INTEGER DEFAULT 5,
+        wisdom INTEGER DEFAULT 5,
+        
+        -- Calculated Stats (HP = constitution * 10 + strength * 5, MP = wisdom * 8 + intelligence * 6)
+        hp INTEGER DEFAULT 75,
+        mp INTEGER DEFAULT 70,
+        
+        -- Type-specific attributes
+        lifespan INTEGER DEFAULT NULL,
+        age INTEGER DEFAULT 0,
+        growth_stage TEXT DEFAULT 'infant',
+        parts_tier INTEGER DEFAULT NULL,
+        genetic_tier INTEGER DEFAULT NULL,
+        rarity TEXT DEFAULT 'common',
+        species TEXT DEFAULT NULL,
+        
+        -- Android-specific (battery/fuel system per user feedback)
+        battery INTEGER DEFAULT 100,
+        fuel INTEGER DEFAULT 100,
+        
+        -- Game mechanics
+        loyalty INTEGER DEFAULT 50,
+        fatigue INTEGER DEFAULT 0,
+        maintenance_cost INTEGER DEFAULT 100,
+        
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`;
+
+    const createMinionEquipmentTable = `
+    CREATE TABLE IF NOT EXISTS minion_equipment (
+        minion_id INTEGER NOT NULL,
+        slot TEXT NOT NULL,
+        item_id INTEGER,
+        PRIMARY KEY (minion_id, slot),
+        FOREIGN KEY(minion_id) REFERENCES character_minion(id) ON DELETE CASCADE,
+        FOREIGN KEY(item_id) REFERENCES market_items(id)
+    );`;
+
+    const createMinionSkillsTable = `
+    CREATE TABLE IF NOT EXISTS minion_skills (
+        minion_id INTEGER NOT NULL,
+        skill_id TEXT NOT NULL,
+        level INTEGER DEFAULT 1,
+        exp INTEGER DEFAULT 0,
+        PRIMARY KEY (minion_id, skill_id),
+        FOREIGN KEY(minion_id) REFERENCES character_minion(id) ON DELETE CASCADE
     );`;
 
     db.exec(createUsersTable);
@@ -161,6 +275,13 @@ function initSchema() {
 
     db.exec(createWorldMapTable);
     db.exec(createMailTable);
+    db.exec(createAdminTasksTable);
+    db.exec(createAdminCategoriesTable);
+    // Execute new character system tables
+    db.exec(createCharacterCyborgTable);
+    db.exec(createCharacterMinionTable);
+    db.exec(createMinionEquipmentTable);
+    db.exec(createMinionSkillsTable);
 
     try {
         const mailCols = db.prepare('PRAGMA table_info(mail)').all();
@@ -304,16 +425,27 @@ function initSchema() {
     // Migration: Update market_items schema
     try {
         const itemCols = db.prepare('PRAGMA table_info(market_items)').all();
+
         const hasType = itemCols.some(c => c.name === 'type');
         if (!hasType) {
             db.exec("ALTER TABLE market_items ADD COLUMN type TEXT DEFAULT 'RESOURCE'"); // RESOURCE, EQUIPMENT
             db.exec("ALTER TABLE market_items ADD COLUMN slot TEXT DEFAULT NULL");
             db.exec("ALTER TABLE market_items ADD COLUMN stats TEXT DEFAULT '{}'"); // JSON string
             console.log("Migrated market_items table: added type, slot, stats");
-
-            // Re-seed items to include equipment if needed, or just insert new ones
-            // For simplicity in this env, we'll insert if not exists below
         }
+
+        const hasRarity = itemCols.some(c => c.name === 'rarity');
+        if (!hasRarity) {
+            db.exec("ALTER TABLE market_items ADD COLUMN rarity TEXT DEFAULT 'common'");
+            console.log("Migrated market_items table: added rarity");
+        }
+
+        const hasImage = itemCols.some(c => c.name === 'image');
+        if (!hasImage) {
+            db.exec("ALTER TABLE market_items ADD COLUMN image TEXT DEFAULT NULL");
+            console.log("Migrated market_items table: added image");
+        }
+
     } catch (e) { console.log("Migration error (market_items):", e); }
 
     // Seed Market Items (Commodities + Equipment)
@@ -388,7 +520,16 @@ function initSchema() {
             // Init resources/stats/inventory for admin
             db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(admin.id, 999999, 999999);
             db.prepare('INSERT INTO user_stats (user_id) VALUES (?)').run(admin.id);
-            console.log("Admin user seeded: admin / 1234");
+            // Create cyborg character for admin
+            db.prepare('INSERT INTO character_cyborg (user_id, name, level) VALUES (?, ?, ?)').run(admin.id, 'Admin Cyborg', 1);
+            console.log("Admin user seeded: admin / 1234 (with cyborg)");
+        } else {
+            // Check if admin has cyborg, create if not
+            const adminCyborg = db.prepare("SELECT * FROM character_cyborg WHERE user_id = ?").get(adminCheck.id);
+            if (!adminCyborg) {
+                db.prepare('INSERT INTO character_cyborg (user_id, name, level) VALUES (?, ?, ?)').run(adminCheck.id, 'Admin Cyborg', 1);
+                console.log("Created cyborg for existing admin user");
+            }
         }
     } catch (e) {
         console.log("Admin seed error or already exists", e);

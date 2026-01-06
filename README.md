@@ -71,19 +71,30 @@ npm run dev
 
 이 프로젝트는 최신 웹 기술을 사용하여 확장 가능하고 반응성이 뛰어난 시스템으로 구축되었습니다.
 
-### Frontend (`terra-client`)
--   **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
--   **UI Library**: [React 19](https://react.dev/)
--   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
--   **Animation**: [Framer Motion](https://www.framer.com/motion/) (UI Transitions, Toasts)
--   **Icons**: [Lucide React](https://lucide.dev/)
--   **Maps**: D3.js (Global), Leaflet (Terrain), Custom Canvas (Tactical)
+### 프론트엔드 (`terra-client`)
+-   **Next.js 16 (App Router)** - 웹사이트를 더 빠르고 효율적으로 만들기 위한 React 기반의 프레임워크
+-   **React 19** - 웹사이트의 화면 요소(버튼, 메뉴 등)를 재사용 가능한 조각으로 만드는 도구
+-   **TypeScript** - 코드에 오류가 있는지 미리 알려주는 도구로, 코드의 안정성을 높임
+-   **Tailwind CSS** - 웹사이트 디자인을 빠르고 쉽게 꾸밀 수 있게 해주는 스타일 도구
+-   **Framer Motion** - 버튼 클릭이나 화면 전환 시 부드러운 움직임 효과를 주는 애니메이션 도구
+-   **Lucide React** - 웹사이트에 사용할 수 있는 깔끔한 아이콘 모음
+-   **Leaflet과 React Leaflet** - 지도를 웹사이트에 표시하고 상호작용하게 만드는 도구
+-   **Three.js, React Three Fiber, Drei** - 웹사이트에서 3D 그래픽(3차원 이미지)을 보여주는 도구
+-   **D3.js, TopoJSON Client** - 데이터를 그래프나 지도 형태로 시각적으로 표현하는 도구
+-   **Mermaid** - 데이터베이스나 시스템 구조를 그림으로 표현해주는 도구
+-   **clsx, tailwind-merge** - Tailwind CSS 클래스를 조건에 따라 쉽게 조합하는 유틸리티
 
-### Backend (`terra-server`)
--   **Runtime**: Node.js
--   **Framework**: [Express.js](https://expressjs.com/)
--   **Database**: SQLite (`better-sqlite3`) - Single-file, high-performance DB (`terra.db`)
--   **Security**: bcrypt (Password Hashing)
+### 백엔드 (`terra-server`)
+-   **Node.js** - 자바스크립트로 서버(컴퓨터 백그라운드)에서 프로그램을 실행할 수 있게 해주는 도구
+-   **Express.js** - 서버에서 웹사이트 요청을 처리하고 응답을 보내주는 간단한 프레임워크
+-   **SQLite (better-sqlite3)** - 데이터를 저장하는 간단한 데이터베이스로, 파일 하나로 관리 가능
+-   **CORS, Body-parser** - 웹사이트와 서버가 안전하게 통신할 수 있도록 도와주는 보안 설정
+-   **Nodemon** - 코드를 수정할 때 자동으로 서버를 다시 시작해주는 개발 도구
+
+### 개발 도구
+-   **npm** - 프로젝트에 필요한 라이브러리나 도구를 설치하고 관리하는 패키지 매니저
+-   **concurrently** - 프론트엔드와 백엔드를 동시에 실행할 수 있게 해주는 도구
+-   **ESLint** - 코드를 작성할 때 규칙을 지키고 오류를 방지해주는 검사 도구
 
 ---
 

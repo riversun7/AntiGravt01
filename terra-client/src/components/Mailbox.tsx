@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Mail, Gift, Check, Clock, X } from "lucide-react";
+import { Mail, Gift, Check, Clock, X, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface MailItem {
@@ -19,7 +19,8 @@ import { useToast } from "@/context/ToastContext";
 
 export default function Mailbox() {
     const { addToast } = useToast();
-    const isInitialized = useRef(false);
+    const isFirstLoad = useRef(true);
+    const prevMailsRef = useRef<MailItem[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [mails, setMails] = useState<MailItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -41,24 +42,41 @@ export default function Mailbox() {
         fetch(`http://localhost:3001/api/mail/${userId}`)
             .then(res => res.json())
             .then(data => {
-                // Check for new mail
-                if (isInitialized.current) {
-                    if (data.length > mails.length) {
+                const prevMails = prevMailsRef.current;
+                const unreadCount = data.filter((m: MailItem) => !m.is_claimed).length;
+
+                // 1. First Load (Login) Notification
+                if (isFirstLoad.current) {
+                    isFirstLoad.current = false;
+                    if (unreadCount > 0) {
                         addToast({
-                            title: "New Message Received!",
-                            message: "A new secure transmission has arrived.",
+                            title: "Welcome Back",
+                            message: `You have ${unreadCount} unread message(s).`,
                             type: "info",
-                            duration: 8000,
+                            duration: 5000,
                             action: {
-                                label: "Click to Open Mailbox",
+                                label: "Open Mailbox",
                                 onClick: handleOpen
                             }
                         });
                     }
-                } else {
-                    isInitialized.current = true;
+                }
+                // 2. New Mail Arrived (Polling)
+                else if (data.length > prevMails.length) {
+                    addToast({
+                        title: "New Message Received!",
+                        message: "A new secure transmission has arrived.",
+                        type: "info",
+                        duration: 8000,
+                        action: {
+                            label: "Open Mailbox",
+                            onClick: handleOpen
+                        }
+                    });
                 }
 
+                // Update Refs and State
+                prevMailsRef.current = data;
                 setMails(data);
                 if (!silent) setLoading(false);
             })

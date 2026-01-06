@@ -276,6 +276,15 @@ function SentHistory() {
             .then(data => setLogs(data));
     };
 
+    const handleRevoke = (id: number) => {
+        if (!confirm("Are you sure you want to revoke/delete this mail? The user will no longer see it.")) return;
+        fetch(`http://localhost:3001/api/admin/mail/${id}`, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) fetchHistory();
+            });
+    };
+
     useEffect(() => {
         fetchHistory();
         const interval = setInterval(fetchHistory, 5000);
@@ -298,6 +307,7 @@ function SentHistory() {
                                 <th className="p-4">Items</th>
                                 <th className="p-4">Time</th>
                                 <th className="p-4">Status</th>
+                                <th className="p-4">Action</th>
                             </tr>
                         </thead>
                         <tbody className="text-sm">
@@ -323,6 +333,17 @@ function SentHistory() {
                                         <span className={`px-2 py-1 rounded text-xs font-bold ${log.is_claimed ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-400'}`}>
                                             {log.is_claimed ? 'CLAIMED' : 'UNREAD'}
                                         </span>
+                                    </td>
+                                    <td className="p-4">
+                                        {!log.is_claimed && (
+                                            <button
+                                                onClick={() => handleRevoke(log.id)}
+                                                className="text-red-400 hover:text-red-300 text-xs underline"
+                                            >
+                                                Revoke
+                                            </button>
+                                        )}
+                                        {log.is_claimed && <span className="text-gray-600 text-xs text-center block">-</span>}
                                     </td>
                                 </tr>
                             ))}

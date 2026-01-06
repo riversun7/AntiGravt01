@@ -203,11 +203,11 @@ export default function MapPage3D() {
     const [userPos, setUserPos] = useState<string | null>(null);
     const [selectedTile, setSelectedTile] = useState<WorldTile | null>(null);
     const [loading, setLoading] = useState(true);
-    const [currentTex, setCurrentTex] = useState("/maps/tactical_v4.png");
+    const [currentTex, setCurrentTex] = useState("/maps/tactical_v3.png");
 
     // New Map Candidates
     const MAP_OPTIONS = [
-        { label: "TACTICAL", path: "/maps/tactical_v4.png" },
+        { label: "TACTICAL", path: "/maps/tactical_v3.png" },
         { label: "REALISTIC", path: "/maps/realistic_final_4k.png" },
         { label: "HOLOGRAM", path: "/maps/hologram_v4.png" },
         { label: "STRATEGY", path: "/maps/strategy_v3.png" }

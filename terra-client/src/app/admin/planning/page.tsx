@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { Plus, X, ArrowRight, ArrowLeft, Trash2, Save, Copy, Settings, Layout } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, X, ArrowRight, ArrowLeft, Trash2, Save, Copy, Settings, Layout, AlertCircle, Palette } from 'lucide-react';
 
 // --- Types ---
 interface TaskCategory {
@@ -19,163 +19,247 @@ interface Task {
     createdAt: number;
 }
 
-interface TaskV2Old {
-    id: string;
-    content: string;
-    status: Task['status'];
-    category: string;
-    createdAt: number;
-}
-
-interface TaskV1Old {
-    id: string;
-    content: string;
-    status: Task['status'];
-    createdAt: number;
-}
-
 const DEFAULT_CATEGORIES: TaskCategory[] = [
-    { id: 'MAP', label: 'Map & World', color: 'bg-emerald-500' },
-    { id: 'CHARACTER', label: 'Character', color: 'bg-purple-500' },
-    { id: 'ITEM', label: 'Items & Inv', color: 'bg-yellow-500' },
-    { id: 'ECONOMY', label: 'Economy', color: 'bg-cyan-500' },
-    { id: 'USER', label: 'Users', color: 'bg-pink-500' },
-    { id: 'ADMIN', label: 'Admin Tools', color: 'bg-red-500' },
-    { id: 'SERVER', label: 'Server/DB', color: 'bg-blue-500' },
-    { id: 'SETTINGS', label: 'Settings', color: 'bg-slate-500' },
+    { id: 'ADMIN', label: 'Admin Tools', color: '#ef4444' }, // Red (Critical)
+    { id: 'ECONOMY', label: 'Economy', color: '#f97316' }, // Orange
+    { id: 'ITEM', label: 'Items & Inv', color: '#eab308' }, // Yellow
+    { id: 'MAP', label: 'Map & World', color: '#22c55e' }, // Green
+    { id: 'SERVER', label: 'Server/DB', color: '#06b6d4' }, // Cyan
+    { id: 'USER', label: 'Users', color: '#3b82f6' }, // Blue
+    { id: 'CHARACTER', label: 'Character', color: '#a855f7' }, // Purple
+    { id: 'SETTINGS', label: 'Settings', color: '#64748b' }, // Slate
 ];
 
 const COLUMNS = [
-    { id: 'TODO', title: 'To Do', color: 'bg-red-500' },
-    { id: 'IN_PROGRESS', title: 'In Progress', color: 'bg-blue-500' },
-    { id: 'DONE', title: 'Done', color: 'bg-green-500' },
+    { id: 'TODO', title: 'To Do', color: '#ef4444' },
+    { id: 'IN_PROGRESS', title: 'In Progress', color: '#3b82f6' },
+    { id: 'DONE', title: 'Done', color: '#22c55e' },
 ];
+
+const PRESET_COLORS = [
+    '#64748b', // Slate
+    '#ef4444', // Red
+    '#f97316', // Orange
+    '#f59e0b', // Amber
+    '#eab308', // Yellow
+    '#84cc16', // Lime
+    '#22c55e', // Green
+    '#10b981', // Emerald
+    '#14b8a6', // Teal
+    '#06b6d4', // Cyan
+    '#0ea5e9', // Sky
+    '#3b82f6', // Blue
+    '#6366f1', // Indigo
+    '#8b5cf6', // Violet
+    '#a855f7', // Purple
+    '#d946ef', // Fuchsia
+    '#ec4899', // Pink
+    '#f43f5e', // Rose
+];
+
+const getRandomHexColor = () => {
+    const letters = '0123456789ABCDEF';
+    let color = '#';
+    for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+};
+
+const LEGACY_COLOR_MAP: Record<string, string> = {
+    'bg-emerald-500': '#10b981',
+    'bg-purple-500': '#a855f7',
+    'bg-yellow-500': '#eab308',
+    'bg-cyan-500': '#06b6d4',
+    'bg-pink-500': '#ec4899',
+    'bg-red-500': '#ef4444',
+    'bg-blue-500': '#3b82f6',
+    'bg-slate-500': '#64748b',
+    // Fallbacks
+    'bg-gray-500': '#64748b',
+    'bg-green-500': '#22c55e',
+    'bg-indigo-500': '#6366f1',
+    'bg-orange-500': '#f97316',
+};
 
 export default function PlanningPage() {
     // --- State ---
     const [tasks, setTasks] = useState<Task[]>([]);
     const [categories, setCategories] = useState<TaskCategory[]>(DEFAULT_CATEGORIES);
 
-    // Initial Load
-    useEffect(() => {
-        // Load Categories
-        const savedCats = localStorage.getItem('terra_admin_categories');
-        if (savedCats) {
-            try {
-                setCategories(JSON.parse(savedCats));
-            } catch (e) {
-                console.error("Failed to parse categories", e);
-            }
-        }
-
-        // Load Tasks (including migrations)
-        const savedTasks = localStorage.getItem('terra_admin_tasks_v3');
-        if (savedTasks) {
-            try {
-                setTasks(JSON.parse(savedTasks));
-                return;
-            } catch (e) {
-                console.error("Failed to parse tasks_v3", e);
-            }
-        }
-
-        const v2Tasks = localStorage.getItem('terra_admin_tasks_v2');
-        if (v2Tasks) {
-            try {
-                const oldTasks = JSON.parse(v2Tasks);
-                const migrated = oldTasks.map((t: TaskV2Old) => ({
-                    id: t.id,
-                    title: t.content,
-                    description: '',
-                    status: t.status,
-                    categoryId: t.category === 'ALL' ? 'ADMIN' : t.category,
-                    createdAt: t.createdAt
-                }));
-                localStorage.setItem('terra_admin_tasks_v3', JSON.stringify(migrated));
-                localStorage.removeItem('terra_admin_tasks_v2');
-                setTasks(migrated);
-                return;
-            } catch (e) {
-                console.error("Migration v2 -> v3 failed", e);
-            }
-        }
-
-        const v1Tasks = localStorage.getItem('terra_admin_tasks');
-        if (v1Tasks) {
-            try {
-                const oldTasks = JSON.parse(v1Tasks);
-                const migrated = oldTasks.map((t: TaskV1Old) => ({
-                    id: t.id,
-                    title: t.content,
-                    description: '',
-                    status: t.status,
-                    categoryId: 'ADMIN',
-                    createdAt: t.createdAt
-                }));
-                localStorage.setItem('terra_admin_tasks_v3', JSON.stringify(migrated));
-                localStorage.removeItem('terra_admin_tasks');
-                setTasks(migrated);
-            } catch (e) {
-                console.error("Migration v1 -> v3 failed", e);
-            }
-        }
-    }, []);
-
     // UI State
     const [activeTab, setActiveTab] = useState<string>('ALL');
-    const [isLoaded] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Initial Load
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            const res = await fetch('/api/admin/planning');
+            const data = await res.json();
+
+            // Check Migration: If Server Empty AND LocalStorage has data
+            if (data.tasks.length === 0) {
+                const localTasks = localStorage.getItem('terra_admin_tasks_v3');
+                if (localTasks) {
+                    console.log("Migrating LocalStorage to Server...");
+                    await migrateData(JSON.parse(localTasks));
+                    return;
+                }
+            }
+
+            setTasks(data.tasks);
+            if (data.categories && data.categories.length > 0) {
+                // Check for Legacy Colors
+                const fixedCats = fixLegacyColors(data.categories);
+                setCategories(fixedCats);
+            }
+        } catch (e) {
+            console.error("Failed to fetch planning data", e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fixLegacyColors = (cats: TaskCategory[]) => {
+        let hasChanges = false;
+        const fixed = cats.map(c => {
+            if (!c.color || c.color.startsWith('bg-')) {
+                hasChanges = true;
+                const newColor = LEGACY_COLOR_MAP[c.color] || getRandomHexColor();
+                console.log(`Migrating legacy color for ${c.label}: ${c.color} -> ${newColor}`);
+                return { ...c, color: newColor };
+            }
+            return c;
+        });
+
+        if (hasChanges) {
+            setTimeout(() => syncCategories(fixed), 1000); // Sync back to server
+        }
+        return fixed;
+    };
+
+    const migrateData = async (localTasks: Task[]) => {
+        try {
+            // Upload Categories
+            const localCats = localStorage.getItem('terra_admin_categories');
+            const catsToUpload = localCats ? JSON.parse(localCats) : categories;
+            await fetch('/api/admin/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(catsToUpload)
+            });
+
+            // Upload Tasks
+            await Promise.all(localTasks.map(t =>
+                fetch('/api/admin/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(t)
+                })
+            ));
+
+            // Clear Local and Refetch
+            localStorage.removeItem('terra_admin_tasks_v3');
+            localStorage.removeItem('terra_admin_categories');
+            fetchData();
+        } catch (e) {
+            console.error("Migration Failed", e);
+            alert("Migration failed. Check console.");
+        }
+    };
 
     // Modal State (Task)
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [currentTask, setCurrentTask] = useState<Partial<Task>>({});
+    const [isDeleting, setIsDeleting] = useState(false); // For delete confirmation UI
 
     // Modal State (Category Manager)
     const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+    const [deleteCatConfirm, setDeleteCatConfirm] = useState<string | null>(null);
+    const [resetCatConfirm, setResetCatConfirm] = useState(false);
 
-    // --- Persistence & Migration ---
-
-    useEffect(() => {
-        if (isLoaded) {
-            localStorage.setItem('terra_admin_tasks_v3', JSON.stringify(tasks));
-            localStorage.setItem('terra_admin_categories', JSON.stringify(categories));
-        }
-    }, [tasks, categories, isLoaded]);
+    // Validation State
+    const [validationError, setValidationError] = useState<string | null>(null);
 
     // --- Task Operations ---
-    const handleSaveTask = () => {
-        if (!currentTask.title?.trim()) return;
+    const handleSaveTask = async () => {
+        if (!currentTask.title?.trim()) {
+            setValidationError("Task title is required");
+            return;
+        }
+        setValidationError(null);
 
+        const newTask: Task = {
+            id: currentTask.id || `TASK_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            title: currentTask.title!,
+            description: currentTask.description || '',
+            status: currentTask.status || 'TODO',
+            categoryId: currentTask.categoryId || (activeTab === 'ALL' ? categories[0].id : activeTab),
+            createdAt: currentTask.createdAt || Date.now()
+        };
+
+        // Optimistic Update
+        const prevTasks = [...tasks];
         if (currentTask.id) {
-            // Edit existing
-            setTasks(tasks.map(t => t.id === currentTask.id ? { ...t, ...currentTask } as Task : t));
+            setTasks(tasks.map(t => t.id === newTask.id ? newTask : t));
         } else {
-            // Create New
-            const newTask: Task = {
-                id: crypto.randomUUID(),
-                title: currentTask.title!,
-                description: currentTask.description || '',
-                status: 'TODO',
-                categoryId: currentTask.categoryId || (activeTab === 'ALL' ? categories[0].id : activeTab),
-                createdAt: Date.now()
-            };
             setTasks([newTask, ...tasks]);
         }
         setIsTaskModalOpen(false);
         setCurrentTask({});
-    };
 
-    const handleDeleteTask = (id: string) => {
-        if (confirm("Delete this task?")) {
-            setTasks(tasks.filter(t => t.id !== id));
-            setIsTaskModalOpen(false); // If open
+        try {
+            await fetch('/api/admin/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newTask)
+            });
+        } catch (e) {
+            console.error("Save failed", e);
+            setTasks(prevTasks); // Revert
+            alert("Failed to save task");
         }
     };
 
-    const moveTask = (taskId: string, newStatus: Task['status']) => {
-        setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-        // Also update currentTask if it's the one open to reflect status change in UI immediately if needed
+    const handleDeleteTask = async (id: string) => {
+        // Optimistic
+        const prevTasks = [...tasks];
+        setTasks(tasks.filter(t => t.id !== id));
+        setIsTaskModalOpen(false);
+        setIsDeleting(false);
+
+        try {
+            await fetch(`/api/admin/tasks/${id}`, { method: 'DELETE' });
+        } catch (e) {
+            console.error("Delete failed", e);
+            setTasks(prevTasks);
+        }
+    };
+
+    const moveTask = async (taskId: string, newStatus: Task['status']) => {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        const updated = { ...task, status: newStatus };
+
+        // Optimistic
+        setTasks(tasks.map(t => t.id === taskId ? updated : t));
         if (currentTask.id === taskId) {
             setCurrentTask(prev => ({ ...prev, status: newStatus }));
+        }
+
+        try {
+            await fetch('/api/admin/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updated)
+            });
+        } catch (e) {
+            console.error("Move failed", e);
         }
     };
 
@@ -184,21 +268,43 @@ export default function PlanningPage() {
         const newCat: TaskCategory = {
             id: `CAT_${Date.now()}`,
             label: 'New Category',
-            color: 'bg-gray-500'
+            color: getRandomHexColor() // Random color
         };
-        setCategories([...categories, newCat]);
+        const newCats = [...categories, newCat];
+        setCategories(newCats);
+        syncCategories(newCats);
     };
 
     const handleUpdateCategory = (id: string, updates: Partial<TaskCategory>) => {
-        setCategories(categories.map(c => c.id === id ? { ...c, ...updates } : c));
+        const newCats = categories.map(c => c.id === id ? { ...c, ...updates } : c);
+        setCategories(newCats);
+        syncCategories(newCats);
     };
 
     const handleDeleteCategory = (id: string) => {
-        if (confirm("Delete this category? Tasks using it will default to the first category.")) {
-            // Reassign tasks
-            const fallbackId = categories.find(c => c.id !== id)?.id || 'DEFAULT';
-            setTasks(tasks.map(t => t.categoryId === id ? { ...t, categoryId: fallbackId } : t));
-            setCategories(categories.filter(c => c.id !== id));
+        // UI Confirmation handles the check now
+        const newCats = categories.filter(c => c.id !== id);
+        setCategories(newCats);
+        setDeleteCatConfirm(null);
+
+        fetch(`/api/admin/categories/${id}`, { method: 'DELETE' });
+    };
+
+    const handleResetCategories = async () => {
+        setCategories(DEFAULT_CATEGORIES);
+        await syncCategories(DEFAULT_CATEGORIES);
+        setResetCatConfirm(false);
+    };
+
+    const syncCategories = async (cats: TaskCategory[]) => {
+        try {
+            await fetch('/api/admin/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cats)
+            });
+        } catch (e) {
+            console.error("Cat sync failed", e);
         }
     };
 
@@ -218,11 +324,88 @@ Current Status: ${task.status}
     };
 
     // --- Render Helpers ---
-    const getCategory = (id: string) => categories.find(c => c.id === id) || { label: '?', color: 'bg-gray-500' };
+    const getCategory = (id: string) => categories.find(c => c.id === id) || { label: '?', color: '#94a3b8' };
 
     const filteredTasks = activeTab === 'ALL' ? tasks : tasks.filter(t => t.categoryId === activeTab);
 
-    if (!isLoaded) return null;
+    // Component for Category Row
+    const CategoryRow = ({ cat }: { cat: TaskCategory }) => {
+        // Use hidden input to trigger color picker
+        const colorInputRef = useRef<HTMLInputElement>(null);
+        const [showPalette, setShowPalette] = useState(false);
+        const [localLabel, setLocalLabel] = useState(cat.label);
+
+        useEffect(() => { setLocalLabel(cat.label); }, [cat.label]);
+
+        const handleBlur = () => {
+            if (localLabel !== cat.label) handleUpdateCategory(cat.id, { label: localLabel });
+        };
+
+        return (
+            <div className="flex flex-col bg-slate-900 border border-slate-800 rounded mb-2 overflow-hidden transition-all">
+                <div className="flex items-center gap-2 p-2">
+                    {/* Circular Color Swatch - Toggle Palette */}
+                    <div
+                        onClick={() => setShowPalette(!showPalette)}
+                        className="w-6 h-6 rounded-full cursor-pointer border border-white/20 hover:scale-110 transition-transform shadow-sm flex-shrink-0"
+                        style={{ backgroundColor: cat.color }}
+                        title="Click to open color palette"
+                    />
+
+                    {/* Hidden Input for Custom Color fallback */}
+                    <input
+                        ref={colorInputRef}
+                        type="color"
+                        className="w-0 h-0 opacity-0 absolute"
+                        value={cat.color}
+                        onChange={e => handleUpdateCategory(cat.id, { color: e.target.value })}
+                    />
+
+                    <input
+                        className="flex-1 bg-transparent text-white text-sm focus:outline-none border-b border-transparent focus:border-slate-600"
+                        value={localLabel}
+                        onChange={e => setLocalLabel(e.target.value)}
+                        onBlur={handleBlur}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    />
+
+                    {deleteCatConfirm === cat.id ? (
+                        <div className="flex items-center gap-2 animate-in slide-in-from-right-2 duration-200">
+                            <button onClick={() => handleDeleteCategory(cat.id)} className="px-2 py-0.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-bold">Delete?</button>
+                            <button onClick={() => setDeleteCatConfirm(null)} className="px-2 py-0.5 bg-slate-700 text-white text-xs rounded hover:bg-slate-600">Cancel</button>
+                        </div>
+                    ) : (
+                        <button onClick={() => setDeleteCatConfirm(cat.id)} className="text-slate-500 hover:text-red-400 p-1"><Trash2 size={14} /></button>
+                    )}
+                </div>
+
+                {/* Expandable Palette */}
+                {showPalette && (
+                    <div className="p-2 bg-black/40 border-t border-slate-800 grid grid-cols-9 gap-2 animate-in slide-in-from-top-2 duration-200">
+                        {PRESET_COLORS.map(color => (
+                            <button
+                                key={color}
+                                onClick={() => { handleUpdateCategory(cat.id, { color }); setShowPalette(false); }}
+                                className={`w-5 h-5 rounded-full hover:scale-125 transition-transform border border-white/10 ${cat.color === color ? 'ring-2 ring-white' : ''}`}
+                                style={{ backgroundColor: color }}
+                                title={color}
+                            />
+                        ))}
+                        {/* Custom Picker Trigger */}
+                        <button
+                            onClick={() => colorInputRef.current?.click()}
+                            className="w-5 h-5 rounded-full bg-gradient-to-br from-red-500 via-green-500 to-blue-500 hover:scale-125 transition-transform border border-white/20 flex items-center justify-center"
+                            title="Custom Color..."
+                        >
+                            <Palette size={10} className="text-white drop-shadow-md" />
+                        </button>
+                    </div>
+                )}
+            </div>
+        )
+    };
+
+    if (isLoading) return <div className="h-full flex items-center justify-center text-slate-500">Loading Planning Board...</div>;
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
@@ -230,7 +413,7 @@ Current Status: ${task.status}
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Layout className="text-purple-400" />
-                    Advanced Planner
+                    Advanced Planner <span className="text-xs text-slate-500 border border-slate-700 px-2 py-0.5 rounded">DB Connected</span>
                 </h2>
                 <div className="flex gap-2">
                     <button
@@ -240,7 +423,7 @@ Current Status: ${task.status}
                         <Settings size={14} /> Manage Categories
                     </button>
                     <button
-                        onClick={() => { setCurrentTask({}); setIsTaskModalOpen(true); }}
+                        onClick={() => { setCurrentTask({}); setIsTaskModalOpen(true); setIsDeleting(false); }}
                         className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded font-bold hover:bg-primary/80 transition-colors shadow-lg shadow-purple-900/20"
                     >
                         <Plus size={16} /> New Task
@@ -261,10 +444,14 @@ Current Status: ${task.status}
                         key={cat.id}
                         onClick={() => setActiveTab(cat.id)}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border flex items-center gap-2 whitespace-nowrap ${activeTab === cat.id
-                            ? `${cat.color} border-transparent text-white shadow-lg`
+                            ? 'border-transparent text-white shadow-lg'
                             : 'bg-transparent border-slate-700 text-slate-400 hover:border-slate-500'}`}
+                        style={activeTab === cat.id ? { backgroundColor: cat.color } : {}}
                     >
-                        <div className={`w-2 h-2 rounded-full ${cat.color}`} />
+                        <div
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: activeTab === cat.id ? 'white' : cat.color }}
+                        />
                         {cat.label}
                     </button>
                 ))}
@@ -277,7 +464,7 @@ Current Status: ${task.status}
                         {/* Column Header */}
                         <div className={`p-4 border-b border-surface-border flex justify-between items-center bg-gradient-to-r from-transparent to-black/20`}>
                             <div className="flex items-center gap-2">
-                                <div className={`w-3 h-3 rounded-full ${col.color} animate-pulse`} />
+                                <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: col.color }} />
                                 <h3 className="font-bold text-gray-200">{col.title}</h3>
                             </div>
                             <span className="text-xs bg-black/40 px-2 py-0.5 rounded text-gray-400 font-mono">
@@ -292,13 +479,16 @@ Current Status: ${task.status}
                                 return (
                                     <div
                                         key={task.id}
-                                        onClick={() => { setCurrentTask(task); setIsTaskModalOpen(true); }}
+                                        onClick={() => { setCurrentTask(task); setIsTaskModalOpen(true); setIsDeleting(false); }}
                                         className="bg-[#161b22] border border-slate-800 hover:border-slate-600 p-4 rounded-lg cursor-pointer group shadow-sm hover:shadow-md transition-all relative overflow-hidden"
                                     >
-                                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${cat.color}`} />
+                                        <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: cat.color }} />
 
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-400`}>
+                                            <span
+                                                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-400"
+                                                style={{ borderColor: cat.color, color: 'white' }}
+                                            >
                                                 {cat.label}
                                             </span>
                                         </div>
@@ -384,15 +574,40 @@ Current Status: ${task.status}
                         <div className="p-4 border-t border-slate-800 bg-slate-900/50 flex justify-between rounded-b-xl">
                             <div className="flex gap-2">
                                 {currentTask.id && (
-                                    <button
-                                        onClick={() => handleDeleteTask(currentTask.id!)}
-                                        className="px-4 py-2 text-red-400 hover:bg-red-900/20 rounded font-bold text-sm flex items-center gap-2"
-                                    >
-                                        <Trash2 size={16} /> Delete
-                                    </button>
+                                    <>
+                                        {!isDeleting ? (
+                                            <button
+                                                onClick={() => setIsDeleting(true)}
+                                                className="px-4 py-2 text-red-400 hover:bg-red-900/20 rounded font-bold text-sm flex items-center gap-2"
+                                            >
+                                                <Trash2 size={16} /> Delete
+                                            </button>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs text-red-400 font-bold">Really delete?</p>
+                                                <button
+                                                    onClick={() => handleDeleteTask(currentTask.id!)}
+                                                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold"
+                                                >
+                                                    Yes, Delete
+                                                </button>
+                                                <button
+                                                    onClick={() => setIsDeleting(false)}
+                                                    className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-bold"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 items-center">
+                                {validationError && (
+                                    <span className="text-red-400 text-xs font-bold animate-pulse px-2">
+                                        ! {validationError}
+                                    </span>
+                                )}
                                 {currentTask.id && (
                                     <button
                                         onClick={() => generatePrompt(currentTask as Task)}
@@ -422,29 +637,25 @@ Current Status: ${task.status}
                             <button onClick={() => setIsCatModalOpen(false)} className="text-slate-500 hover:text-white"><X size={20} /></button>
                         </div>
                         <div className="p-4 overflow-y-auto space-y-2 flex-1">
-                            {categories.map(cat => (
-                                <div key={cat.id} className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-800">
-                                    <input
-                                        type="color"
-                                        className="w-8 h-8 rounded cursor-pointer bg-transparent"
-                                        // Simple color mapping not fully implemented for custom hex, using classnames for now or just generic color picker if desired. 
-                                        // For prototype, we'll stick to predefined classes or simple text edit.
-                                        disabled
-                                        title="Color editing coming soon"
-                                    />
-                                    <div className={`w-4 h-4 rounded-full ${cat.color}`} />
-
-                                    <input
-                                        className="flex-1 bg-transparent text-white text-sm focus:outline-none border-b border-transparent focus:border-slate-600"
-                                        value={cat.label}
-                                        onChange={e => handleUpdateCategory(cat.id, { label: e.target.value })}
-                                    />
-                                    <button onClick={() => handleDeleteCategory(cat.id)} className="text-slate-500 hover:text-red-400 p-1"><Trash2 size={14} /></button>
-                                </div>
-                            ))}
+                            {categories.map(cat => <CategoryRow key={cat.id} cat={cat} />)}
                             <button onClick={handleAddCategory} className="w-full py-2 border border-dashed border-slate-700 text-slate-500 rounded hover:border-slate-500 hover:text-slate-300 text-sm font-bold mt-4">
                                 + Add Category
                             </button>
+                            <div className="mt-4 pt-4 border-t border-slate-800">
+                                {resetCatConfirm ? (
+                                    <div className="flex flex-col gap-2 p-2 bg-red-900/10 rounded border border-red-900/30">
+                                        <p className="text-red-400 text-xs text-center font-bold">Really reset all to defaults? Custom categories will be lost.</p>
+                                        <div className="flex gap-2 justify-center">
+                                            <button onClick={handleResetCategories} className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold">Yes, Reset</button>
+                                            <button onClick={() => setResetCatConfirm(false)} className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-bold">Cancel</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button onClick={() => setResetCatConfirm(true)} className="w-full py-2 bg-red-900/20 text-red-400 rounded hover:bg-red-900/40 text-xs font-bold transition-colors">
+                                        Reset to Defaults
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
