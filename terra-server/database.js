@@ -221,6 +221,20 @@ function initSchema() {
         FOREIGN KEY(minion_id) REFERENCES character_minion(id) ON DELETE CASCADE
     );`;
 
+    const createBuildingAssignmentsTable = `
+    CREATE TABLE IF NOT EXISTS building_assignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        building_id INTEGER NOT NULL,
+        minion_id INTEGER NOT NULL,
+        assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        task_type TEXT CHECK(task_type IN ('mining','guarding','resting')) NOT NULL,
+        production_rate REAL DEFAULT 1.0,
+        resources_collected INTEGER DEFAULT 0,
+        last_collection DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(building_id) REFERENCES user_buildings(id) ON DELETE CASCADE,
+        FOREIGN KEY(minion_id) REFERENCES character_minion(id) ON DELETE CASCADE
+    );`;
+
     db.exec(createUsersTable);
 
     // Migration: Add current_pos to users if not exists
@@ -282,6 +296,7 @@ function initSchema() {
     db.exec(createCharacterMinionTable);
     db.exec(createMinionEquipmentTable);
     db.exec(createMinionSkillsTable);
+    db.exec(createBuildingAssignmentsTable);
 
     try {
         const mailCols = db.prepare('PRAGMA table_info(mail)').all();

@@ -378,6 +378,172 @@ function updateMarketPrices() {
 // Start Ticker
 setInterval(updateMarketPrices, MARKET_UPDATE_INTERVAL);
 
+// ============================================
+// RESOURCE PRODUCTION CRON (1 minute interval)
+// ============================================
+
+const PRODUCTION_INTERVAL = 60000; // 1 minute
+
+function processResourceProduction() {
+    try {
+        // Get all active mining assignments
+        const miningAssignments = db.prepare(`
+            SELECT 
+                a.*,
+                b.type as building_type,
+                b.user_id,
+                m.type as minion_type,
+                m.strength,
+                m.intelligence,
+                m.hp,
+                m.battery,
+                m.fuel
+            FROM building_assignments a
+            JOIN user_buildings b ON a.building_id = b.id
+            JOIN character_minion m ON a.minion_id = m.id
+            WHERE a.task_type = 'mining'
+        `).all();
+
+        console.log(`[Production] Processing ${miningAssignments.length} mining assignments...`);
+
+        miningAssignments.forEach(assignment => {
+            // 1. Check if minion can continue working
+            const canWork = checkMinionHealth(assignment);
+            if (!canWork) {
+                console.log(`[Production] Minion ${assignment.minion_id} sent to barracks (low health/battery)`);
+                return;
+            }
+
+            // 2. Calculate production based on stats
+            const baseProduction = 10; // 10 gold per minute
+            const production = Math.floor(baseProduction * assignment.production_rate);
+
+            // 3. Update accumulated resources
+            db.prepare(`
+                UPDATE building_assignments 
+                SET resources_collected = resources_collected + ?
+                WHERE id = ?
+            `).run(production, assignment.id);
+
+            // 4. Drain health/battery
+            drainMinionResources(assignment);
+
+            console.log(`[Production] Minion ${assignment.minion_id} produced ${production} gold`);
+        });
+
+        // Process resting minions (recovery)
+        processRestingMinions();
+
+    } catch (e) {
+        console.error('[Production] Error:', e);
+    }
+}
+
+function checkMinionHealth(assignment) {
+    // Check HP for all types
+    if (assignment.hp < 30) {
+        sendToBarracks(assignment.minion_id, assignment.user_id);
+        return false;
+    }
+
+    // Check battery for androids
+    if (assignment.minion_type === 'android' && assignment.battery < 20) {
+        sendToBarracks(assignment.minion_id, assignment.user_id);
+        return false;
+    }
+
+    return true;
+}
+
+function drainMinionResources(assignment) {
+    const healthDrain = assignment.minion_type === 'android' ? 0 : 2; // Organic types lose HP
+    const batteryDrain = assignment.minion_type === 'android' ? 3 : 0; // Androids lose battery
+    const fuelDrain = 1; // All types consume some fuel
+
+    db.prepare(`
+        UPDATE character_minion 
+        SET hp = MAX(0, hp - ?),
+            battery = MAX(0, battery - ?),
+            fuel = MAX(0, fuel - ?)
+        WHERE id = ?
+    `).run(healthDrain, batteryDrain, fuelDrain, assignment.minion_id);
+}
+
+function sendToBarracks(minionId, userId) {
+    try {
+        // Find user's barracks
+        const barracks = db.prepare(`
+            SELECT * FROM user_buildings 
+            WHERE user_id = ? AND type = 'BARRACKS'
+            ORDER BY id ASC LIMIT 1
+        `).get(userId);
+
+        if (!barracks) {
+            console.warn(`[Production] No barracks found for user ${userId}, minion ${minionId} removed from assignment`);
+            // Remove from current assignment
+            db.prepare('DELETE FROM building_assignments WHERE minion_id = ?').run(minionId);
+            return;
+        }
+
+        // Remove from current assignment and assign to barracks
+        db.transaction(() => {
+            db.prepare('DELETE FROM building_assignments WHERE minion_id = ?').run(minionId);
+            db.prepare(`
+                INSERT INTO building_assignments (building_id, minion_id, task_type, production_rate)
+                VALUES (?, ?, 'resting', 1.0)
+            `).run(barracks.id, minionId);
+        })();
+
+        console.log(`[Production] Minion ${minionId} sent to barracks ${barracks.id}`);
+    } catch (e) {
+        console.error('[Production] Error sending to barracks:', e);
+    }
+}
+
+function processRestingMinions() {
+    const restingAssignments = db.prepare(`
+        SELECT 
+            a.*,
+            m.type as minion_type,
+            m.hp,
+            m.battery,
+            m.fuel
+        FROM building_assignments a
+        JOIN character_minion m ON a.minion_id = m.id
+        WHERE a.task_type = 'resting'
+    `).all();
+
+    restingAssignments.forEach(assignment => {
+        const healthRecover = 10; // HP per minute
+        const batteryRecover = assignment.minion_type === 'android' ? 15 : 0; // Battery per minute
+        const fuelRecover = 5;
+
+        db.prepare(`
+            UPDATE character_minion 
+            SET hp = MIN(100, hp + ?),
+                battery = MIN(100, battery + ?),
+                fuel = MIN(100, fuel + ?)
+            WHERE id = ?
+        `).run(healthRecover, batteryRecover, fuelRecover, assignment.minion_id);
+
+        // Check if fully recovered
+        const minion = db.prepare('SELECT hp, battery, type FROM character_minion WHERE id = ?').get(assignment.minion_id);
+        const isFullyRecovered = minion.hp >= 100 &&
+            (minion.type !== 'android' || minion.battery >= 100);
+
+        if (isFullyRecovered) {
+            // Remove from barracks (make idle)
+            db.prepare('DELETE FROM building_assignments WHERE id = ?').run(assignment.id);
+            console.log(`[Production] Minion ${assignment.minion_id} fully recovered, now idle`);
+        }
+    });
+}
+
+// Start production cron
+setInterval(processResourceProduction, PRODUCTION_INTERVAL);
+console.log('[Production] Resource production cron started (1 minute interval)');
+
+
 // API: System Configuration
 app.get('/api/admin/system/config', (req, res) => {
     res.json(SYSTEM_CONFIG);
@@ -1011,6 +1177,376 @@ app.delete('/api/admin/categories/:id', (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// ============================================
+// GAME MAP APIs (Leaflet Game Map System)
+// ============================================
+
+// Get Game State (Buildings + Player Position)
+app.get('/api/game/state', (req, res) => {
+    const { userId } = req.query;
+
+    if (!userId) {
+        return res.status(400).json({ error: 'User ID required' });
+    }
+
+    try {
+        // Get player position from users table
+        const user = db.prepare('SELECT current_pos FROM users WHERE id = ?').get(userId);
+        let playerPosition = { x: 0, y: 0 };
+
+        if (user && user.current_pos) {
+            const [x, y] = user.current_pos.split('_').map(Number);
+            playerPosition = { x, y };
+        }
+
+        // Get all buildings for this user (using existing user_buildings table)
+        const buildings = db.prepare(`
+            SELECT id, type, x, y, level, user_id, created_at
+            FROM user_buildings 
+            WHERE user_id = ?
+        `).all(userId);
+
+        res.json({
+            playerPosition,
+            buildings: buildings.map(b => ({
+                id: b.id,
+                type: b.type.toLowerCase(), // Convert HOUSE to house
+                x: b.x,
+                y: b.y,
+                level: b.level || 1,
+                user_id: b.user_id,
+                created_at: b.created_at
+            }))
+        });
+    } catch (err) {
+        console.error('Game state error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Save Player Position
+app.post('/api/game/move', (req, res) => {
+    const { userId, x, y } = req.body;
+
+    if (!userId) {
+        return res.status(400).json({ error: 'User ID required' });
+    }
+
+    try {
+        // Save position with decimal precision as "x_y" format in current_pos
+        const position = `${x}_${y}`;
+        db.prepare('UPDATE users SET current_pos = ? WHERE id = ?').run(position, userId);
+
+        res.json({ success: true, position: { x, y } });
+    } catch (err) {
+        console.error('Move error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Place Building on Game Map
+app.post('/api/game/build', (req, res) => {
+    const { userId, type, x, y } = req.body;
+
+    if (!userId || !type) {
+        return res.status(400).json({ error: 'User ID and building type required' });
+    }
+
+    try {
+        // Use world_x and world_y as 0 for game map (non-world map buildings)
+        // Use x,y as the game map coordinates - keep decimal precision
+        const result = db.prepare(`
+            INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, level)
+            VALUES (?, ?, ?, ?, 0, 0, 1)
+        `).run(userId, type.toUpperCase(), x, y);
+
+        const newBuilding = {
+            id: result.lastInsertRowid,
+            type: type,
+            x: x,
+            y: y,
+            user_id: parseInt(userId),
+            created_at: new Date().toISOString()
+        };
+
+        res.json(newBuilding);
+    } catch (err) {
+        console.error('Build error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Destroy Building
+app.delete('/api/game/building/:buildingId', (req, res) => {
+    const { buildingId } = req.params;
+    const userId = req.query.userId;
+
+    if (!userId || !buildingId) {
+        return res.status(400).json({ error: 'User ID and Building ID required' });
+    }
+
+    try {
+        // Verify ownership
+        const building = db.prepare('SELECT * FROM user_buildings WHERE id = ? AND user_id = ?').get(buildingId, userId);
+
+        if (!building) {
+            return res.status(404).json({ error: 'Building not found or not owned by user' });
+        }
+
+        // Delete building (CASCADE will remove assignments)
+        db.prepare('DELETE FROM user_buildings WHERE id = ?').run(buildingId);
+
+        res.json({ success: true, message: 'Building destroyed' });
+    } catch (err) {
+        console.error('Destroy building error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============================================
+// BUILDING ASSIGNMENT APIs (Unit Assignment System)
+// ============================================
+
+// Get all assignments across all buildings (for filtering assigned minions)
+app.get('/api/buildings/all/assignments', (req, res) => {
+    try {
+        const assignments = db.prepare(`
+            SELECT minion_id
+            FROM building_assignments
+        `).all();
+
+        res.json(assignments);
+    } catch (err) {
+        console.error('Get all assignments error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get assignments for a specific building
+app.get('/api/buildings/:buildingId/assignments', (req, res) => {
+    const { buildingId } = req.params;
+
+    try {
+        const assignments = db.prepare(`
+            SELECT 
+                a.*,
+                m.name as minion_name,
+                m.type as minion_type,
+                m.species,
+                m.strength,
+                m.dexterity,
+                m.constitution,
+                m.intelligence,
+                m.hp,
+                m.mp,
+                m.battery,
+                m.fuel,
+                m.fatigue,
+                m.loyalty
+            FROM building_assignments a
+            JOIN character_minion m ON a.minion_id = m.id
+            WHERE a.building_id = ?
+        `).all(buildingId);
+
+        res.json(assignments);
+    } catch (err) {
+        console.error('Get assignments error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Assign a minion to a building
+app.post('/api/buildings/:buildingId/assign', (req, res) => {
+    const { buildingId } = req.params;
+    const { minionId, taskType } = req.body;
+
+    if (!minionId || !taskType) {
+        return res.status(400).json({ error: 'Minion ID and task type required' });
+    }
+
+    if (!['mining', 'guarding', 'resting'].includes(taskType)) {
+        return res.status(400).json({ error: 'Invalid task type' });
+    }
+
+    try {
+        // Check if minion is already assigned somewhere
+        const existingAssignment = db.prepare(`
+            SELECT * FROM building_assignments WHERE minion_id = ?
+        `).get(minionId);
+
+        if (existingAssignment) {
+            return res.status(400).json({ error: 'Minion is already assigned to another building' });
+        }
+
+        // Get minion stats to calculate production rate
+        const minion = db.prepare('SELECT * FROM character_minion WHERE id = ?').get(minionId);
+        if (!minion) {
+            return res.status(404).json({ error: 'Minion not found' });
+        }
+
+        // Calculate production efficiency based on stats
+        const baseEfficiency = 1.0;
+        const statBonus = (minion.strength + minion.intelligence) / 20; // 0.5 to 1.0 range typically
+        const productionRate = baseEfficiency * (1 + statBonus * 0.5); // Max 1.5x efficiency
+
+        // Create assignment
+        const result = db.prepare(`
+            INSERT INTO building_assignments (building_id, minion_id, task_type, production_rate)
+            VALUES (?, ?, ?, ?)
+        `).run(buildingId, minionId, taskType, productionRate);
+
+        const newAssignment = db.prepare(`
+            SELECT 
+                a.*,
+                m.name as minion_name,
+                m.type as minion_type
+            FROM building_assignments a
+            JOIN character_minion m ON a.minion_id = m.id
+            WHERE a.id = ?
+        `).get(result.lastInsertRowid);
+
+        res.json(newAssignment);
+    } catch (err) {
+        console.error('Assign minion error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Remove a minion from a building
+app.delete('/api/buildings/:buildingId/assign/:minionId', (req, res) => {
+    const { buildingId, minionId } = req.params;
+
+    try {
+        // Get assignment to check collected resources
+        const assignment = db.prepare(`
+            SELECT * FROM building_assignments 
+            WHERE building_id = ? AND minion_id = ?
+        `).get(buildingId, minionId);
+
+        if (!assignment) {
+            return res.status(404).json({ error: 'Assignment not found' });
+        }
+
+        // Auto-collect resources before removing
+        const collectedResources = assignment.resources_collected;
+
+        if (collectedResources > 0) {
+            // Get building owner
+            const building = db.prepare('SELECT user_id FROM user_buildings WHERE id = ?').get(buildingId);
+
+            // Add resources to user
+            db.prepare(`
+                UPDATE user_resources 
+                SET gold = gold + ?
+                WHERE user_id = ?
+            `).run(collectedResources, building.user_id);
+        }
+
+        // Remove assignment
+        db.prepare(`
+            DELETE FROM building_assignments 
+            WHERE building_id = ? AND minion_id = ?
+        `).run(buildingId, minionId);
+
+        res.json({
+            success: true,
+            collectedResources,
+            message: `Minion removed. Collected ${collectedResources} gold.`
+        });
+    } catch (err) {
+        console.error('Remove minion error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all minions for a user with their assignment status
+app.get('/api/characters/minions', (req, res) => {
+    const userId = req.query.userId;
+    if (!userId) {
+        return res.status(400).json({ error: 'User ID required' });
+    }
+
+    try {
+        const minions = db.prepare(`
+            SELECT
+                m.*,
+                ba.building_id,
+                ba.task_type,
+                ub.type as building_type
+            FROM character_minion m
+            LEFT JOIN building_assignments ba ON m.id = ba.minion_id
+            LEFT JOIN user_buildings ub ON ba.building_id = ub.id
+            WHERE m.user_id = ?
+        `).all(userId);
+
+        const result = minions.map(m => ({
+            id: m.id,
+            name: m.name,
+            type: m.type,
+            hp: m.hp,
+            battery: m.battery,
+            fatigue: m.fatigue,
+            status: m.building_id ? `Active (${m.building_type})` : 'Idle'
+        }));
+
+        res.json(result);
+    } catch (err) {
+        console.error('Get minions error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Collect resources from a building
+app.post('/api/buildings/:buildingId/collect', (req, res) => {
+    const { buildingId } = req.params;
+
+    try {
+        // Get all assignments for this building
+        const assignments = db.prepare(`
+            SELECT * FROM building_assignments WHERE building_id = ?
+        `).all(buildingId);
+
+        if (assignments.length === 0) {
+            return res.json({ gold: 0, message: 'No minions assigned' });
+        }
+
+        let totalGold = 0;
+
+        // Transaction
+        db.transaction(() => {
+            assignments.forEach(assignment => {
+                totalGold += assignment.resources_collected;
+
+                // Reset collected resources
+                db.prepare(`
+                    UPDATE building_assignments 
+                    SET resources_collected = 0, last_collection = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).run(assignment.id);
+            });
+
+            // Get building owner and add resources
+            const building = db.prepare('SELECT user_id FROM user_buildings WHERE id = ?').get(buildingId);
+
+            db.prepare(`
+                UPDATE user_resources 
+                SET gold = gold + ?
+                WHERE user_id = ?
+            `).run(totalGold, building.user_id);
+        })();
+
+        res.json({
+            success: true,
+            gold: totalGold,
+            message: `Collected ${totalGold} gold`
+        });
+    } catch (err) {
+        console.error('Collect resources error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
