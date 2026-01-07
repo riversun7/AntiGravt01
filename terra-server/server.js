@@ -55,7 +55,8 @@ app.post('/api/login', (req, res) => {
         res.json({ user });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Internal server error' });
+        // RETURN ACTUAL ERROR FOR DEBUGGING (Temporary for NAS diagnosis)
+        res.status(500).json({ error: 'Internal server error', details: err.message });
     }
 });
 

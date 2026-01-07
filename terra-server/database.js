@@ -3,9 +3,17 @@ const path = require('path');
 const fs = require('fs');
 
 // Ensure db directory exists
+// Ensure db directory exists and has write permissions
 const dbDir = path.join(__dirname, 'db');
 if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir);
+}
+try {
+    // Attempt to grant full permissions (RWX for Owner/Group/Others) to fix persistent NAS/Docker issues
+    fs.chmodSync(dbDir, '777');
+    console.log(`[Database] Permissions for ${dbDir} set to 777.`);
+} catch (e) {
+    console.warn(`[Database] Warning: Could not set permissions on db directory: ${e.message}`);
 }
 
 const dbPath = path.join(dbDir, 'terra.db');
