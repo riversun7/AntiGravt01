@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Cpu, Zap, Shield, ArrowRight, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import SystemMenu from "@/components/SystemMenu";
+import { API_BASE_URL } from "@/lib/config";
 
 const CYBORG_MODELS = [
     {
@@ -42,7 +43,7 @@ export default function CreateCharacterPage() {
 
         setLoading(true);
         try {
-            const res = await fetch(`http://localhost:3001/api/user/${userId}`, {
+            const res = await fetch(`${API_BASE_URL}/api/user/${userId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ cyborg_model: selectedModel }),
@@ -63,7 +64,7 @@ export default function CreateCharacterPage() {
     useEffect(() => {
         const userId = localStorage.getItem("terra_user_id");
         if (userId) {
-            fetch(`http://localhost:3001/api/user/${userId}`)
+            fetch(`${API_BASE_URL}/api/user/${userId}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.cyborg_model) {

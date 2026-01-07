@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Coins, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Package } from "lucide-react";
 import SystemMenu from "@/components/SystemMenu";
 import ItemIcon from "@/components/ItemIcon";
+import { API_BASE_URL } from "@/lib/config";
 
 interface MarketItem {
     id: number;
@@ -47,15 +48,15 @@ export default function MarketPage() {
         setLoading(true);
         try {
             // Fetch Market
-            const marketRes = await fetch('http://localhost:3001/api/market');
+            const marketRes = await fetch(`${API_BASE_URL}/api/market`);
             if (marketRes.ok) setItems(await marketRes.json());
 
             // Fetch Inventory
-            const invRes = await fetch(`http://localhost:3001/api/inventory/${userId}`);
+            const invRes = await fetch(`${API_BASE_URL}/api/inventory/${userId}`);
             if (invRes.ok) setInventory(await invRes.json());
 
             // Fetch User Gold
-            const userRes = await fetch(`http://localhost:3001/api/user/${userId}`);
+            const userRes = await fetch(`${API_BASE_URL}/api/user/${userId}`);
             if (userRes.ok) {
                 const userData = await userRes.json();
                 setUserGold(userData.resources.gold);
@@ -82,7 +83,7 @@ export default function MarketPage() {
         if (!selectedItem || !userId) return;
 
         try {
-            const res = await fetch('http://localhost:3001/api/market/trade', {
+            const res = await fetch(`${API_BASE_URL}/api/market/trade`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

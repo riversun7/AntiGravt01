@@ -12,6 +12,7 @@ import MinionProductionModal from "@/components/character/MinionProductionModal"
 import ItemIcon from "@/components/ItemIcon";
 import { Item } from "@/types/index"; // Assuming global Item type exists or reuse local definition
 import { MinionData } from "@/types/character";
+import { API_BASE_URL } from "@/lib/config";
 
 // Re-define local Item interface if global one is missing or inconsistent
 interface LocalItem {
@@ -43,7 +44,7 @@ function CharacterPageContent() {
         const userId = localStorage.getItem("terra_user_id");
         if (!userId) return;
         try {
-            const res = await fetch(`http://localhost:3001/api/inventory/${userId}`);
+            const res = await fetch(`${API_BASE_URL}/api/inventory/${userId}`);
             if (res.ok) {
                 const data = await res.json();
                 setInventory(data);

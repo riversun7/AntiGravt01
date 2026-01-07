@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Map as MapIcon, Maximize, X, Hammer, Zap, Lock } from "lucide-react";
+import { API_BASE_URL } from "@/lib/config";
 
 import BuildMenu from "@/components/map/BuildMenu";
 import SystemMenu from "@/components/SystemMenu";
@@ -50,7 +51,7 @@ export default function MapPage() {
             setUserId(parsedId);
 
             // Fetch updated user info mainly for pos and resources
-            fetch(`http://localhost:3001/api/user/${parsedId}`)
+            fetch(`${API_BASE_URL}/api/user/${parsedId}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.current_pos) setUserPos(data.current_pos);
@@ -64,7 +65,7 @@ export default function MapPage() {
             router.push('/login');
         }
 
-        fetch('http://localhost:3001/api/world-map')
+        fetch(`${API_BASE_URL}/api/world-map`)
             .then(res => {
                 if (!res.ok) throw new Error("Failed to fetch map data");
                 return res.json();
@@ -169,7 +170,7 @@ export default function MapPage() {
 
     const refreshLocalMap = async (tileId: string) => {
         try {
-            const res = await fetch(`http://localhost:3001/api/local-map/${tileId}`);
+            const res = await fetch(`${API_BASE_URL}/api/local-map/${tileId}`);
             const data = await res.json();
             setLocalMap(data.grid);
         } catch (e) {
@@ -183,7 +184,7 @@ export default function MapPage() {
         if (!selectedTile || !userId) return;
 
         try {
-            const res = await fetch('http://localhost:3001/api/map/move', {
+            const res = await fetch(`${API_BASE_URL}/api/map/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, targetId: selectedTile.id })
@@ -214,7 +215,7 @@ export default function MapPage() {
         if (!userId || !selectedTile || !buildTarget) return;
 
         try {
-            const res = await fetch('http://localhost:3001/api/build', {
+            const res = await fetch(`${API_BASE_URL}/api/build`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -233,7 +234,7 @@ export default function MapPage() {
                 setShowBuildMenu(false);
                 refreshLocalMap(selectedTile.id);
                 // Refresh resources
-                fetch(`http://localhost:3001/api/user/${userId}`)
+                fetch(`${API_BASE_URL}/api/user/${userId}`)
                     .then(res => res.json())
                     .then(data => { if (data.resources) setResources(data.resources); });
             } else {
