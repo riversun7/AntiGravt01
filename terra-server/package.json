@@ -16,7 +16,6 @@
     "body-parser": "^2.2.1",
     "cors": "^2.8.5",
     "express": "^5.2.1",
-    "nodemon": "^3.1.11",
-    "terra-in-cognita-root": "file:.."
+    "nodemon": "^3.1.11"
   }
 }
