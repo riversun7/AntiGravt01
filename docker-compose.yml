@@ -4,14 +4,15 @@ services:
   server:
     build:
       context: ./terra-server
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
     container_name: terra-server
     ports:
       - "3001:3001"
     volumes:
-      - ./terra-data/db:/app/db # Persist database
+      - ./terra-data/db:/app/db
     environment:
       - NODE_ENV=production
+      - CORS_ORIGIN=https://riversun7.synology.me
+      - PORT=3001
     restart: always
     networks:
       - terra-network
@@ -19,13 +20,11 @@ services:
   client:
     build:
       context: ./terra-client
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-client:latest
     container_name: terra-client
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:3001 # Client-side calls might need public URL
-      # If SSR needs to talk to server container directly:
+      - NEXT_PUBLIC_API_URL= # Empty to use relative path (browser domain)
       - INTERNAL_API_URL=http://server:3001
     depends_on:
       - server
@@ -38,7 +37,7 @@ services:
     container_name: terra-watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 300 --cleanup # Check every 5 mins, remove old images
+    command: --interval 60 --cleanup # Check every 5 mins, remove old images
     restart: always
 
 networks:
