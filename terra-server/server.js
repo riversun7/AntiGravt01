@@ -6,7 +6,10 @@ const db = require('./database');
 const app = express();
 const PORT = 3001;
 
-app.use(cors());
+app.use(cors({
+    origin: process.env.CORS_ORIGIN || '*',
+    credentials: true
+}));
 app.use(bodyParser.json());
 
 // Routes

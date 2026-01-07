@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  server:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
+    container_name: terra-server
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./terra-data/db:/app/db
+    environment:
+      - NODE_ENV=production
+      - CORS_ORIGIN=http://riversun7.synology.me:3000
+    restart: always
+    networks:
+      - terra-network
+
+  client:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-client:latest
+    container_name: terra-client
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://riversun7.synology.me:3001
+      - INTERNAL_API_URL=http://server:3001
+    depends_on:
+      - server
+    restart: always
+    networks:
+      - terra-network
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: terra-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --cleanup
+    restart: always
+
+networks:
+  terra-network:
+    driver: bridge
