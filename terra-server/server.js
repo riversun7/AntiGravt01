@@ -18,7 +18,9 @@ app.get('/api/health', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`========================================`);
+    console.log(`🚀 TERRA SERVER RUNNING on port ${PORT}`);
+    console.log(`========================================`);
 });
 
 
