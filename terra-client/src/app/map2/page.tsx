@@ -7,6 +7,7 @@ import { Canvas, useLoader, useFrame, ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, Stars, Html } from "@react-three/drei";
 import * as THREE from "three";
 import SystemMenu from "@/components/SystemMenu";
+import { API_BASE_URL } from "@/lib/config";
 
 // Types
 interface WorldTile {
@@ -216,8 +217,8 @@ export default function MapPage3D() {
     // Fetch Data
     useEffect(() => {
         Promise.all([
-            fetch('http://localhost:3001/api/world-map').then(r => r.json()),
-            fetch('http://localhost:3001/api/user/1').then(r => r.json()) // Hardcoded User 1 for MVP
+            fetch(`${API_BASE_URL}/api/world-map`).then(r => r.json()),
+            fetch(`${API_BASE_URL}/api/user/1`).then(r => r.json()) // Hardcoded User 1 for MVP
         ]).then(([mapData, userData]) => {
             const map = new Map<string, WorldTile>();
             mapData.forEach((t: WorldTile) => map.set(t.id, t));
@@ -242,7 +243,7 @@ export default function MapPage3D() {
     const handleMove = async () => {
         if (!selectedTile) return;
         try {
-            await fetch('http://localhost:3001/api/map/move', {
+            await fetch(`${API_BASE_URL}/api/map/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: 1, targetId: selectedTile.id })

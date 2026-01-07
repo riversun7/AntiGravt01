@@ -5,6 +5,7 @@ import { Send, Users, Package, Calendar } from "lucide-react";
 import { AdminUser } from "@/types/admin";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import DateTimePicker from "@/components/ui/DateTimePicker";
+import { API_BASE_URL } from "@/lib/config";
 
 interface MarketItem {
     id: number;
@@ -33,12 +34,12 @@ export default function AdminMailPage() {
 
     useEffect(() => {
         // Fetch Users
-        fetch("http://localhost:3001/api/admin/users")
+        fetch(`${API_BASE_URL}/api/admin/users`)
             .then(res => res.json())
             .then(data => setUsers(data));
 
         // Fetch Items
-        fetch("http://localhost:3001/api/market")
+        fetch(`${API_BASE_URL}/api/market`)
             .then(res => res.json())
             .then(data => setItems(data));
     }, []);
@@ -82,7 +83,7 @@ export default function AdminMailPage() {
             expiresAt: finalExpiresAt
         };
 
-        fetch("http://localhost:3001/api/admin/mail/send", {
+        fetch(`${API_BASE_URL}/api/admin/mail/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -271,14 +272,14 @@ function SentHistory() {
     const [logs, setLogs] = useState<any[]>([]);
 
     const fetchHistory = () => {
-        fetch("http://localhost:3001/api/admin/mail/history")
+        fetch(`${API_BASE_URL}/api/admin/mail/history`)
             .then(res => res.json())
             .then(data => setLogs(data));
     };
 
     const handleRevoke = (id: number) => {
         if (!confirm("Are you sure you want to revoke/delete this mail? The user will no longer see it.")) return;
-        fetch(`http://localhost:3001/api/admin/mail/${id}`, { method: 'DELETE' })
+        fetch(`${API_BASE_URL}/api/admin/mail/${id}`, { method: 'DELETE' })
             .then(res => res.json())
             .then(data => {
                 if (data.success) fetchHistory();

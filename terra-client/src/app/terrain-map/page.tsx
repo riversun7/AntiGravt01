@@ -7,6 +7,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { TILE_PROVIDERS, type TileProvider } from '@/components/map/TileProviderSelector';
 import { useRouter } from 'next/navigation';
 import FloatingGamePanel from '@/components/map/FloatingGamePanel';
+import { API_BASE_URL } from "@/lib/config";
 
 // Leaflet은 클라이언트 사이드에서만 작동하므로 동적 import 사용
 const MapContainer = dynamic(
@@ -167,7 +168,7 @@ export default function TerrainMapPage() {
             }
 
             console.log(`[GameState] Loading for user ${userId}...`);
-            const response = await fetch(`http://localhost:3001/api/game/state?userId=${userId}`);
+            const response = await fetch(`${API_BASE_URL}/api/game/state?userId=${userId}`);
 
             if (response.ok) {
                 const data = await response.json();
@@ -204,7 +205,7 @@ export default function TerrainMapPage() {
             }
 
             // Load minions separately
-            const minionsResponse = await fetch(`http://localhost:3001/api/characters/minions?userId=${userId}`);
+            const minionsResponse = await fetch(`${API_BASE_URL}/api/characters/minions?userId=${userId}`);
             if (minionsResponse.ok) {
                 const minionsData = await minionsResponse.json();
                 setMinions(minionsData);
@@ -253,7 +254,7 @@ export default function TerrainMapPage() {
     const handlePlayerMove = async (position: [number, number]) => {
         try {
             const userId = localStorage.getItem('terra_user_id');
-            const response = await fetch('http://localhost:3001/api/game/move', {
+            const response = await fetch(`${API_BASE_URL}/api/game/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, x: position[0], y: position[1] }),
@@ -288,7 +289,7 @@ export default function TerrainMapPage() {
 
         try {
             const userId = localStorage.getItem('terra_user_id');
-            const response = await fetch('http://localhost:3001/api/game/build', {
+            const response = await fetch(`${API_BASE_URL}/api/game/build`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -361,7 +362,7 @@ export default function TerrainMapPage() {
         try {
             const userId = localStorage.getItem('terra_user_id');
             const response = await fetch(
-                `http://localhost:3001/api/game/building/${selectedBuilding.id}?userId=${userId}`,
+                `${API_BASE_URL}/api/game/building/${selectedBuilding.id}?userId=${userId}`,
                 { method: 'DELETE' }
             );
 

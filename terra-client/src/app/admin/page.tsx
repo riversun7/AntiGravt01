@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Users, Database, Server, Activity, Send } from "lucide-react";
 import { AdminUser } from "@/types/admin";
+import { API_BASE_URL } from "@/lib/config";
 
 export default function AdminDashboardPage() {
     const [userCount, setUserCount] = useState(0);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch("http://localhost:3001/api/admin/users")
+        fetch(`${API_BASE_URL}/api/admin/users`)
             .then(res => res.json())
             .then((data: AdminUser[]) => {
                 setUserCount(data.length);

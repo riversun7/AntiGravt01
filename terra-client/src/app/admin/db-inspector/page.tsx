@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ServerFile } from "@/types/admin";
 import { FileCode } from "lucide-react";
+import { API_BASE_URL } from "@/lib/config";
 
 export default function DBInspectorPage() {
     const [files, setFiles] = useState<ServerFile[]>([]);
@@ -14,19 +15,19 @@ export default function DBInspectorPage() {
     const [tableData, setTableData] = useState<Record<string, unknown>[]>([]);
 
     useEffect(() => {
-        fetch("http://localhost:3001/api/admin/files")
+        fetch(`${API_BASE_URL}/api/admin/files`)
             .then(res => res.json())
             .then(data => setFiles(data as ServerFile[]));
     }, []);
 
     const fetchTables = async (filename: string) => {
-        const res = await fetch(`http://localhost:3001/api/admin/db/${filename}`);
+        const res = await fetch(`${API_BASE_URL}/api/admin/db/${filename}`);
         if (res.ok) setTables(await res.json());
     };
 
     const fetchTableData = async (filename: string, table: string) => {
         setSelectedTable(table);
-        const res = await fetch(`http://localhost:3001/api/admin/db/${filename}/${table}`);
+        const res = await fetch(`${API_BASE_URL}/api/admin/db/${filename}/${table}`);
         if (res.ok) setTableData(await res.json());
     };
 

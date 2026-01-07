@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Server, Activity, ShoppingBag, ShieldAlert, Cpu } from "lucide-react";
 import { motion } from "framer-motion";
+import { API_BASE_URL } from "@/lib/config";
 
 interface SystemConfig {
     market_fluctuation: boolean;
@@ -17,7 +18,7 @@ export default function AdminSystemPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch('http://localhost:3001/api/admin/system/config')
+        fetch(`${API_BASE_URL}/api/admin/system/config`)
             .then(res => res.json())
             .then(data => {
                 setConfig(data);
@@ -35,7 +36,7 @@ export default function AdminSystemPage() {
         // Optimistic UI Update
         setConfig(newConfig);
 
-        fetch('http://localhost:3001/api/admin/system/config', {
+        fetch(`${API_BASE_URL}/api/admin/system/config`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ [key]: newValue })

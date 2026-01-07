@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { AdminUser } from "@/types/admin";
+import { API_BASE_URL } from "@/lib/config";
 
 export default function UsersPage() {
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch("http://localhost:3001/api/admin/users")
+        fetch(`${API_BASE_URL}/api/admin/users`)
             .then(res => res.json())
             .then(data => {
                 setUsers(data as AdminUser[]);
@@ -41,7 +42,7 @@ export default function UsersPage() {
     const handleSave = () => {
         if (!editingUser) return;
 
-        fetch(`http://localhost:3001/api/admin/users/${editingUser.id}/update`, {
+        fetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}/update`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(editForm)
