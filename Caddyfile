@@ -1,7 +1,0 @@
-riversun7.synology.me {
-    # API 요청은 백엔드로 프록시
-    reverse_proxy /api/* server:3001
-
-    # 나머지는 프론트엔드로 프록시
-    reverse_proxy client:3000
-}

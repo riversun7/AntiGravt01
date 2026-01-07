@@ -31,12 +31,14 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
-# Database
-*.sqlite
-*.db
-# terra-server/db/
-!terra-server/db/terra.db
-terra-server/game.db
+# Database (unified location)
+terra-data/db/*.db
+terra-data/db/*.db-journal
+terra-data/db/*.db-shm
+terra-data/db/*.db-wal
+
+# Old database location (deprecated)
+terra-server/db/
 
 # Temporary
 temp_reference*
