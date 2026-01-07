@@ -65,6 +65,39 @@ npm run dev
 **2. 로그인이 안 될 때**
 백엔드 서버(포트 3001)가 켜져 있는지 확인하세요. `Connection Refused` 에러는 서버가 꺼져있을 때 발생합니다.
 
+**3. NAS 배포 시 500 Internal Server Error (중요!)**
+
+**증상:**
+- 로컬에서는 정상 작동
+- NAS 배포 후 `/api/login` 등에서 500 에러
+- 브라우저 콘솔: `Error: Login failed (500)`
+- 서버 로그에 `[REQUEST]` 없음 (요청이 도달 안 함)
+
+**원인:**
+Next.js의 `rewrites` 설정은 **빌드 타임**에 환경변수를 읽어서 코드에 하드코딩합니다.
+```typescript
+// ❌ 빌드 시점에 localhost로 고정됨
+async rewrites() {
+  return [{ source: '/api/:path*', destination: 'http://localhost:3001/api/:path*' }]
+}
+```
+
+**해결:**
+**런타임 Middleware 사용** - 실행 시점에 환경변수를 읽음
+```typescript
+// ✅ terra-client/src/middleware.ts
+export async function middleware(request) {
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    const apiUrl = process.env.INTERNAL_API_URL || 'http://localhost:3001';
+    // 실행할 때마다 환경변수를 읽어서 프록시
+  }
+}
+```
+
+**핵심 차이:**
+- **빌드 타임 (rewrites)**: GitHub Actions에서 빌드할 때 이미 `localhost`로 박힘
+- **런타임 (middleware)**: NAS에서 실행할 때 `INTERNAL_API_URL=http://server:3001` 읽음
+
 ---
 
 ## 🏛️ 기술 스택 및 아키텍처 (Technical Stack)
