@@ -2,21 +2,26 @@ version: '3.8'
 
 services:
   server:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
+    # image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
+    build:
+      context: ./terra-server
     container_name: terra-server
-    # ports:
-    #   - "8081:3001" # Disabled: Traffic goes through Client Proxy (Next.js Rewrite)
+    ports:
+      - "8081:3001" # Direct Server Access for Debugging
     volumes:
       - ./terra-data/db:/app/db
     environment:
       - NODE_ENV=production
       - CORS_ORIGIN=https://riversun7.synology.me
+      - PORT=3001
     restart: always
     networks:
       - terra-network
 
   client:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-client:latest
+    # image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-client:latest
+    build:
+      context: ./terra-client
     container_name: terra-client
     ports:
       - "8080:3000"
