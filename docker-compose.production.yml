@@ -1,28 +1,11 @@
 version: '3.8'
 
 services:
-  caddy:
-    image: caddy:alpine
-    container_name: terra-caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    restart: always
-    networks:
-      - terra-network
-    depends_on:
-      - server
-      - client
-
   server:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
     container_name: terra-server
-    expose:
-      - "3001"
+    ports:
+      - "3001:3001"
     volumes:
       - ./terra-data/db:/app/db
     environment:
@@ -36,8 +19,8 @@ services:
   client:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-client:latest
     container_name: terra-client
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=
       - INTERNAL_API_URL=http://server:3001
@@ -58,7 +41,3 @@ services:
 networks:
   terra-network:
     driver: bridge
-
-volumes:
-  caddy_data:
-  caddy_config:
