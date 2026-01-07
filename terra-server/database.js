@@ -254,6 +254,16 @@ function initSchema() {
             db.exec("ALTER TABLE users ADD COLUMN current_pos TEXT DEFAULT '10_10'");
             console.log("Migrated users table: added current_pos");
         }
+
+        // Movement System Columns
+        const hasDest = userCols.some(c => c.name === 'destination_pos');
+        if (!hasDest) {
+            db.exec("ALTER TABLE users ADD COLUMN destination_pos TEXT DEFAULT NULL");
+            db.exec("ALTER TABLE users ADD COLUMN start_pos TEXT DEFAULT NULL");
+            db.exec("ALTER TABLE users ADD COLUMN arrival_time DATETIME DEFAULT NULL");
+            db.exec("ALTER TABLE users ADD COLUMN departure_time DATETIME DEFAULT NULL");
+            console.log("Migrated users table: added movement tracking columns (destination_pos, start_pos, arrival_time, departure_time)");
+        }
     } catch (e) {
         console.error("Migration error:", e);
     }

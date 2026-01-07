@@ -79,8 +79,30 @@ app.post('/api/login', (req, res) => {
 // 2. Get User Info (with resources & equipment)
 app.get('/api/user/:id', (req, res) => {
     try {
-        const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+        let user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
+
+        // Check Movement Resolution
+        if (user.destination_pos && user.arrival_time) {
+            const now = new Date();
+            const arrival = new Date(user.arrival_time);
+
+            if (now >= arrival) {
+                // Arrived
+                db.prepare(`
+                    UPDATE users 
+                    SET current_pos = destination_pos, 
+                        destination_pos = NULL, 
+                        start_pos = NULL, 
+                        arrival_time = NULL, 
+                        departure_time = NULL 
+                    WHERE id = ?
+                `).run(user.id);
+
+                // Fetch updated user
+                user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+            }
+        }
 
         const resources = db.prepare('SELECT * FROM user_resources WHERE user_id = ?').get(req.params.id);
         const stats = db.prepare('SELECT * FROM user_stats WHERE user_id = ?').get(req.params.id);
@@ -679,8 +701,32 @@ app.post('/api/map/move', (req, res) => {
         // Validate targetId format "x_y"
         if (!/^\d+_\d+$/.test(targetId)) throw new Error("Invalid Format");
 
-        db.prepare('UPDATE users SET current_pos = ? WHERE id = ?').run(targetId, userId);
-        res.json({ success: true, current_pos: targetId });
+        const user = db.prepare('SELECT current_pos, destination_pos FROM users WHERE id = ?').get(userId);
+        if (user.destination_pos) throw new Error("Already moving");
+
+        // Calculate Distance
+        const [x1, y1] = (user.current_pos || "10_10").split('_').map(Number);
+        const [x2, y2] = targetId.split('_').map(Number);
+
+        // Euclidean distance
+        const dist = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+
+        // Speed: 2 seconds per unit distance, minimum 3 seconds
+        // Adjust this factor to tune gameplay speed
+        const travelTimeMs = Math.max(3000, Math.floor(dist * 200));
+        const now = new Date();
+        const arrival = new Date(now.getTime() + travelTimeMs);
+
+        db.prepare(`
+            UPDATE users 
+            SET start_pos = current_pos, 
+                destination_pos = ?, 
+                departure_time = ?, 
+                arrival_time = ? 
+            WHERE id = ?
+        `).run(targetId, now.toISOString(), arrival.toISOString(), userId);
+
+        res.json({ success: true, arrival_time: arrival.toISOString(), duration: travelTimeMs, start_pos: user.current_pos, target_pos: targetId });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

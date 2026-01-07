@@ -57,22 +57,10 @@ export default function SystemMenu({ activePage, variant = 'default' }: SystemMe
                             onClick={() => router.push('/dashboard')}
                         />
                         <MenuItem
-                            icon={<MapIcon size={14} />}
-                            label="TACTICAL MAP"
-                            isActive={activePage === 'map'}
-                            onClick={() => router.push('/map')}
-                        />
-                        <MenuItem
                             icon={<Globe size={14} />}
-                            label="3D GLOBE"
+                            label="3D GLOBE (STRATEGY)"
                             isActive={activePage === 'map2'}
                             onClick={() => router.push('/map2')}
-                        />
-                        <MenuItem
-                            icon={<Globe size={14} />}
-                            label="GLOBAL MAP (D3)"
-                            isActive={activePage === 'global-map'}
-                            onClick={() => router.push('/global-map')}
                         />
                         <MenuItem
                             icon={<MapIcon size={14} />}
