@@ -2,11 +2,11 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure db directory exists
 // Ensure db directory exists and has write permissions
-const dbDir = path.join(__dirname, 'db');
+// Use terra-data/db for all environments (local dev and Docker)
+const dbDir = path.join(__dirname, '..', 'terra-data', 'db');
 if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir);
+    fs.mkdirSync(dbDir, { recursive: true });
 }
 try {
     // Attempt to grant full permissions (RWX for Owner/Group/Others) to fix persistent NAS/Docker issues
@@ -17,6 +17,7 @@ try {
 }
 
 const dbPath = path.join(dbDir, 'terra.db');
+console.log(`[Database] Using database at: ${dbPath}`);
 const db = new Database(dbPath);
 
 // Initialize Schema
