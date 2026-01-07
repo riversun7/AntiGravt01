@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
-import { Info, Hammer, Map, Zap, Minimize2, Maximize2, GripVertical, UserPlus } from 'lucide-react';
+import { Info, Hammer, Map, Zap, Minimize2, Maximize2, GripVertical, UserPlus, LucideIcon } from 'lucide-react';
+import { TileProvider } from '@/components/map/TileProviderSelector';
 
 interface FloatingGamePanelProps {
     // Info tab
@@ -16,12 +17,12 @@ interface FloatingGamePanelProps {
 
     // Build tab
     onBuild: (buildingId: string) => void;
-    onBuildingClick?: (building: any) => void;
+    onBuildingClick?: (building: { id: number; type: string; lat: number; lng: number; level?: number }) => void;
 
     // Settings tab (Tiles + Actions)
     currentTileProvider: string;
-    onTileProviderChange: (provider: any) => void;
-    tileProviders: any[];
+    onTileProviderChange: (provider: TileProvider) => void;
+    tileProviders: TileProvider[];
 }
 
 type TabType = 'info' | 'units' | 'build' | 'buildings' | 'settings';
@@ -50,6 +51,7 @@ export default function FloatingGamePanel({
     useEffect(() => {
         const saved = localStorage.getItem('gamePanel_position');
         if (saved) {
+            // eslint-disable-next-line react-hooks/exhaustive-deps
             setPosition(JSON.parse(saved));
         }
     }, []);
@@ -93,7 +95,7 @@ export default function FloatingGamePanel({
         }
     }, [isDragging, dragOffset]);
 
-    const tabs: Array<{ id: TabType; label: string; icon: any }> = [
+    const tabs: Array<{ id: TabType; label: string; icon: LucideIcon }> = [
         { id: 'info', label: '정보', icon: Info },
         { id: 'units', label: '유닛', icon: UserPlus },
         { id: 'buildings', label: '건물', icon: Hammer },

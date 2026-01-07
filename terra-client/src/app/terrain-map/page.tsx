@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import SystemMenu from "@/components/SystemMenu";
 import dynamic from 'next/dynamic';
 import { useGeolocation } from '@/hooks/useGeolocation';
@@ -112,9 +112,9 @@ export default function TerrainMapPage() {
     // Toast state
     const [toast, setToast] = useState({ show: false, message: '', type: 'info' as 'info' | 'error' | 'success' });
 
-    const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info') => {
+    const showToast = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
         setToast({ show: true, message, type });
-    };
+    }, []);
 
     // Admin check
     const userId = typeof window !== 'undefined' ? localStorage.getItem('terra_user_id') : null;
@@ -157,55 +157,7 @@ export default function TerrainMapPage() {
         };
     }, []);
 
-    // Load game state on mount
-    useEffect(() => {
-        loadGameState();
-    }, []);
-
-    // Initialize player position from GPS only if no saved position
-    useEffect(() => {
-        if (geolocation.position && playerPosition[0] === defaultPosition[0] && playerPosition[1] === defaultPosition[1]) {
-            // Only use GPS if we're still at default position (no saved position loaded)
-            setPlayerPosition(geolocation.position);
-            console.log('[GPS] Using GPS position:', geolocation.position);
-        }
-    }, [geolocation.position]);
-
-    // Check if player is out of range from GPS (only when GPS changes)
-    useEffect(() => {
-        if (!geolocation.position) return;
-
-        const userId = localStorage.getItem('terra_user_id');
-        const isAdmin = userId === '1';
-        const maxRange = isAdmin ? 100 : 10; // Admin: 100km, Normal: 10km
-
-        const distanceFromGPS = calculateDistance(
-            playerPosition[0],
-            playerPosition[1],
-            geolocation.position[0],
-            geolocation.position[1]
-        );
-
-        if (distanceFromGPS > maxRange) {
-            console.warn(`[GPS] Player is ${distanceFromGPS.toFixed(2)}km from GPS. Resetting to GPS position.`);
-            setPlayerPosition(geolocation.position);
-        }
-    }, [geolocation.position]); // Only check when GPS position changes, not playerPosition
-
-    // Calculate distance helper
-    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-        const R = 6371; // Earth's radius in km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    };
-
-    const loadGameState = async () => {
+    const loadGameState = useCallback(async () => {
         try {
             const userId = localStorage.getItem('terra_user_id');
             if (!userId) {
@@ -223,7 +175,7 @@ export default function TerrainMapPage() {
 
                 // Convert x, y coordinates to lat, lng if needed
                 if (data.buildings && data.buildings.length > 0) {
-                    const mappedBuildings = data.buildings.map((b: any) => ({
+                    const mappedBuildings = data.buildings.map((b: { id: number; type: string; x: number; y: number; level?: number }) => ({
                         id: b.id,
                         type: b.type,
                         lat: b.x, // Assuming x is lat for now
@@ -261,7 +213,42 @@ export default function TerrainMapPage() {
         } catch (error) {
             console.error('[GameState] Error loading game state:', error);
         }
-    };
+    }, [router]);
+
+    // Load game state on mount
+    useEffect(() => {
+        loadGameState();
+    }, [loadGameState]);
+
+    // Initialize player position from GPS only if no saved position
+    useEffect(() => {
+        if (geolocation.position && playerPosition[0] === defaultPosition[0] && playerPosition[1] === defaultPosition[1]) {
+            // Only use GPS if we're still at default position (no saved position loaded)
+            setPlayerPosition(geolocation.position);
+            console.log('[GPS] Using GPS position:', geolocation.position);
+        }
+    }, [geolocation.position]);
+
+    // Check if player is out of range from GPS (only when GPS changes)
+    useEffect(() => {
+        if (!geolocation.position) return;
+
+        const userId = localStorage.getItem('terra_user_id');
+        const isAdmin = userId === '1';
+        const maxRange = isAdmin ? 100 : 10; // Admin: 100km, Normal: 10km
+
+        const distanceFromGPS = calculateDistance(
+            playerPosition[0],
+            playerPosition[1],
+            geolocation.position[0],
+            geolocation.position[1]
+        );
+
+        if (distanceFromGPS > maxRange) {
+            console.warn(`[GPS] Player is ${distanceFromGPS.toFixed(2)}km from GPS. Resetting to GPS position.`);
+            setPlayerPosition(geolocation.position);
+        }
+    }, [geolocation.position, playerPosition, defaultPosition]); // Check constraints when position updates
 
     const handlePlayerMove = async (position: [number, number]) => {
         try {
@@ -560,3 +547,16 @@ export default function TerrainMapPage() {
         </div>
     );
 }
+
+// Helper moved outside to avoid dependency cycle
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};

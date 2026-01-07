@@ -65,7 +65,7 @@ export default function AssignUnitModal({
             const assignedResponse = await fetch(`http://localhost:3001/api/buildings/all/assignments`);
             if (assignedResponse.ok) {
                 const assignedData = await assignedResponse.json();
-                const assignedIds = new Set<number>(assignedData.map((a: any) => a.minion_id as number));
+                const assignedIds = new Set<number>(assignedData.map((a: { minion_id: number }) => a.minion_id));
                 setAssignedMinionIds(assignedIds);
             }
         } catch (error) {

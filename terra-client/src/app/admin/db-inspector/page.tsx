@@ -10,7 +10,8 @@ export default function DBInspectorPage() {
     const [tables, setTables] = useState<string[]>([]);
     const [selectedTable, setSelectedTable] = useState<string | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [tableData, setTableData] = useState<any[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [tableData, setTableData] = useState<Record<string, unknown>[]>([]);
 
     useEffect(() => {
         fetch("http://localhost:3001/api/admin/files")
@@ -87,7 +88,7 @@ export default function DBInspectorPage() {
                                             {tableData.map((row, i) => (
                                                 <tr key={i} className="hover:bg-white/5 font-mono text-gray-400">
                                                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                                    {Object.values(row).map((val: any, j) => (
+                                                    {Object.values(row).map((val: unknown, j) => (
                                                         <td key={j} className="px-4 py-2 whitespace-nowrap">{String(val)}</td>
                                                     ))}
                                                 </tr>

@@ -470,4 +470,4 @@ export default function DBDesignerPage() {
 }
 
 // Helper to keep TS happy if filters below are messy in JSX
-const filteredTables = []; // (Placeholder, logic handles activeSchemaFilter)
+

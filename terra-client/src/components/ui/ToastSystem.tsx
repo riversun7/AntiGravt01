@@ -1,6 +1,6 @@
 "use client";
 
-import { useToast, ToastType } from "@/context/ToastContext";
+import { useToast, ToastType, Toast } from "@/context/ToastContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Info, CheckCircle, AlertTriangle, AlertOctagon } from "lucide-react";
 import { useEffect } from "react";
@@ -33,7 +33,7 @@ export default function ToastSystem() {
     );
 }
 
-function ToastItem({ toast, onClose }: { toast: any, onClose: () => void }) {
+function ToastItem({ toast, onClose }: { toast: Toast, onClose: () => void }) {
     // Sound Effect on Mount
     useEffect(() => {
         playSound(toast.type);
@@ -83,6 +83,7 @@ function ToastItem({ toast, onClose }: { toast: any, onClose: () => void }) {
 
 function playSound(type: ToastType) {
     try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
         if (!AudioContext) return;
 

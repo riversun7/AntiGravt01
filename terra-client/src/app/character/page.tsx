@@ -155,13 +155,20 @@ export default function CharacterPage() {
 }
 
 // Reuse TabButton
-function TabButton({ active, onClick, icon, label }: any) {
+interface TabButtonProps {
+    active: boolean;
+    onClick: () => void;
+    icon: React.ReactNode;
+    label: string;
+}
+
+function TabButton({ active, onClick, icon, label }: TabButtonProps) {
     return (
         <button
             onClick={onClick}
             className={`flex items-center gap-2 px-6 py-2.5 rounded text-sm font-bold uppercase tracking-wider transition-all ${active
-                    ? "bg-cyan-950 text-cyan-400 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                ? "bg-cyan-950 text-cyan-400 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                 }`}
         >
             {icon}

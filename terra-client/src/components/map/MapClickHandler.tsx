@@ -3,7 +3,7 @@ import { LeafletMouseEvent } from 'leaflet';
 
 interface MapClickHandlerProps {
     isConstructing: boolean;
-    geolocation: any;
+    geolocation: { position: [number, number] | null; error: string | null; loading: boolean; watching: boolean };
     playerPosition: [number, number];
     maxMovementRange: number;
     onMove: (position: [number, number]) => void;

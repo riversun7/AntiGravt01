@@ -17,7 +17,12 @@ export interface GeolocationOptions extends PositionOptions {
  * Supports both one-time position retrieval and continuous watching
  */
 export function useGeolocation(options: GeolocationOptions = {}) {
-    const { watch = true, ...positionOptions } = options;
+    const {
+        watch = true,
+        enableHighAccuracy = true,
+        timeout = 10000,
+        maximumAge = 0
+    } = options;
 
     const [state, setState] = useState<GeolocationState>({
         position: null,
@@ -38,11 +43,10 @@ export function useGeolocation(options: GeolocationOptions = {}) {
             return;
         }
 
-        const defaultOptions: PositionOptions = {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0,
-            ...positionOptions,
+        const geoOptions: PositionOptions = {
+            enableHighAccuracy,
+            timeout,
+            maximumAge,
         };
 
         const handleSuccess = (position: GeolocationPosition) => {
@@ -83,7 +87,7 @@ export function useGeolocation(options: GeolocationOptions = {}) {
             const watchId = navigator.geolocation.watchPosition(
                 handleSuccess,
                 handleError,
-                defaultOptions
+                geoOptions
             );
 
             return () => {
@@ -94,10 +98,10 @@ export function useGeolocation(options: GeolocationOptions = {}) {
             navigator.geolocation.getCurrentPosition(
                 handleSuccess,
                 handleError,
-                defaultOptions
+                geoOptions
             );
         }
-    }, [watch, positionOptions.enableHighAccuracy, positionOptions.timeout, positionOptions.maximumAge]);
+    }, [watch, enableHighAccuracy, timeout, maximumAge]);
 
     return state;
 }

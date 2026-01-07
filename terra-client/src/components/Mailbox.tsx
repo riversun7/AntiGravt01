@@ -287,7 +287,7 @@ export default function Mailbox() {
 
                                                     {mail.items && mail.items !== '[]' && (
                                                         <div className="bg-black/30 p-2 rounded border border-slate-800 flex flex-wrap gap-2 mb-3">
-                                                            {JSON.parse(mail.items).map((item: any, idx: number) => (
+                                                            {JSON.parse(mail.items).map((item: { code: string; qty: number }, idx: number) => (
                                                                 <span key={idx} className="text-xs text-yellow-400 bg-yellow-900/20 px-2 py-1 rounded border border-yellow-500/20">
                                                                     {item.code} x{item.qty}
                                                                 </span>

@@ -11,7 +11,7 @@ interface GeoJSONFeature {
     properties: {
         name: string;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        [key: string]: any;
+        [key: string]: unknown;
     };
     geometry: {
         type: string;
@@ -112,6 +112,7 @@ export default function GlobalMapPage() {
     const preCalculateBounds = (features: GeoJSONFeature[]) => {
         features.forEach(f => {
             if (!f.bbox) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 f.bbox = d3.geoBounds(f as any);
             }
         });
@@ -173,12 +174,14 @@ export default function GlobalMapPage() {
     // 3. Process Features
     const features = useMemo(() => {
         if (!worldData) return [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const countries = topojson.feature(worldData, worldData.objects.countries) as any;
         return preCalculateBounds(countries.features as GeoJSONFeature[]);
     }, [worldData]);
 
     const usFeatures = useMemo(() => {
         if (!usData) return [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const f = (topojson.feature(usData, usData.objects.states) as any).features as GeoJSONFeature[];
         return preCalculateBounds(f);
     }, [usData]);
@@ -217,6 +220,7 @@ export default function GlobalMapPage() {
         if (k > 6) {
             // US
             for (const f of usFeatures) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 if (d3.geoContains(f as any, geoPoint)) {
                     found = { name: f.properties.name, country: 'United States' };
                     break;
@@ -227,6 +231,7 @@ export default function GlobalMapPage() {
             if (!found) {
                 for (const [countryName, feats] of countrySubdivisions.entries()) {
                     for (const f of feats) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         if (d3.geoContains(f as any, geoPoint)) {
                             // DEBUG: Log actual properties to identify correct field
                             console.log(`Clicked ${countryName}:`, f.properties);
@@ -235,17 +240,17 @@ export default function GlobalMapPage() {
                             let regionName: string;
 
                             // Try standard name properties first
-                            if (f.properties['name']) {
+                            if (typeof f.properties['name'] === 'string') {
                                 regionName = f.properties['name'];
-                            } else if (f.properties['NAME_1']) {
+                            } else if (typeof f.properties['NAME_1'] === 'string') {
                                 regionName = f.properties['NAME_1'];
-                            } else if (f.properties['NAME']) {
+                            } else if (typeof f.properties['NAME'] === 'string') {
                                 regionName = f.properties['NAME'];
-                            } else if (f.properties['hc-key']) {
+                            } else if (typeof f.properties['hc-key'] === 'string') {
                                 // For countries like South Korea that only have hc-key
                                 // Use HASC or hc-a2 as fallback for display
-                                const hasc = f.properties['hasc']; // e.g., "KR.GB"
-                                const hcA2 = f.properties['hc-a2']; // e.g., "GB"
+                                const hasc = f.properties['hasc'] as string | undefined; // e.g., "KR.GB"
+                                const hcA2 = f.properties['hc-a2'] as string | undefined; // e.g., "GB"
 
                                 // Extract last part of HASC as region code
                                 if (hasc && hasc.includes('.')) {
@@ -264,7 +269,7 @@ export default function GlobalMapPage() {
                                         regionName = hcA2;
                                     }
                                 } else {
-                                    regionName = f.properties['hc-key'];
+                                    regionName = f.properties['hc-key'] as string || "Unknown Region";
                                 }
                             } else {
                                 regionName = "Unknown Region";
@@ -282,6 +287,7 @@ export default function GlobalMapPage() {
         // Fallback to Base Countries
         if (!found) {
             for (const f of features) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 if (d3.geoContains(f as any, geoPoint)) {
                     found = { name: f.properties.name };
                     break;
@@ -357,6 +363,7 @@ export default function GlobalMapPage() {
             // A. Base World
             ctx.beginPath();
             features.forEach(f => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 pathGenerator(f as any);
             });
             ctx.fillStyle = 'transparent';
@@ -372,6 +379,7 @@ export default function GlobalMapPage() {
                     let hasVisible = false;
                     list.forEach(f => {
                         if (isVisible(f)) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             pathGenerator(f as any);
                             hasVisible = true;
                         }
@@ -423,6 +431,7 @@ export default function GlobalMapPage() {
             const initialScale = 30;
             const [x, y] = projection([127.8, 36.5]) || [0, 0];
             const t = d3.zoomIdentity.translate(width / 2, height / 2).scale(initialScale).translate(-x, -y);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             selection.call(zoom.transform as any, t);
             transformRef.current = t;
         }

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { CyborgData, MinionData, Equipment, CyborgResponse, MinionsResponse, MinionType } from "@/types/character";
+import { CyborgData, MinionData, Equipment, CyborgResponse, MinionType } from "@/types/character";
 import { characterApi } from "@/lib/api";
 
 interface CharacterContextType {
@@ -46,9 +46,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             setCyborg(cyborgRes.cyborg);
             setCyborgEquipment(cyborgRes.equipment);
             setMinions(minionsRes.minions);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Failed to load character data:", err);
-            setError(err.message || "Failed to load character data");
+            setError((err as Error).message || "Failed to load character data");
         } finally {
             setLoading(false);
         }

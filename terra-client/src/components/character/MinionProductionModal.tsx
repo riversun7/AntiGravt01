@@ -140,13 +140,21 @@ export default function MinionProductionModal({ onClose, onProduce }: MinionProd
     );
 }
 
-function SelectionTab({ active, onClick, icon, label, sub }: any) {
+interface SelectionTabProps {
+    active: boolean;
+    onClick: () => void;
+    icon: React.ReactNode;
+    label: string;
+    sub: string;
+}
+
+function SelectionTab({ active, onClick, icon, label, sub }: SelectionTabProps) {
     return (
         <button
             onClick={onClick}
             className={`py-6 flex flex-col items-center justify-center gap-2 border-b-2 transition-all group ${active
-                    ? "border-cyan-500 bg-cyan-950/20"
-                    : "border-transparent bg-slate-950/30 hover:bg-slate-900"
+                ? "border-cyan-500 bg-cyan-950/20"
+                : "border-transparent bg-slate-950/30 hover:bg-slate-900"
                 }`}
         >
             <div className={`transition-colors ${active ? "text-cyan-400" : "text-slate-600 group-hover:text-slate-400"}`}>
