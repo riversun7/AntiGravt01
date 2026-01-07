@@ -4,15 +4,15 @@ export const getApiBaseUrl = (): string => {
         return process.env.NEXT_PUBLIC_API_URL;
     }
 
-    // 2. Client-Side: Construct based on window.location
+    // 2. Client-Side: Use relative path (forces usage of Next.js Rewrite Proxy)
     if (typeof window !== 'undefined') {
-        const protocol = window.location.protocol; // http: or https:
-        const hostname = window.location.hostname; // e.g. localhost, riversun7.synology.me
-        // Assume API is always on port 3001
-        return `${protocol}//${hostname}:3001`;
+        return '';
     }
 
-    // 3. Server-Side Fallback
+    // 3. Server-Side Fallback (SSR)
+    if (process.env.INTERNAL_API_URL) {
+        return process.env.INTERNAL_API_URL;
+    }
     return 'http://localhost:3001';
 };
 

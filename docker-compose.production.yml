@@ -4,8 +4,8 @@ services:
   server:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
     container_name: terra-server
-    ports:
-      - "8081:3001"
+    # ports:
+    #   - "8081:3001" # Disabled: Traffic goes through Client Proxy (Next.js Rewrite)
     volumes:
       - ./terra-data/db:/app/db
     environment:
@@ -21,7 +21,7 @@ services:
     ports:
       - "8080:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=https://riversun7.synology.me:3001
+      - NEXT_PUBLIC_API_URL= # Empty to force relative path usage
       - INTERNAL_API_URL=http://server:3001
     depends_on:
       - server
