@@ -5,12 +5,12 @@ services:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
     container_name: terra-server
     ports:
-      - "3001:3001"
+      - "8081:3001"
     volumes:
       - ./terra-data/db:/app/db
     environment:
       - NODE_ENV=production
-      - CORS_ORIGIN=http://riversun7.synology.me:3000
+      - CORS_ORIGIN=https://riversun7.synology.me:3001
     restart: always
     networks:
       - terra-network
@@ -19,9 +19,9 @@ services:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-client:latest
     container_name: terra-client
     ports:
-      - "3000:3000"
+      - "8080:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://riversun7.synology.me:3001
+      - NEXT_PUBLIC_API_URL=https://riversun7.synology.me:3001
       - INTERNAL_API_URL=http://server:3001
     depends_on:
       - server
