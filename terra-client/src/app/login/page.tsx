@@ -25,8 +25,9 @@ export default function LoginPage() {
             });
 
             if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
                 if (res.status === 401) throw new Error("Invalid Credentials");
-                throw new Error("Login failed");
+                throw new Error(errorData.details || errorData.error || `Login failed (${res.status})`);
             }
 
             const data = await res.json();
@@ -38,9 +39,9 @@ export default function LoginPage() {
             localStorage.setItem("terra_login_timestamp", Date.now().toString());
 
             router.push("/dashboard");
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert("System Error: Connection Failed");
+            alert(`System Error: ${err.message}`);
         } finally {
             setLoading(false);
         }
