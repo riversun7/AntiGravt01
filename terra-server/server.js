@@ -4,13 +4,23 @@ const bodyParser = require('body-parser');
 const db = require('./database');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors({
     origin: process.env.CORS_ORIGIN || '*',
     credentials: true
 }));
 app.use(bodyParser.json());
+
+// 0. Health Check (To verify connectivity/port)
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', message: 'Terra Server is running', port: PORT });
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
 
 // Routes
 // 1. Login (Simple User Creation/Retrieval)
