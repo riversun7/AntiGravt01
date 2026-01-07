@@ -2,12 +2,12 @@ version: '3.8'
 
 services:
   server:
-    # image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
-    build:
-      context: ./terra-server
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
+    # build:
+    #   context: ./terra-server
     container_name: terra-server
     ports:
-      - "8081:3001" # Direct Server Access for Debugging
+      - "3001:3001" # Direct Server Access for Debugging
     volumes:
       - ./terra-data/db:/app/db
     environment:
@@ -19,14 +19,14 @@ services:
       - terra-network
 
   client:
-    # image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-client:latest
-    build:
-      context: ./terra-client
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-client:latest
+    # build:
+    #   context: ./terra-client
     container_name: terra-client
     ports:
-      - "8080:3000"
+      - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL= # Empty to force relative path usage
+      - NEXT_PUBLIC_API_URL= # Empty to use relative path
       - INTERNAL_API_URL=http://server:3001
     depends_on:
       - server
@@ -39,7 +39,7 @@ services:
     container_name: terra-watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 300 --cleanup
+    command: --interval 60 --cleanup
     restart: always
 
 networks:
