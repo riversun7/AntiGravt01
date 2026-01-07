@@ -58,11 +58,9 @@ app.post('/api/login', (req, res) => {
             // Check password if admin
             if (user.role === 'admin') {
                 const { password } = req.body;
-                if (password !== user.password) {
+                if (!password || password !== user.password) {
                     return res.status(401).json({ error: 'Invalid Password' });
                 }
-            } else if (username === 'admin' && !user) {
-                // Auto-create admin if trying to login as admin for the first time? No, seeded manually or via script usually.
             }
 
             // Update last login
@@ -72,9 +70,9 @@ app.post('/api/login', (req, res) => {
 
         res.json({ user });
     } catch (err) {
-        console.error(err);
+        console.error('Login error details:', err);
         // RETURN ACTUAL ERROR FOR DEBUGGING (Temporary for NAS diagnosis)
-        res.status(500).json({ error: 'Internal server error', details: err.message });
+        res.status(500).json({ error: 'Internal server error', details: err.message, stack: err.stack });
     }
 });
 
