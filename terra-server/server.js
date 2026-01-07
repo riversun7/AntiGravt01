@@ -1096,6 +1096,76 @@ app.post('/api/mail/claim', (req, res) => {
     }
 });
 
+// User: Claim All Mail
+app.post('/api/mail/claim-all', (req, res) => {
+    const { userId } = req.body;
+    try {
+        let totalClaimed = 0;
+        let claimedItems = [];
+
+        const tx = db.transaction(() => {
+            // Get all unclaimed mail
+            const mails = db.prepare(`
+                SELECT * FROM mail 
+                WHERE recipient_id = ? AND is_claimed = 0
+                AND datetime(scheduled_at) <= datetime('now')
+                AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))
+            `).all(userId);
+
+            if (mails.length === 0) return;
+
+            mails.forEach(mail => {
+                const items = JSON.parse(mail.items || '[]');
+                items.forEach(item => {
+                    if (item.code === 'GOLD') {
+                        db.prepare('UPDATE user_resources SET gold = gold + ? WHERE user_id = ?').run(item.qty, userId);
+                    } else if (item.code === 'GEM') {
+                        db.prepare('UPDATE user_resources SET gem = gem + ? WHERE user_id = ?').run(item.qty, userId);
+                    } else {
+                        // Item
+                        const marketItem = db.prepare('SELECT id FROM market_items WHERE code = ?').get(item.code);
+                        if (marketItem) {
+                            const existing = db.prepare('SELECT * FROM user_inventory WHERE user_id = ? AND item_id = ?').get(userId, marketItem.id);
+                            if (existing) {
+                                db.prepare('UPDATE user_inventory SET quantity = quantity + ? WHERE user_id = ? AND item_id = ?').run(item.qty, userId, marketItem.id);
+                            } else {
+                                db.prepare('INSERT INTO user_inventory (user_id, item_id, quantity) VALUES (?, ?, ?)').run(userId, marketItem.id, item.qty);
+                            }
+                        }
+                    }
+                    claimedItems.push(item);
+                });
+                totalClaimed++;
+            });
+
+            // Mark all as claimed
+            db.prepare(`
+                UPDATE mail 
+                SET is_claimed = 1 
+                WHERE recipient_id = ? AND is_claimed = 0
+                AND datetime(scheduled_at) <= datetime('now')
+                AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))
+            `).run(userId);
+        });
+        tx();
+
+        res.json({ success: true, count: totalClaimed, items: claimedItems });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// User: Delete Claimed Mail
+app.delete('/api/mail/claimed', (req, res) => {
+    const { userId } = req.body;
+    try {
+        const info = db.prepare('DELETE FROM mail WHERE recipient_id = ? AND is_claimed = 1').run(userId);
+        res.json({ success: true, deleted: info.changes });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
 // --- Admin Task Persistence --- //
 
 // Get All Tasks & Categories
@@ -1489,6 +1559,21 @@ app.get('/api/characters/minions', (req, res) => {
             fatigue: m.fatigue,
             status: m.building_id ? `Active (${m.building_type})` : 'Idle'
         }));
+
+        // Get user name for Commander
+        const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+
+        // Add Commander
+        result.unshift({
+            id: 'commander',
+            name: user ? user.username : 'Commander',
+            type: 'human',
+            hp: 100,
+            battery: 100,
+            fatigue: 0,
+            status: 'Active (Command)',
+            isCommander: true
+        });
 
         res.json(result);
     } catch (err) {

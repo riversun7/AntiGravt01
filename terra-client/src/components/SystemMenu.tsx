@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Menu, Database, Globe, Map as MapIcon, Coins, User, Shield, LogOut, Settings } from "lucide-react";
 
@@ -14,6 +14,11 @@ interface SystemMenuProps {
 export default function SystemMenu({ activePage, variant = 'default' }: SystemMenuProps) {
     const router = useRouter();
     const [showMenu, setShowMenu] = useState(false);
+    const [role, setRole] = useState<string | null>(null);
+
+    useEffect(() => {
+        setRole(localStorage.getItem('terra_role'));
+    }, []);
 
     // Style Adjustments based on variant
     const buttonClass = variant === 'overlay'
@@ -92,13 +97,15 @@ export default function SystemMenu({ activePage, variant = 'default' }: SystemMe
                             isActive={activePage === 'character'}
                             onClick={() => router.push('/character')}
                         />
-                        <MenuItem
-                            icon={<Shield size={14} />}
-                            label="ADMIN"
-                            color="text-red-400"
-                            isActive={activePage === 'admin'}
-                            onClick={() => router.push('/admin')}
-                        />
+                        {role === 'admin' && (
+                            <MenuItem
+                                icon={<Shield size={14} />}
+                                label="ADMIN"
+                                color="text-red-400"
+                                isActive={activePage === 'admin'}
+                                onClick={() => router.push('/admin')}
+                            />
+                        )}
 
                         <MenuItem
                             icon={<Settings size={14} />}

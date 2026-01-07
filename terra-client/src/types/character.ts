@@ -50,6 +50,7 @@ export interface Equipment {
     item_id: number;
     // Joined fields from market_items
     name: string;
+    code: string;
     type: 'EQUIPMENT' | 'RESOURCE' | 'CONSUMABLE';
     rarity: Rarity;
     image: string;

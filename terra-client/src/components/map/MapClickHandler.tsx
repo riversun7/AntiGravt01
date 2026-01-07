@@ -21,7 +21,7 @@ export default function MapClickHandler({
     onError
 }: MapClickHandlerProps) {
     useMapEvents({
-        click: (e: LeafletMouseEvent) => {
+        dblclick: (e: LeafletMouseEvent) => {
             if (isConstructing) return;
 
             const { lat, lng } = e.latlng;

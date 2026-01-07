@@ -451,6 +451,7 @@ export default function TerrainMapPage() {
                     minZoom={2}
                     maxZoom={tileProvider.maxZoom || 19}
                     ref={setMap}
+                    doubleClickZoom={false}
                 >
                     {/* Tile layer with selected provider */}
                     <TileLayer

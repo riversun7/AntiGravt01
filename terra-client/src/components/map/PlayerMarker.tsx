@@ -135,40 +135,6 @@ export default function PlayerMarker({
         });
     };
 
-    // Handle map clicks for movement
-    useMapEvents({
-        click(e) {
-            // Block movement if constructing or already moving
-            if (isConstructing || isMoving) {
-                console.warn(isConstructing ? 'Cannot move while constructing' : 'Already moving');
-                return;
-            }
-
-            const clickedLat = e.latlng.lat;
-            const clickedLng = e.latlng.lng;
-
-            // Calculate distance from base position
-            const distance = calculateDistance(
-                basePosition[0],
-                basePosition[1],
-                clickedLat,
-                clickedLng
-            );
-
-            if (distance <= maxDistanceKm) {
-                const newPosition: [number, number] = [clickedLat, clickedLng];
-
-                // Calculate movement duration: Admin 100km/s, Normal 1km/s
-                const speedKmPerSec = isAdmin ? 100 : 1;
-                const durationMs = (distance / speedKmPerSec) * 1000;
-
-                animateMovement(position, newPosition, durationMs);
-            } else {
-                console.warn(`Cannot move ${distance.toFixed(2)}km away. Maximum distance is ${maxDistanceKm}km.`);
-            }
-        },
-    });
-
     // Cleanup animation on unmount
     useEffect(() => {
         return () => {
@@ -185,7 +151,7 @@ export default function PlayerMarker({
                 Position: ({position[0].toFixed(4)}, {position[1].toFixed(4)})<br />
                 {isConstructing && <span className="text-orange-500">🏗️ Constructing... {constructionTimeLeft}s</span>}
                 {isMoving && <span className="text-green-500">🚶 {remainingDistance.toFixed(2)}km 남음 | {remainingTime}초</span>}
-                {!isConstructing && !isMoving && <small>Click within {maxDistanceKm}km to move</small>}
+                {!isConstructing && !isMoving && <small>Double Click within {maxDistanceKm}km to move</small>}
             </Popup>
         </Marker>
     );

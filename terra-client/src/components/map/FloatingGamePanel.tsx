@@ -205,77 +205,6 @@ export default function FloatingGamePanel({
                                     </div>
                                 </div>
 
-                                <div className="bg-slate-800/50 rounded-lg p-3">
-                                    <h3 className="text-sm font-semibold text-purple-300 mb-2">
-                                        건물 ({buildings.length})
-                                    </h3>
-
-                                    {isConstructing && (
-                                        <div className="mb-2 bg-orange-900/30 border border-orange-500/50 rounded px-2 py-1">
-                                            <div className="text-orange-400 text-xs">
-                                                🏗️ 건설 중... {constructionTimeLeft}초
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {buildings.length === 0 ? (
-                                        <div className="text-xs text-slate-400 text-center py-2">
-                                            건물이 없습니다
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-1 max-h-48 overflow-y-auto">
-                                            {buildings.map((building, index) => {
-                                                const getBuildingIcon = (type: string) => {
-                                                    const icons: Record<string, string> = {
-                                                        mine: '⛏️',
-                                                        warehouse: '📦',
-                                                        barracks: '🏡',
-                                                        MINE: '⛏️',
-                                                        WAREHOUSE: '📦',
-                                                        BARRACKS: '🏡',
-                                                    };
-                                                    return icons[type] || '🏗️';
-                                                };
-
-                                                const getBuildingName = (type: string) => {
-                                                    const names: Record<string, string> = {
-                                                        mine: '자원 채굴장',
-                                                        warehouse: '창고',
-                                                        barracks: '숙소',
-                                                        MINE: '자원 채굴장',
-                                                        WAREHOUSE: '창고',
-                                                        BARRACKS: '숙소',
-                                                    };
-                                                    return names[type] || type;
-                                                };
-
-                                                return (
-                                                    <div
-                                                        key={`building-${building.id}-${index}`}
-                                                        className="bg-slate-900/50 rounded p-2 hover:bg-slate-900/80 transition-colors cursor-pointer border border-slate-700 hover:border-purple-500/50"
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-lg">{getBuildingIcon(building.type)}</span>
-                                                                <div>
-                                                                    <div className="text-xs font-semibold text-white">
-                                                                        {getBuildingName(building.type)}
-                                                                    </div>
-                                                                    <div className="text-[10px] text-slate-400 font-mono">
-                                                                        ({building.lat.toFixed(4)}, {building.lng.toFixed(4)})
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-[10px] text-purple-400">
-                                                                Lv.{building.level || 1}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                         )}
 
@@ -440,6 +369,7 @@ export default function FloatingGamePanel({
                                                 return (
                                                     <div
                                                         key={`building-${building.id}-${index}`}
+                                                        onClick={() => onBuildingClick && onBuildingClick(building)}
                                                         className="bg-slate-900/50 rounded p-2 hover:bg-slate-900/80 transition-colors cursor-pointer border border-slate-700 hover:border-purple-500/50"
                                                     >
                                                         <div className="flex items-center justify-between">
@@ -494,7 +424,7 @@ export default function FloatingGamePanel({
                                 <div className="bg-slate-800/50 rounded-lg p-3">
                                     <h3 className="text-sm font-semibold text-purple-300 mb-2">명령 가이드</h3>
                                     <div className="text-xs text-slate-400">
-                                        <p>• 맵 클릭: 이동 (10km 반경 내)</p>
+                                        <p>• 맵 더블 클릭: 이동 (10km 반경 내)</p>
                                         <p>• 건설: 건설 탭에서 건물 선택</p>
                                         <p>• 건물 클릭: 유닛 관리</p>
                                         <p className="mt-2 text-yellow-400">이동 속도: 1km/1초</p>

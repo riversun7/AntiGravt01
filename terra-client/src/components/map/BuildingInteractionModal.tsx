@@ -145,7 +145,6 @@ export default function BuildingInteractionModal({
     if (!isOpen) return null;
 
     const buildingLevel = building.level || 1;
-    const maxSlots = buildingLevel * 2; // 레벨당 2개 슬롯
 
     return (
         <>
