@@ -57,6 +57,14 @@ const AssignUnitModal = dynamic(
     () => import('@/components/map/AssignUnitModal'),
     { ssr: false }
 );
+const MapClickHandler = dynamic(
+    () => import('@/components/map/MapClickHandler'),
+    { ssr: false }
+);
+const ToastNotification = dynamic(
+    () => import('@/components/ui/ToastNotification'),
+    { ssr: false }
+);
 
 interface Building {
     id: number;
@@ -101,6 +109,13 @@ export default function TerrainMapPage() {
     const [showBuildingModal, setShowBuildingModal] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
 
+    // Toast state
+    const [toast, setToast] = useState({ show: false, message: '', type: 'info' as 'info' | 'error' | 'success' });
+
+    const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info') => {
+        setToast({ show: true, message, type });
+    };
+
     // Admin check
     const userId = typeof window !== 'undefined' ? localStorage.getItem('terra_user_id') : null;
     const isAdmin = userId === '1';
@@ -114,6 +129,9 @@ export default function TerrainMapPage() {
         watch: true,
         enableHighAccuracy: true,
     });
+
+    // Map ref
+    const [map, setMap] = useState<L.Map | null>(null);
 
     // Leaflet CSS 동적 로드
     useEffect(() => {
@@ -330,6 +348,9 @@ export default function TerrainMapPage() {
     const handleBuildingClick = (building: Building) => {
         setSelectedBuilding(building);
         setShowBuildingModal(true);
+        if (map) {
+            map.flyTo([building.lat, building.lng], 16);
+        }
     };
 
     const handleAssignUnit = () => {
@@ -429,6 +450,7 @@ export default function TerrainMapPage() {
                     zoomControl={true}
                     minZoom={2}
                     maxZoom={tileProvider.maxZoom || 19}
+                    ref={setMap}
                 >
                     {/* Tile layer with selected provider */}
                     <TileLayer
@@ -440,7 +462,7 @@ export default function TerrainMapPage() {
 
                     {/* Movement range circle (10km) */}
                     <MovementRange
-                        center={playerPosition}
+                        center={geolocation?.position || playerPosition}
                         radiusKm={maxMovementRange}
                     />
 
@@ -475,6 +497,15 @@ export default function TerrainMapPage() {
                         autoCenter={false}
                     />
                     <MapResizer />
+                    <MapClickHandler
+                        isConstructing={isConstructing}
+                        geolocation={geolocation}
+                        playerPosition={playerPosition}
+                        maxMovementRange={maxMovementRange}
+                        onMove={handlePlayerMove}
+                        calculateDistance={calculateDistance}
+                        onError={(msg) => showToast(msg, 'error')}
+                    />
                 </MapContainer>
 
                 {/* Unified Floating Game Panel */}
@@ -517,6 +548,14 @@ export default function TerrainMapPage() {
                     />
                 </>
             )}
+
+            {/* Toast Notification */}
+            <ToastNotification
+                show={toast.show}
+                message={toast.message}
+                type={toast.type}
+                onClose={() => setToast(prev => ({ ...prev, show: false }))}
+            />
         </div>
     );
 }

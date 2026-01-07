@@ -45,6 +45,9 @@ export default function BuildingInteractionModal({
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [totalResources, setTotalResources] = useState(0);
+    const [showDestructionConfirm, setShowDestructionConfirm] = useState(false);
+
+    const maxSlots = 2 + (building.level || 1); // 기본 2 + 레벨당 1
 
     // Load assignments when modal opens
     useEffect(() => {
@@ -297,18 +300,34 @@ export default function BuildingInteractionModal({
                             ➕ 유닛 배치
                         </button>
                     </div>
-                    <button
-                        onClick={() => {
-                            const confirmed = window.confirm('정말로 이 건물을 파괴하시겠습니까?');
-                            if (confirmed) {
-                                onDestroyBuilding();
-                                onClose();
-                            }
-                        }}
-                        className="w-full py-2 rounded-lg bg-red-900/50 hover:bg-red-900 border border-red-500/50 text-red-300 text-sm font-bold transition-all"
-                    >
-                        🗑️ 건물 파괴
-                    </button>
+                    <div className="relative">
+                        {showDestructionConfirm ? (
+                            <div className="flex gap-2 animate-fadeIn">
+                                <button
+                                    onClick={() => setShowDestructionConfirm(false)}
+                                    className="flex-1 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm font-bold hover:bg-slate-600 transition-all"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        onDestroyBuilding();
+                                        onClose();
+                                    }}
+                                    className="flex-[2] py-2 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-500 shadow-lg shadow-red-900/50 transition-all"
+                                >
+                                    ⚠️ 정말 파괴하시겠습니까?
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setShowDestructionConfirm(true)}
+                                className="w-full py-2 rounded-lg bg-red-900/30 hover:bg-red-900/50 border border-red-500/30 text-red-400 text-sm font-bold transition-all"
+                            >
+                                🗑️ 건물 파괴 (복구 불가)
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         </>
