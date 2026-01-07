@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Mail, Gift, Check, Clock, X, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { API_BASE_URL } from "@/lib/config";
 
 interface MailItem {
     id: number;
@@ -39,7 +40,7 @@ export default function Mailbox() {
     const fetchMail = (silent = false) => {
         if (!userId) return;
         if (!silent) setLoading(true);
-        fetch(`http://localhost:3001/api/mail/${userId}`)
+        fetch(`${API_BASE_URL}/api/mail/${userId}`)
             .then(res => res.json())
             .then(data => {
                 const prevMails = prevMailsRef.current;
@@ -97,7 +98,7 @@ export default function Mailbox() {
     const handleClaim = (mail: MailItem) => {
         if (mail.is_claimed) return;
 
-        fetch('http://localhost:3001/api/mail/claim', {
+        fetch(`${API_BASE_URL}/api/mail/claim`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mailId: mail.id, userId })
@@ -128,7 +129,7 @@ export default function Mailbox() {
         const unclaimedWithItems = mails.filter(m => !m.is_claimed && m.items && m.items !== '[]');
         if (unclaimedWithItems.length === 0) return;
 
-        fetch('http://localhost:3001/api/mail/claim-all', {
+        fetch(`${API_BASE_URL}/api/mail/claim-all`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId })
@@ -147,7 +148,7 @@ export default function Mailbox() {
     };
 
     const handleDeleteClaimed = () => {
-        fetch('http://localhost:3001/api/mail/claimed', {
+        fetch(`${API_BASE_URL}/api/mail/claimed`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId })

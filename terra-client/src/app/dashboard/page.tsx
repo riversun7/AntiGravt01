@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Coins, Diamond, Database, Settings, User, LogOut, Shield, TrendingUp, Map } from "lucide-react";
 import { motion } from "framer-motion";
 import Mailbox from "@/components/Mailbox";
+import { API_BASE_URL } from "@/lib/config";
 
 interface Equipment {
     slot: string;
@@ -61,7 +62,7 @@ export default function DashboardPage() {
             return;
         }
 
-        fetch(`http://localhost:3001/api/user/${userId}`)
+        fetch(`${API_BASE_URL}/api/user/${userId}`)
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to fetch user");
                 return res.json();
@@ -86,7 +87,7 @@ export default function DashboardPage() {
     useEffect(() => {
         if (!user) return;
         const fetchProduction = () => {
-            fetch(`http://localhost:3001/api/production/pending?user_id=${user.id}`)
+            fetch(`${API_BASE_URL}/api/production/pending?user_id=${user.id}`)
                 .then(res => res.json())
                 .then(data => setProduction(data))
                 .catch(console.error);
@@ -99,7 +100,7 @@ export default function DashboardPage() {
     const handleCollect = async () => {
         if (!user) return;
         try {
-            const res = await fetch('http://localhost:3001/api/production/collect', {
+            const res = await fetch(`${API_BASE_URL}/api/production/collect`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: user.id })
@@ -107,7 +108,7 @@ export default function DashboardPage() {
             const data = await res.json();
             if (data.success) {
                 // Refresh User Data
-                fetch(`http://localhost:3001/api/user/${user.id}`)
+                fetch(`${API_BASE_URL}/api/user/${user.id}`)
                     .then(res => res.json())
                     .then(u => setUser(u));
                 // Reset Production

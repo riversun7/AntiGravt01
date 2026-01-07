@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, UserPlus, TrendingUp, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/config';
 
 interface Assignment {
     id: number;
@@ -59,7 +60,7 @@ export default function BuildingInteractionModal({
     const loadAssignments = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`http://localhost:3001/api/buildings/${building.id}/assignments`);
+            const response = await fetch(`${API_BASE_URL}/api/buildings/${building.id}/assignments`);
             if (response.ok) {
                 const data = await response.json();
                 setAssignments(data);
@@ -78,7 +79,7 @@ export default function BuildingInteractionModal({
     const handleRemoveUnit = async (minionId: number) => {
         try {
             const response = await fetch(
-                `http://localhost:3001/api/buildings/${building.id}/assign/${minionId}`,
+                `${API_BASE_URL}/api/buildings/${building.id}/assign/${minionId}`,
                 { method: 'DELETE' }
             );
 
@@ -96,7 +97,7 @@ export default function BuildingInteractionModal({
     const handleCollect = async () => {
         try {
             const response = await fetch(
-                `http://localhost:3001/api/buildings/${building.id}/collect`,
+                `${API_BASE_URL}/api/buildings/${building.id}/collect`,
                 { method: 'POST' }
             );
 

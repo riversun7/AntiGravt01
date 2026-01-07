@@ -1,69 +1,114 @@
-# 시놀로지 NAS Docker 배포 가이드
+# 시놀로지 NAS 배포 가이드 (최종 솔루션)
 
-이 문서는 생성된 Docker 설정을 사용하여 애플리케이션을 시놀로지 NAS에 배포하고, 자동 업데이트 시스템을 구축하는 방법을 설명합니다.
+이 문서는 시행착오를 거쳐 검증된 **"가장 확실하고 쉬운 배포 방법"**을 정리한 최종 가이드입니다.
 
-## 1. 사전 준비 (GitHub)
+---
 
-가장 먼저, 작성된 코드를 GitHub에 올려서 이미지가 자동으로 생성되게 해야 합니다.
+## ⚠️ 핵심 주의사항 (이것 때문에 많이 실패합니다!)
+**"리포지토리(코드)가 공개라고 해서, 패키지(이미지)가 자동으로 공개되는 것이 아닙니다."**
+시놀로지에서 로그인 없이 이미지를 받으려면 반드시 **패키지 자체를 Public**으로 설정해야 합니다.
 
-1.  **커밋 및 푸시**:
-    ```bash
-    git add .
-    git commit -m "Add Docker configuration with CI/CD"
-    git push origin main
-    ```
-2.  **빌드 확인**:
-    - GitHub 저장소의 **Actions** 탭으로 이동합니다.
-    - `Docker Build and Publish` 워크플로우가 초록색 체크(성공)가 될 때까지 기다립니다.
-    - 성공하면 GitHub Packages(GHCR)에 이미지가 등록된 것입니다.
+---
 
-## 2. 시놀로지 NAS 준비
+## 1. GitHub 패키지 공개 설정 (필수)
+이 과정을 건너뛰면 시놀로지에서 `permission denied` 또는 `unauthorized` 오류가 발생합니다.
 
-### 필수 패키지 설치
-시놀로지 **패키지 센터**에서 다음을 설치해 주세요:
-- **Container Manager** (구 Docker)
-- **Text Editor** (설정 파일 수정용, 선택 사항)
+1.  GitHub 상단 메뉴의 **Packages** 탭 클릭
+    *   (메인 코드가 있는 곳이 아닙니다! 프로필 메뉴 또는 상단 탭에서 찾으세요)
+2.  `antigravt01-server` 패키지 클릭
+3.  우측 하단 **Package settings** 클릭
+4.  맨 아래 **Danger Zone** -> **Change visibility** -> **Public**으로 변경
+5.  `antigravt01-client` 패키지도 동일하게 수행
 
-### 폴더 구성
-보통 `/volume1/docker/` 아래에 프로젝트 폴더를 만듭니다.
+---
 
-1.  **File Station**을 엽니다.
-2.  `docker` 공유 폴더 안에 `antigravt01` 폴더를 만듭니다.
-3.  그 안에 `terra-data` 폴더를 만들고, 다시 그 안에 `db` 폴더를 만듭니다.
-    - 구조: `/docker/antigravt01/terra-data/db/`
-    - *이 폴더에 게임 데이터(`terra.db`)가 저장되어, 컨테이너를 지워도 데이터가 안전합니다.*
+## 2. 시놀로지 NAS 설정 (Container Manager)
 
-## 3. 실행 (두 가지 방법)
+### A. 기존 로그인 정보 삭제 (충돌 방지)
+이전에 시도했던 **레지스트리 설정**이 있다면 지워야 합니다.
+1.  **Container Manager** -> **레지스트리(Registry)**
+2.  `GHCR` (또는 `ghcr.io`) 항목이 있다면 **삭제**합니다.
+    *   *공개 패키지는 로그인 정보가 아예 없어야 가장 잘 받아집니다.*
 
-### 방법 A: Container Manager (프로젝트 기능) 사용 - **추천**
-(최신 DSM 7.2 이상)
+### B. 프로젝트 생성 (빌드 금지, 이미지 사용)
+1.  **프로젝트(Project)** -> **생성(Create)**
+2.  **프로젝트 이름**: `antigravt01`
+3.  **경로**: `/docker/antigravt01` (File Station에서 미리 생성 추천)
+4.  **소스**: 아래 내용을 복사해서 붙여넣습니다. (기존 `docker-compose.yml` 사용 금지)
 
-1.  **Container Manager** 앱을 실행합니다.
-2.  좌측 메뉴에서 **프로젝트(Project)**를 클릭합니다.
-3.  **생성(Create)**을 누릅니다.
-    - **프로젝트 이름**: `antigravt01`
-    - **경로**: `/docker/antigravt01` (아까 만든 폴더 선택)
-    - **소스**: `docker-compose.yml` 업로드 또는 내용 붙여넣기.
-      *(로컬에 있는 `docker-compose.yml` 내용을 복사해서 붙여넣으세요)*
-4.  **다음** -> **완료**를 누르면 자동으로 이미지를 다운받고 실행됩니다.
+```yaml
+version: '3.8'
 
-### 방법 B: SSH 사용 (고급 사용자)
-1.  NAS에 SSH로 접속합니다.
-2.  폴더로 이동: `cd /volume1/docker/antigravt01`
-3.  `docker-compose.yml` 파일을 해당 폴더에 업로드합니다.
-4.  실행: `sudo docker-compose up -d`
+services:
+  server:
+    # Build 명령 없이 완성된 이미지를 바로 가져옵니다
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-server:latest
+    container_name: terra-server
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./terra-data/db:/app/db # 데이터 베이스 저장 경로
+    environment:
+      - NODE_ENV=production
+      # DDNS 도메인 (CORS 문제 해결)
+      - CORS_ORIGIN=http://riversun7.synology.me:3000
+    restart: always
+    networks:
+      - terra-network
+
+  client:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-riversun7}/antigravt01-client:latest
+    container_name: terra-client
+    ports:
+      - "3000:3000"
+    environment:
+      # 브라우저가 접속할 주소
+      - NEXT_PUBLIC_API_URL=http://riversun7.synology.me:3001
+      - INTERNAL_API_URL=http://server:3001
+    depends_on:
+      - server
+    restart: always
+    networks:
+      - terra-network
+
+  watchtower:
+    # 새 버전이 나오면 자동으로 업데이트해주는 컨테이너
+    image: containrrr/watchtower
+    container_name: terra-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --cleanup
+    restart: always
+
+networks:
+  terra-network:
+    driver: bridge
+```
+
+5.  **다음** -> **완료**를 누르면 자동으로 이미지를 다운로드(Pulling)하고 실행됩니다.
+
+---
+
+## 3. 공유기 포트포워딩 (외부 접속용)
+외부에서 접속하려면 공유기가 길을 열어줘야 합니다.
+
+1.  공유기 관리자 페이지 접속
+2.  **포트포워딩 설정** 메뉴
+3.  규칙 추가:
+    *   **외부 포트 3000** -> **내부 IP (NAS) 포트 3000** (게임 접속용)
+    *   **외부 포트 3001** -> **내부 IP (NAS) 포트 3001** (API 통신용)
+
+---
 
 ## 4. 접속 확인
+브라우저 주소창에:
+`http://riversun7.synology.me:3000`
+(HTTPS가 아닌 HTTP입니다)
 
-- **클라이언트 (게임 접속)**: `http://<NAS_IP>:3000`
-- **서버 (API)**: `http://<NAS_IP>:3001`
+---
 
-방화벽이 켜져 있다면 제어판에서 3000, 3001 포트를 허용해야 할 수 있습니다.
-
-## 5. 자동 업데이트 작동 원리
-
-이제부터는 로컬에서 코드를 수정하고 **GitHub에 푸시하기만 하면** 됩니다.
-
-1.  GitHub Actions가 새 이미지를 빌드합니다.
-2.  NAS에 떠 있는 **Watchtower** 컨테이너가 5분마다 새 이미지를 검사합니다.
-3.  새 버전이 감지되면 자동으로 서버/클라이언트 컨테이너를 끄고, 새 버전으로 교체한 뒤 다시 켭니다.
+## 5. 업데이트 방법 (자동화 완료)
+이제 로컬 컴퓨터에서 코드를 수정하고 GitHub에 `git push`만 하면 됩니다.
+1.  GitHub Actions가 새 이미지를 만들고 (Public 패키지로 등록)
+2.  NAS의 **Watchtower**가 5분마다 확인해서
+3.  새 버전이 있으면 자동으로 컨테이너를 재시작합니다.

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, CheckCircle, User, Cpu, Zap } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/config';
 
 interface Minion {
     id: number;
@@ -55,14 +56,14 @@ export default function AssignUnitModal({
             if (!userId) return;
 
             // Get user's minions
-            const minionsResponse = await fetch(`http://localhost:3001/api/character/${userId}/minions`);
+            const minionsResponse = await fetch(`${API_BASE_URL}/api/character/${userId}/minions`);
             if (minionsResponse.ok) {
                 const data = await minionsResponse.json();
                 setMinions(data.minions || []);
             }
 
             // Get all assigned minions (across all buildings)
-            const assignedResponse = await fetch(`http://localhost:3001/api/buildings/all/assignments`);
+            const assignedResponse = await fetch(`${API_BASE_URL}/api/buildings/all/assignments`);
             if (assignedResponse.ok) {
                 const assignedData = await assignedResponse.json();
                 const assignedIds = new Set<number>(assignedData.map((a: { minion_id: number }) => a.minion_id));
@@ -108,7 +109,7 @@ export default function AssignUnitModal({
             }
 
             const response = await fetch(
-                `http://localhost:3001/api/buildings/${buildingId}/assign`,
+                `${API_BASE_URL}/api/buildings/${buildingId}/assign`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
