@@ -12,6 +12,12 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 
+// DEBUG: Log all incoming requests
+app.use((req, res, next) => {
+    console.log(`[REQUEST] ${req.method} ${req.url} from ${req.ip}`);
+    next();
+});
+
 // 0. Health Check (To verify connectivity/port)
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Terra Server is running', port: PORT });
