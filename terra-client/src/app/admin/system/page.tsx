@@ -8,6 +8,7 @@ import { API_BASE_URL } from "@/lib/config";
 
 interface SystemConfig {
     market_fluctuation: boolean;
+    production_active: boolean;
     npc_activity: boolean;
     client_polling_rate?: string;
 }
@@ -78,12 +79,21 @@ export default function AdminSystemPage() {
                     onToggle={() => toggleConfig('market_fluctuation')}
                 />
 
+                {/* Resource Production */}
+                <ControlCard
+                    title="Resource Production"
+                    description="Controls the global mining and crafting loops. Disabling this pauses all resource generation."
+                    active={config?.production_active || false}
+                    icon={<Cpu />}
+                    onToggle={() => toggleConfig('production_active')}
+                />
+
                 {/* NPC Activity */}
                 <ControlCard
                     title="NPC Autonomous Logic"
                     description="Controls background processing for NPC behaviors and scheduled events."
                     active={config?.npc_activity || false}
-                    icon={<Cpu />}
+                    icon={<Activity />}
                     onToggle={() => toggleConfig('npc_activity')}
                 />
 

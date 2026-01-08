@@ -22,6 +22,7 @@ export default function Mailbox() {
     const { addToast } = useToast();
     const isFirstLoad = useRef(true);
     const prevMailsRef = useRef<MailItem[]>([]);
+    const lastFetchRef = useRef<number>(0);
     const [isOpen, setIsOpen] = useState(false);
     const [mails, setMails] = useState<MailItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -43,6 +44,7 @@ export default function Mailbox() {
         fetch(`${API_BASE_URL}/api/mail/${userId}`)
             .then(res => res.json())
             .then(data => {
+                lastFetchRef.current = Date.now();
                 const prevMails = prevMailsRef.current;
                 const unreadCount = data.filter((m: MailItem) => !m.is_claimed).length;
 
@@ -87,12 +89,26 @@ export default function Mailbox() {
             });
     };
 
-    // Polling
+    // Optimized Polling: Fetch on mount + Window Focus (Throttled 10m)
     useEffect(() => {
         if (!userId) return;
-        fetchMail(true); // Initial fetch
-        const interval = setInterval(() => fetchMail(true), 10000); // Poll every 10s
-        return () => clearInterval(interval);
+
+        // 1. Initial Fetch
+        fetchMail(true);
+
+        // 2. Window Focus Handler
+        const handleFocus = () => {
+            const lastFetch = lastFetchRef.current;
+            const now = Date.now();
+            // Only fetch if > 10 minutes passed since last fetch to reduce load
+            if (now - lastFetch > 10 * 60 * 1000) {
+                console.log("[Mailbox] 10+ mins passed, re-fetching on focus...");
+                fetchMail(true);
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
     }, [userId]);
 
     const handleClaim = (mail: MailItem) => {

@@ -389,7 +389,8 @@ const MARKET_UPDATE_INTERVAL = 60000; // 1 minute
 
 // Global System Configuration
 let SYSTEM_CONFIG = {
-    market_fluctuation: true,
+    market_fluctuation: false, // Default OFF
+    production_active: false, // Default OFF
     npc_activity: true,
     client_polling_rate: 'NORMAL' // Reserved for future client-sync
 };
@@ -427,6 +428,8 @@ setInterval(updateMarketPrices, MARKET_UPDATE_INTERVAL);
 const PRODUCTION_INTERVAL = 60000; // 1 minute
 
 function processResourceProduction() {
+    if (!SYSTEM_CONFIG.production_active) return; // Skip if disabled
+
     try {
         // Get all active mining assignments
         const miningAssignments = db.prepare(`
@@ -592,8 +595,9 @@ app.get('/api/admin/system/config', (req, res) => {
 });
 
 app.post('/api/admin/system/config', (req, res) => {
-    const { market_fluctuation, npc_activity } = req.body;
+    const { market_fluctuation, npc_activity, production_active } = req.body;
     if (market_fluctuation !== undefined) SYSTEM_CONFIG.market_fluctuation = market_fluctuation;
+    if (production_active !== undefined) SYSTEM_CONFIG.production_active = production_active;
     if (npc_activity !== undefined) SYSTEM_CONFIG.npc_activity = npc_activity;
 
     console.log('[System] Config Updated:', SYSTEM_CONFIG);
