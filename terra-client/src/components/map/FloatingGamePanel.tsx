@@ -105,6 +105,13 @@ export default function FloatingGamePanel({
 
     const buildingCategories = [
         {
+            id: 'territory',
+            label: '👑 영토',
+            buildings: [
+                { id: 'COMMAND_CENTER', name: '사령부', cost: { gold: 500, gem: 5 }, buildTime: 60 },
+            ],
+        },
+        {
             id: 'resource',
             label: '🔨 자원',
             buildings: [

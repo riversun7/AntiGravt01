@@ -78,13 +78,73 @@ export default function AdminDashboardPage() {
                         <p className="text-xs text-green-200/70">Manage Load & Processes</p>
                     </div>
                 </Link>
+
+                {/* Database Tools */}
+                <Link href="/admin/db-inspector" className="group relative overflow-hidden rounded-lg bg-gradient-to-br from-yellow-900/50 to-orange-900/50 p-6 border border-yellow-500/30 hover:border-yellow-400 transition-all shadow-lg hover:shadow-yellow-500/20">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity scale-150 transform translate-x-2 -translate-y-2">
+                        <Database size={48} className="text-white" />
+                    </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2 text-yellow-300">
+                            <Database size={20} />
+                            <span className="font-bold uppercase tracking-wider text-xs">Data Tools</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-1">DB Inspector</h3>
+                        <p className="text-xs text-yellow-200/70">View & Edit Tables</p>
+                    </div>
+                </Link>
+
+                {/* Planning Tool */}
+                <Link href="/admin/planning" className="group relative overflow-hidden rounded-lg bg-gradient-to-br from-purple-900/50 to-pink-900/50 p-6 border border-purple-500/30 hover:border-purple-400 transition-all shadow-lg hover:shadow-purple-500/20">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity scale-150 transform translate-x-2 -translate-y-2">
+                        <Activity size={48} className="text-white" />
+                    </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2 text-purple-300">
+                            <Activity size={20} />
+                            <span className="font-bold uppercase tracking-wider text-xs">Project Management</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-1">Planning Board</h3>
+                        <p className="text-xs text-purple-200/70">Tasks & Roadmap</p>
+                    </div>
+                </Link>
+
+                {/* User Manager */}
+                <Link href="/admin/users" className="group relative overflow-hidden rounded-lg bg-gradient-to-br from-blue-900/50 to-indigo-900/50 p-6 border border-blue-500/30 hover:border-blue-400 transition-all shadow-lg hover:shadow-blue-500/20">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity scale-150 transform translate-x-2 -translate-y-2">
+                        <Users size={48} className="text-white" />
+                    </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2 text-blue-300">
+                            <Users size={20} />
+                            <span className="font-bold uppercase tracking-wider text-xs">Access Control</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-1">User Manager</h3>
+                        <p className="text-xs text-blue-200/70">Roles & Profiles</p>
+                    </div>
+                </Link>
+
+                {/* DB Designer */}
+                <Link href="/admin/db-designer" className="group relative overflow-hidden rounded-lg bg-gradient-to-br from-orange-900/50 to-red-900/50 p-6 border border-orange-500/30 hover:border-orange-400 transition-all shadow-lg hover:shadow-orange-500/20">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity scale-150 transform translate-x-2 -translate-y-2">
+                        <Database size={48} className="text-white" />
+                    </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2 text-orange-300">
+                            <Database size={20} />
+                            <span className="font-bold uppercase tracking-wider text-xs">Schema Tools</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-1">DB Designer</h3>
+                        <p className="text-xs text-orange-200/70">Visual Schema Editor</p>
+                    </div>
+                </Link>
             </div>
 
             <div className="p-6 bg-surface border border-surface-border rounded-lg">
                 <h3 className="text-lg font-bold mb-4">Recent Activity</h3>
                 <p className="text-gray-500 text-sm">No recent system logs available.</p>
             </div>
-        </div>
+        </div >
     );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User, Layers, Box, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import SystemMenu from "@/components/SystemMenu";
@@ -9,6 +9,7 @@ import CyborgProfile from "@/components/character/CyborgProfile";
 import MinionGallery from "@/components/character/MinionGallery";
 import MinionDetailModal from "@/components/character/MinionDetailModal";
 import MinionProductionModal from "@/components/character/MinionProductionModal";
+import EquipmentSelectionModal from "@/components/character/EquipmentSelectionModal";
 import ItemIcon from "@/components/ItemIcon";
 import { Item } from "@/types/index"; // Assuming global Item type exists or reuse local definition
 import { MinionData } from "@/types/character";
@@ -29,9 +30,10 @@ interface LocalItem {
 }
 
 function CharacterPageContent() {
-    const { cyborg, cyborgEquipment, minions, loading, produceMinion, restMinion, chargeMinion, feedMinion } = useCharacter();
+    const { cyborg, cyborgEquipment, minions, loading, produceMinion, restMinion, chargeMinion, feedMinion, equipItem, unequipItem } = useCharacter();
     const [activeTab, setActiveTab] = useState<'cyborg' | 'minions' | 'inventory'>('cyborg');
     const [selectedMinion, setSelectedMinion] = useState<MinionData | null>(null);
+    const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
     const [showProduction, setShowProduction] = useState(false);
 
     // Inventory State (Loaded separately or via context? Existing page fetched it.)
@@ -41,6 +43,9 @@ function CharacterPageContent() {
 
     // Load inventory
     const fetchInventory = async () => {
+        // Ensure client-side only
+        if (typeof window === 'undefined') return;
+
         const userId = localStorage.getItem("terra_user_id");
         if (!userId) return;
         try {
@@ -53,9 +58,9 @@ function CharacterPageContent() {
     };
 
     // Initial fetch
-    useState(() => {
+    useEffect(() => {
         fetchInventory();
-    });
+    }, []);
 
     if (loading) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Loading Data...</div>;
     if (!cyborg) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">User not initialized.</div>;
@@ -104,7 +109,7 @@ function CharacterPageContent() {
                         <CyborgProfile
                             cyborg={cyborg}
                             equipment={cyborgEquipment}
-                            onSlotClick={(slot) => console.log("Unlock equipment selection for", slot)}
+                            onSlotClick={(slot) => setSelectedSlot(slot)}
                         />
                     )}
                     {activeTab === 'minions' && (
@@ -139,6 +144,25 @@ function CharacterPageContent() {
                     onProduce={async (type, name, species) => {
                         await produceMinion(type, name, species);
                         setShowProduction(false);
+                    }}
+                />
+            )}
+
+            {selectedSlot && (
+                <EquipmentSelectionModal
+                    slot={selectedSlot}
+                    currentEquip={cyborgEquipment.find(e => e.slot === selectedSlot) as any}
+                    inventory={inventory}
+                    onClose={() => setSelectedSlot(null)}
+                    onEquip={async (item) => {
+                        await equipItem(item.id, selectedSlot);
+                        setSelectedSlot(null);
+                        fetchInventory(); // Refresh inventory after equip
+                    }}
+                    onUnequip={async () => {
+                        await unequipItem(selectedSlot);
+                        setSelectedSlot(null);
+                        fetchInventory(); // Refresh inventory after unequip
                     }}
                 />
             )}

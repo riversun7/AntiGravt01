@@ -1,0 +1,174 @@
+// Minion AI Engine - Rule-based decision making
+const { ResourceType } = require('../types/ResourceTypes');
+
+class MinionAI {
+    constructor(db) {
+        this.db = db;
+    }
+
+    // Decide what action a minion should take based on its state
+    decideBehavior(minion) {
+        // Parse preferences
+        const prefs = JSON.parse(minion.preferences || '{}');
+
+        // Critical needs check
+        if (minion.type === 'human' || minion.type === 'creature') {
+            if (minion.hunger > 80) {
+                return { action: 'EAT', priority: 10, reason: 'Critically hungry' };
+            }
+            if (minion.stamina < 20) {
+                return { action: 'REST', priority: 9, reason: 'Exhausted' };
+            }
+        }
+
+        if (minion.type === 'android') {
+            if (minion.battery < 20) {
+                return { action: 'RECHARGE', priority: 10, reason: 'Low battery' };
+            }
+        }
+
+        // Check fatigue for all types
+        if (minion.fatigue > 80) {
+            return { action: 'REST', priority: 8, reason: 'Too tired' };
+        }
+
+        // Moderate hunger - prefer to gather food or eat
+        if ((minion.type === 'human' || minion.type === 'creature') && minion.hunger > 50) {
+            return { action: 'GATHER_FOOD', priority: 7, reason: 'Hungry, looking for food' };
+        }
+
+        // Default behavior based on preferences
+        const preferredAction = prefs.preferred_action || 'GATHER';
+        const preferredResource = prefs.preferred_resource || ResourceType.WOOD;
+
+        return {
+            action: preferredAction,
+            priority: 5,
+            resource: preferredResource,
+            reason: 'Following preferences'
+        };
+    }
+
+    // Execute an action for a minion
+    executeAction(minion, decision) {
+        const updates = {
+            current_action: decision.action
+        };
+
+        switch (decision.action) {
+            case 'EAT':
+                // Consume food from warehouse
+                updates.hunger = Math.max(0, minion.hunger - 30);
+                break;
+
+            case 'REST':
+                // Restore stamina and reduce fatigue
+                if (minion.type !== 'android') {
+                    updates.stamina = Math.min(100, minion.stamina + 20);
+                }
+                updates.fatigue = Math.max(0, minion.fatigue - 15);
+                break;
+
+            case 'RECHARGE':
+                // Android recharge
+                updates.battery = Math.min(100, minion.battery + 25);
+                updates.fatigue = Math.max(0, minion.fatigue - 10);
+                break;
+
+            case 'GATHER':
+            case 'GATHER_FOOD':
+                // Gathering increases hunger and fatigue
+                if (minion.type !== 'android') {
+                    updates.hunger = Math.min(100, minion.hunger + 5);
+                    updates.stamina = Math.max(0, minion.stamina - 10);
+                }
+                updates.fatigue = Math.min(100, minion.fatigue + 10);
+                break;
+
+            case 'TRADE':
+                // Trading is less exhausting
+                if (minion.type !== 'android') {
+                    updates.hunger = Math.min(100, minion.hunger + 2);
+                }
+                updates.fatigue = Math.min(100, minion.fatigue + 5);
+                break;
+
+            default:
+                // IDLE - slowly restore
+                if (minion.type !== 'android') {
+                    updates.hunger = Math.min(100, minion.hunger + 1);
+                    updates.stamina = Math.min(100, minion.stamina + 5);
+                }
+                updates.fatigue = Math.max(0, minion.fatigue - 3);
+        }
+
+        // Build UPDATE query
+        const updateFields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+        const updateValues = Object.values(updates);
+
+        this.db.prepare(`UPDATE character_minion SET ${updateFields} WHERE id = ?`)
+            .run(...updateValues, minion.id);
+
+        return {
+            minion_id: minion.id,
+            action: decision.action,
+            reason: decision.reason,
+            updates
+        };
+    }
+
+    // Update needs over time (passive decay)
+    updateNeeds(minion) {
+        const updates = {};
+
+        if (minion.type === 'human' || minion.type === 'creature') {
+            updates.hunger = Math.min(100, (minion.hunger || 50) + 1);
+            updates.stamina = Math.max(0, (minion.stamina || 100) - 1);
+        }
+
+        if (minion.type === 'android') {
+            updates.battery = Math.max(0, (minion.battery || 100) - 0.5);
+        }
+
+        // All types gain fatigue slowly over time
+        updates.fatigue = Math.min(100, (minion.fatigue || 0) + 0.5);
+
+        const updateFields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+        const updateValues = Object.values(updates);
+
+        this.db.prepare(`UPDATE character_minion SET ${updateFields} WHERE id = ?`)
+            .run(...updateValues, minion.id);
+
+        return updates;
+    }
+
+    // Get all active minions for a user
+    getActiveMinions(userId) {
+        return this.db.prepare('SELECT * FROM character_minion WHERE user_id = ?').all(userId);
+    }
+
+    // Process AI tick for all minions of a user
+    processUserMinions(userId) {
+        const minions = this.getActiveMinions(userId);
+        const results = [];
+
+        minions.forEach(minion => {
+            // Update passive needs
+            this.updateNeeds(minion);
+
+            // Refresh minion data after needs update
+            const updatedMinion = this.db.prepare('SELECT * FROM character_minion WHERE id = ?').get(minion.id);
+
+            // Decide action
+            const decision = this.decideBehavior(updatedMinion);
+
+            // Execute action
+            const result = this.executeAction(updatedMinion, decision);
+            results.push(result);
+        });
+
+        return results;
+    }
+}
+
+module.exports = MinionAI;

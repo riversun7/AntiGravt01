@@ -153,9 +153,7 @@ export default function DashboardPage() {
                 <nav className="flex flex-col gap-2 px-4 w-full">
                     <NavItem icon={<Database />} label="Overview" active />
                     <div className="text-xs text-gray-500 font-bold uppercase tracking-wider px-3 mt-4 mb-2">Maps</div>
-                    <NavItem icon={<Map />} label="Tactical Map" onClick={() => router.push('/map')} />
                     <NavItem icon={<Map />} label="3D Globe" onClick={() => router.push('/map2')} />
-                    <NavItem icon={<Map />} label="Global Map (D3)" onClick={() => router.push('/global-map')} />
                     <NavItem icon={<Map />} label="Terrain (Leaflet)" onClick={() => router.push('/terrain-map')} />
                     <div className="text-xs text-gray-500 font-bold uppercase tracking-wider px-3 mt-4 mb-2">Economy</div>
                     <NavItem icon={<TrendingUp />} label="Market" onClick={() => router.push('/market')} />

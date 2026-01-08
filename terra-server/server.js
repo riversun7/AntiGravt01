@@ -391,7 +391,7 @@ const MARKET_UPDATE_INTERVAL = 60000; // 1 minute
 let SYSTEM_CONFIG = {
     market_fluctuation: false, // Default OFF
     production_active: false, // Default OFF
-    npc_activity: true,
+    npc_activity: false, // Default OFF (Minion AI)
     client_polling_rate: 'NORMAL' // Reserved for future client-sync
 };
 
@@ -420,6 +420,48 @@ function updateMarketPrices() {
 
 // Start Ticker
 setInterval(updateMarketPrices, MARKET_UPDATE_INTERVAL);
+
+// ============================================
+// MINION AI TICK SYSTEM (30 seconds interval)
+// ============================================
+
+const MINION_AI_INTERVAL = 30000; // 30 seconds
+const MinionAI = require('./ai/MinionAI');
+const minionAI = new MinionAI(db);
+
+function processMinionAI() {
+    if (!SYSTEM_CONFIG.npc_activity) return;
+
+    try {
+        // Get all users with minions
+        const usersWithMinions = db.prepare(`
+            SELECT DISTINCT user_id 
+            FROM character_minion
+        `).all();
+
+        let totalActions = 0;
+
+        usersWithMinions.forEach(({ user_id }) => {
+            const results = minionAI.processUserMinions(user_id);
+            totalActions += results.length;
+
+            // Log actions (optional, can be removed in production)
+            results.forEach(result => {
+                console.log(`[Minion AI] Minion ${result.minion_id}: ${result.action} - ${result.reason}`);
+            });
+        });
+
+        if (totalActions > 0) {
+            console.log(`[Minion AI] Processed ${totalActions} minion actions`);
+        }
+    } catch (err) {
+        console.error('[Minion AI] Error processing minions:', err);
+    }
+}
+
+// Start Minion AI Ticker
+setInterval(processMinionAI, MINION_AI_INTERVAL);
+console.log(`[Minion AI] AI tick system started (${MINION_AI_INTERVAL / 1000}s interval)`);
 
 // ============================================
 // RESOURCE PRODUCTION CRON (1 minute interval)
@@ -972,15 +1014,20 @@ app.get('/api/admin/users', (req, res) => {
 });
 
 app.get('/api/admin/files', (req, res) => {
-    const dbDir = path.join(__dirname, 'db');
-    // For now scanning db dir, add more if needed
+    // Correct Path: terra-data/db (same as database.js)
+    const dbDir = path.join(__dirname, '..', 'terra-data', 'db');
+
     try {
         const files = [];
         if (fs.existsSync(dbDir)) {
             const items = fs.readdirSync(dbDir);
             items.forEach(item => {
-                if (item.endsWith('.db') || item.endsWith('.sql')) {
-                    files.push({ name: item, path: 'db/' + item });
+                if (item.endsWith('.db') || item.endsWith('.sql') || item.endsWith('.sqlite')) {
+                    files.push({
+                        name: item,
+                        path: 'db/' + item,
+                        download_url: `/api/admin/db/${item}/download`
+                    });
                 }
             });
         }
@@ -992,7 +1039,7 @@ app.get('/api/admin/files', (req, res) => {
 
 // Inspect Tables in a DB
 app.get('/api/admin/db/:filename', (req, res) => {
-    const dbPath = path.join(__dirname, 'db', req.params.filename);
+    const dbPath = path.join(__dirname, '..', 'terra-data', 'db', req.params.filename);
     if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
 
     try {
@@ -1007,7 +1054,7 @@ app.get('/api/admin/db/:filename', (req, res) => {
 
 // Inspect Data in a Table
 app.get('/api/admin/db/:filename/:table', (req, res) => {
-    const dbPath = path.join(__dirname, 'db', req.params.filename);
+    const dbPath = path.join(__dirname, '..', 'terra-data', 'db', req.params.filename);
     if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
 
     try {
@@ -1025,6 +1072,13 @@ app.get('/api/admin/db/:filename/:table', (req, res) => {
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// Download DB File
+app.get('/api/admin/db/:filename/download', (req, res) => {
+    const dbPath = path.join(__dirname, '..', 'terra-data', 'db', req.params.filename);
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
+    res.download(dbPath);
 });
 
 // Admin: Update User Stats/Resources
@@ -1702,7 +1756,470 @@ app.post('/api/buildings/:buildingId/collect', (req, res) => {
     }
 });
 
+// =========================================
+// RESOURCE SYSTEM API ENDPOINTS
+// =========================================
+const { ResourceType, RESOURCE_DEFINITIONS } = require('./types/ResourceTypes');
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+// Get or create warehouse for user
+app.get('/api/warehouse/:userId', (req, res) => {
+    try {
+        let warehouse = db.prepare('SELECT * FROM warehouses WHERE user_id = ?').get(req.params.userId);
+
+        if (!warehouse) {
+            // Create default warehouse
+            const info = db.prepare('INSERT INTO warehouses (user_id, capacity) VALUES (?, ?)').run(req.params.userId, 1000);
+            warehouse = db.prepare('SELECT * FROM warehouses WHERE id = ?').get(info.lastInsertRowid);
+        }
+
+        // Parse stored resources
+        warehouse.stored_resources = JSON.parse(warehouse.stored_resources || '{}');
+        res.json({ warehouse });
+    } catch (err) {
+        console.error('Get warehouse error:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
+
+// Gather resources from a node
+app.post('/api/resources/gather', (req, res) => {
+    const { userId, nodeId } = req.body;
+
+    if (!userId || !nodeId) {
+        return res.status(400).json({ error: 'userId and nodeId are required' });
+    }
+
+    try {
+        // Get resource node
+        const node = db.prepare('SELECT * FROM resource_nodes WHERE id = ?').get(nodeId);
+        if (!node) {
+            return res.status(404).json({ error: 'Resource node not found' });
+        }
+
+        // Get resource definition
+        const resourceDef = RESOURCE_DEFINITIONS[node.resource_type];
+        if (!resourceDef) {
+            return res.status(400).json({ error: 'Invalid resource type' });
+        }
+
+        // Check if node has resources
+        if (node.current_amount <= 0) {
+            return res.status(400).json({ error: 'Resource node is depleted' });
+        }
+
+        // Get warehouse
+        let warehouse = db.prepare('SELECT * FROM warehouses WHERE user_id = ?').get(userId);
+        if (!warehouse) {
+            const info = db.prepare('INSERT INTO warehouses (user_id, capacity) VALUES (?, ?)').run(userId, 1000);
+            warehouse = db.prepare('SELECT * FROM warehouses WHERE id = ?').get(info.lastInsertRowid);
+        }
+
+        // Parse stored resources
+        let stored = JSON.parse(warehouse.stored_resources || '{}');
+        const currentTotal = Object.values(stored).reduce((sum, qty) => sum + qty, 0);
+
+        // Check warehouse capacity
+        if (currentTotal >= warehouse.capacity) {
+            return res.status(400).json({ error: 'Warehouse is full' });
+        }
+
+        // Calculate gather amount (1 unit for now, can be improved with minion stats)
+        const gatherAmount = Math.min(1, node.current_amount, warehouse.capacity - currentTotal);
+
+        // Update node
+        db.prepare('UPDATE resource_nodes SET current_amount = current_amount - ? WHERE id = ?').run(gatherAmount, nodeId);
+
+        // Update warehouse
+        stored[node.resource_type] = (stored[node.resource_type] || 0) + gatherAmount;
+        db.prepare('UPDATE warehouses SET stored_resources = ? WHERE id = ?').run(JSON.stringify(stored), warehouse.id);
+
+        res.json({
+            success: true,
+            gathered: gatherAmount,
+            resourceType: node.resource_type,
+            resourceName: resourceDef.name,
+            warehouse: {
+                ...warehouse,
+                stored_resources: stored
+            }
+        });
+    } catch (err) {
+        console.error('Gather resources error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get market prices
+app.get('/api/market/prices', (req, res) => {
+    try {
+        let prices = db.prepare('SELECT * FROM market_prices').all();
+
+        // Initialize if empty
+        if (prices.length === 0) {
+            Object.values(ResourceType).forEach(resourceType => {
+                const def = RESOURCE_DEFINITIONS[resourceType];
+                if (def) {
+                    const basePrice = def.rarity === 'COMMON' ? 10 :
+                        def.rarity === 'UNCOMMON' ? 50 :
+                            def.rarity === 'RARE' ? 200 :
+                                def.rarity === 'EPIC' ? 1000 : 5000;
+
+                    db.prepare(`
+                        INSERT INTO market_prices (resource_type, current_price, base_price, demand, supply)
+                        VALUES (?, ?, ?, 100, 100)
+                    `).run(resourceType, basePrice, basePrice);
+                }
+            });
+
+            prices = db.prepare('SELECT * FROM market_prices').all();
+        }
+
+        res.json({ prices });
+    } catch (err) {
+        console.error('Get market prices error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Sell resources on market
+app.post('/api/market/sell', (req, res) => {
+    const { userId, resourceType, quantity } = req.body;
+
+    if (!userId || !resourceType || !quantity || quantity <= 0) {
+        return res.status(400).json({ error: 'Invalid request' });
+    }
+
+    try {
+        // Get warehouse
+        const warehouse = db.prepare('SELECT * FROM warehouses WHERE user_id = ?').get(userId);
+        if (!warehouse) {
+            return res.status(404).json({ error: 'Warehouse not found' });
+        }
+
+        // Parse stored resources
+        let stored = JSON.parse(warehouse.stored_resources || '{}');
+        const currentAmount = stored[resourceType] || 0;
+
+        if (currentAmount < quantity) {
+            return res.status(400).json({ error: 'Insufficient resources' });
+        }
+
+        // Get market price
+        const priceData = db.prepare('SELECT * FROM market_prices WHERE resource_type = ?').get(resourceType);
+        if (!priceData) {
+            return res.status(404).json({ error: 'Resource not found in market' });
+        }
+
+        const totalGold = priceData.current_price * quantity;
+
+        // Update warehouse
+        stored[resourceType] -= quantity;
+        if (stored[resourceType] === 0) delete stored[resourceType];
+        db.prepare('UPDATE warehouses SET stored_resources = ? WHERE id = ?').run(JSON.stringify(stored), warehouse.id);
+
+        // Update user gold
+        db.prepare('UPDATE user_resources SET gold = gold + ? WHERE user_id = ?').run(totalGold, userId);
+
+        // Update market (increase supply, decrease price slightly)
+        const newSupply = priceData.supply + quantity;
+        const newPrice = Math.max(Math.floor(priceData.base_price * (100 / newSupply)), 1);
+        db.prepare('UPDATE market_prices SET supply = ?, current_price = ?, last_updated = CURRENT_TIMESTAMP WHERE resource_type = ?')
+            .run(newSupply, newPrice, resourceType);
+
+        res.json({
+            success: true,
+            sold: quantity,
+            goldEarned: totalGold,
+            newPrice
+        });
+    } catch (err) {
+        console.error('Sell resources error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// =========================================
+// MINION MANAGEMENT API ENDPOINTS
+// =========================================
+
+// Get all minions for a user
+app.get('/api/minions/:userId', (req, res) => {
+    try {
+        const minions = db.prepare('SELECT * FROM character_minion WHERE user_id = ?').all(req.params.userId);
+        res.json({ minions });
+    } catch (err) {
+        console.error('Get minions error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get single minion details
+app.get('/api/minion/:minionId', (req, res) => {
+    try {
+        const minion = db.prepare('SELECT * FROM character_minion WHERE id = ?').get(req.params.minionId);
+        if (!minion) {
+            return res.status(404).json({ error: 'Minion not found' });
+        }
+
+        // Parse preferences
+        minion.preferences = JSON.parse(minion.preferences || '{}');
+        res.json({ minion });
+    } catch (err) {
+        console.error('Get minion error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create a new minion
+app.post('/api/minions/create', (req, res) => {
+    const { userId, type, name, preferences } = req.body;
+
+    if (!userId || !type || !name) {
+        return res.status(400).json({ error: 'userId, type, and name are required' });
+    }
+
+    if (!['human', 'android', 'creature'].includes(type)) {
+        return res.status(400).json({ error: 'Invalid minion type' });
+    }
+
+    try {
+        const prefsJson = JSON.stringify(preferences || {});
+
+        const info = db.prepare(`
+            INSERT INTO character_minion (
+                user_id, type, name, hunger, stamina, battery, preferences, current_action
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+            userId,
+            type,
+            name,
+            type !== 'android' ? 50 : 0,  // hunger
+            type !== 'android' ? 100 : 0, // stamina
+            type === 'android' ? 100 : 0, // battery
+            prefsJson,
+            'IDLE'
+        );
+
+        const minion = db.prepare('SELECT * FROM character_minion WHERE id = ?').get(info.lastInsertRowid);
+        minion.preferences = JSON.parse(minion.preferences);
+
+        res.json({
+            success: true,
+            minion
+        });
+    } catch (err) {
+        console.error('Create minion error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update minion preferences
+app.put('/api/minion/:minionId/preferences', (req, res) => {
+    const { preferences } = req.body;
+
+    if (!preferences) {
+        return res.status(400).json({ error: 'Preferences are required' });
+    }
+
+    try {
+        const prefsJson = JSON.stringify(preferences);
+        db.prepare('UPDATE character_minion SET preferences = ? WHERE id = ?')
+            .run(prefsJson, req.params.minionId);
+
+        const minion = db.prepare('SELECT * FROM character_minion WHERE id = ?').get(req.params.minionId);
+        minion.preferences = JSON.parse(minion.preferences);
+
+        res.json({
+            success: true,
+            minion
+        });
+    } catch (err) {
+        console.error('Update preferences error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// =========================================
+// TERRITORY SYSTEM API ENDPOINTS
+// =========================================
+
+// Claim a tile (Legacy: kept for backward compatibility but effectively deprecated)
+app.post('/api/tiles/claim', (req, res) => {
+    // Legacy support or simplified claim logic can remain if needed,
+    // but the new system relies on Command Centers.
+    // For now, let's just allow it for non-territory claims or disable it?
+    // User requested "overhaul", implying replacement.
+    res.status(400).json({ error: 'Tile claiming is deprecated. Please construct a Command Center.' });
+});
+
+// Get tile info
+app.get('/api/tiles/:tileId', (req, res) => {
+    try {
+        const tile = db.prepare('SELECT * FROM world_map WHERE id = ?').get(req.params.tileId);
+        
+        if (!tile) {
+            return res.status(404).json({ error: 'Tile not found' });
+        }
+        
+        // Get buildings on this tile (Legacy check)
+        // New system relies on coordinate-based buildings, but we map them to tiles for now or use range query.
+        // Actually, user_buildings stores x/y (lat/lng?) or grid coords.
+        // Let's assume user_buildings uses world_x/world_y which matches tile x/y.
+        const buildings = db.prepare(`
+            SELECT * FROM user_buildings 
+            WHERE world_x = ? AND world_y = ?
+        `).all(tile.x, tile.y);
+        
+        res.json({
+            tile,
+            buildings
+        });
+    } catch (err) {
+        console.error('Get tile info error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get user owned tiles
+app.get('/api/tiles/user/:userId', (req, res) => {
+    try {
+        const tiles = db.prepare('SELECT * FROM world_map WHERE owner_id = ?').all(req.params.userId);
+        res.json({ tiles });
+    } catch (err) {
+        console.error('Get user tiles error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all territories (Command Centers)
+app.get('/api/territories', (req, res) => {
+    try {
+        const territories = db.prepare(`
+            SELECT id, user_id, x, y, territory_radius, is_territory_center 
+            FROM user_buildings 
+            WHERE is_territory_center = 1
+        `).all();
+        res.json({ territories });
+    } catch (err) {
+        console.error('Get territories error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Build (Construct Building)
+app.post('/api/buildings/construct', (req, res) => {
+    const { userId, type, x, y, tileId } = req.body; // x, y are Lat/Lng or generic coords
+
+    if (!userId || !type) {
+        return res.status(400).json({ error: 'userId and type are required' });
+    }
+
+    try {
+        // Defines
+        const buildingDefs = {
+            'COMMAND_CENTER': { cost: { gold: 500, gem: 5 }, isTerritory: true },
+            'WAREHOUSE': { cost: { gold: 50, gem: 0 }, isTerritory: false },
+            'MINE': { cost: { gold: 100, gem: 0 }, isTerritory: false },
+            'FARM': { cost: { gold: 75, gem: 0 }, isTerritory: false },
+            'BARRACKS': { cost: { gold: 150, gem: 0 }, isTerritory: false },
+            'FACTORY': { cost: { gold: 200, gem: 0 }, isTerritory: false }
+        };
+
+        const def = buildingDefs[type] || buildingDefs[type.toUpperCase()];
+        if (!def) {
+            return res.status(400).json({ error: 'Invalid building type' });
+        }
+
+        // 1. Resource Check
+        const resources = db.prepare('SELECT gold, gem FROM user_resources WHERE user_id = ?').get(userId);
+        if (!resources || resources.gold < def.cost.gold || resources.gem < def.cost.gem) {
+            return res.status(400).json({ error: 'Insufficient resources' });
+        }
+
+        // 2. Territory Constraints
+        // Calculate Distance Helper
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            var R = 6371; // Radius of the earth in km
+            var dLat = deg2rad(lat2 - lat1);
+            var dLon = deg2rad(lon2 - lon1);
+            var a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            var d = R * c; // Distance in km
+            return d;
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI / 180);
+        }
+
+        // If it's a Territory Center (Command Center)
+        let isTerritoryCenter = def.isTerritory ? 1 : 0;
+        let radius = def.isTerritory ? 5.0 : 0;
+
+        if (isTerritoryCenter) {
+            // Check distance to ALL other territory centers
+            const existingCenters = db.prepare('SELECT x, y FROM user_buildings WHERE is_territory_center = 1').all();
+            for (const center of existingCenters) {
+                const dist = getDistanceFromLatLonInKm(x, y, center.x, center.y);
+                if (dist < 3.0) {
+                    return res.status(400).json({ error: `Too close to another territory! Minimum distance is 3km. Current: ${dist.toFixed(2)}km` });
+                }
+            }
+        } else {
+            // Must be built WITHIN an owned territory
+            // Check distance to MY territory centers
+            const myCenters = db.prepare('SELECT x, y, territory_radius FROM user_buildings WHERE user_id = ? AND is_territory_center = 1').all(userId);
+            let inTerritory = false;
+            for (const center of myCenters) {
+                const dist = getDistanceFromLatLonInKm(x, y, center.x, center.y);
+                if (dist <= center.territory_radius) {
+                    inTerritory = true;
+                    break;
+                }
+            }
+            // Admin override or relaxed rule? 
+            // User requirement: "Build buildings... in territory".
+            // If strictly enforced:
+            if (!inTerritory && userId !== '1') { // Admin override
+                 return res.status(400).json({ error: 'Must build within your territory' });
+            }
+        }
+
+        // 3. Deduct Resources
+        db.prepare('UPDATE user_resources SET gold = gold - ?, gem = gem - ? WHERE user_id = ?')
+            .run(def.cost.gold, def.cost.gem, userId);
+
+        // 4. Construct
+        // Need to map Lat/Lng (x, y from body) to Grid (world_x, world_y) for legacy support?
+        // Let's approximate: 
+        const gridX = Math.floor((y + 180) / 360 * 160); // y is lng
+        const gridY = Math.floor((90 - x) / 180 * 80);   // x is lat
+
+        const result = db.prepare(`
+            INSERT INTO user_buildings (
+                user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(userId, type, x, y, gridX, gridY, isTerritoryCenter, radius);
+
+        const newBuilding = db.prepare('SELECT * FROM user_buildings WHERE id = ?').get(result.lastInsertRowid);
+
+        res.json({
+            success: true,
+            building: newBuilding,
+            message: 'Construction complete'
+        });
+
+    } catch (err) {
+        console.error('Construction error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Start Server
+// const PORT = process.env.PORT || 3001;
+// app.listen(PORT, () => {
+//     console.log(`Server running on port ${PORT}`);
+// });

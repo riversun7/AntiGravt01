@@ -8,7 +8,7 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - ./terra-data/db:/app/db
+      - ./terra-data/db:/terra-data/db
     environment:
       - NODE_ENV=production
       - CORS_ORIGIN=https://riversun7.synology.me

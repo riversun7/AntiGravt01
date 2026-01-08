@@ -7,7 +7,7 @@ import { Menu, Database, Globe, Map as MapIcon, Coins, User, Shield, LogOut, Set
 import Mailbox from "@/components/Mailbox";
 
 interface SystemMenuProps {
-    activePage?: 'dashboard' | 'map' | 'map2' | 'global-map' | 'terrain' | 'market' | 'character' | 'admin' | 'settings';
+    activePage?: 'dashboard' | 'map' | 'map2' | 'global-map' | 'terrain' | 'economy' | 'market' | 'character' | 'admin' | 'settings';
     variant?: 'default' | 'overlay'; // default for normal pages, overlay for maps
 }
 
@@ -72,6 +72,13 @@ export default function SystemMenu({ activePage, variant = 'default' }: SystemMe
                         <div className="h-px bg-slate-800 my-1"></div>
                         <div className="text-[10px] text-slate-500 uppercase tracking-widest px-2 py-1 hidden md:block">Subsystems</div>
 
+                        <MenuItem
+                            icon={<Coins size={14} />}
+                            label="ECONOMY"
+                            color="text-green-400"
+                            isActive={activePage === 'economy'}
+                            onClick={() => router.push('/economy')}
+                        />
                         <MenuItem
                             icon={<Coins size={14} />}
                             label="MARKET"

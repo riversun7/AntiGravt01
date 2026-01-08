@@ -15,6 +15,8 @@ interface CharacterContextType {
     restMinion: (id: number) => Promise<void>;
     chargeMinion: (id: number) => Promise<void>;
     feedMinion: (id: number) => Promise<void>;
+    equipItem: (itemId: number, slot: string) => Promise<void>;
+    unequipItem: (slot: string) => Promise<void>;
 }
 
 const CharacterContext = createContext<CharacterContextType | undefined>(undefined);
@@ -87,6 +89,30 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         await refreshData();
     };
 
+    const equipItem = async (itemId: number, slot: string) => {
+        const userId = getUserId();
+        if (!userId) return;
+        try {
+            await characterApi.equipItem(userId, itemId, slot);
+            await refreshData();
+        } catch (e) {
+            console.error("Equip failed", e);
+            throw e;
+        }
+    };
+
+    const unequipItem = async (slot: string) => {
+        const userId = getUserId();
+        if (!userId) return;
+        try {
+            await characterApi.unequipItem(userId, slot);
+            await refreshData();
+        } catch (e) {
+            console.error("Unequip failed", e);
+            throw e;
+        }
+    };
+
     return (
         <CharacterContext.Provider value={{
             cyborg,
@@ -98,7 +124,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             produceMinion,
             restMinion,
             chargeMinion,
-            feedMinion
+            feedMinion,
+            equipItem,
+            unequipItem
         }}>
             {children}
         </CharacterContext.Provider>

@@ -18,6 +18,10 @@ try {
 
 const dbPath = path.join(dbDir, 'terra.db');
 console.log(`[Database] Using database at: ${dbPath}`);
+// Ensure we are not using a relative path accidentally
+if (!path.isAbsolute(dbPath)) {
+    console.warn(`[Database] WARNING: Database path is relative! Resolving to: ${path.resolve(dbPath)}`);
+}
 const db = new Database(dbPath);
 
 // Initialize Schema
@@ -91,6 +95,8 @@ function initSchema() {
         world_x INTEGER NOT NULL,
         world_y INTEGER NOT NULL,
         level INTEGER DEFAULT 1,
+        is_territory_center INTEGER DEFAULT 0,
+        territory_radius REAL DEFAULT 5.0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_collected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(user_id) REFERENCES users(id)
@@ -231,8 +237,7 @@ function initSchema() {
     );`;
 
     const createBuildingAssignmentsTable = `
-    CREATE TABLE IF NOT EXISTS building_assignments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    CREATE TABLE IF NOT EXISTS building_assignments (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,
         building_id INTEGER NOT NULL,
         minion_id INTEGER NOT NULL,
         assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -242,6 +247,39 @@ function initSchema() {
         last_collection DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(building_id) REFERENCES user_buildings(id) ON DELETE CASCADE,
         FOREIGN KEY(minion_id) REFERENCES character_minion(id) ON DELETE CASCADE
+    );`;
+
+    // Resource System Tables
+    const createResourceNodesTable = `
+    CREATE TABLE IF NOT EXISTS resource_nodes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tile_id TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        current_amount INTEGER DEFAULT 0,
+        max_amount INTEGER NOT NULL,
+        regen_rate REAL NOT NULL,
+        last_regen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`;
+
+    const createWarehousesTable = `
+    CREATE TABLE IF NOT EXISTS warehouses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        capacity INTEGER DEFAULT 1000,
+        stored_resources TEXT DEFAULT '{}',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`;
+
+    const createMarketPricesTable = `
+    CREATE TABLE IF NOT EXISTS market_prices (
+        resource_type TEXT PRIMARY KEY,
+        current_price INTEGER NOT NULL,
+        base_price INTEGER NOT NULL,
+        demand INTEGER DEFAULT 100,
+        supply INTEGER DEFAULT 100,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
     );`;
 
     db.exec(createUsersTable);
@@ -282,6 +320,14 @@ function initSchema() {
             db.exec("ALTER TABLE user_buildings ADD COLUMN last_collected_at DATETIME DEFAULT CURRENT_TIMESTAMP");
             console.log("Migrated user_buildings table: added last_collected_at");
         }
+
+        // Territory System Migration
+        const hasIsTerritoryCenter = buildCols.some(c => c.name === 'is_territory_center');
+        if (!hasIsTerritoryCenter && buildCols.length > 0) {
+            db.exec("ALTER TABLE user_buildings ADD COLUMN is_territory_center INTEGER DEFAULT 0"); // 0: false, 1: true
+            db.exec("ALTER TABLE user_buildings ADD COLUMN territory_radius REAL DEFAULT 5.0"); // km
+            console.log("Migrated user_buildings table: added is_territory_center and territory_radius");
+        }
     } catch (e) { console.log("Migration error (user_buildings):", e); }
 
     // Check World Map Version (Faction Column)
@@ -317,6 +363,11 @@ function initSchema() {
     db.exec(createMinionSkillsTable);
     db.exec(createBuildingAssignmentsTable);
 
+    // Execute resource system tables
+    db.exec(createResourceNodesTable);
+    db.exec(createWarehousesTable);
+    db.exec(createMarketPricesTable);
+
     try {
         const mailCols = db.prepare('PRAGMA table_info(mail)').all();
         const hasExpires = mailCols.some(c => c.name === 'expires_at');
@@ -325,6 +376,20 @@ function initSchema() {
             console.log("Migrated mail table: added expires_at");
         }
     } catch (e) { console.log("Migration error (mail):", e); }
+
+    // Migration: Add AI attributes to character_minion
+    try {
+        const minionCols = db.prepare('PRAGMA table_info(character_minion)').all();
+
+        const hasHunger = minionCols.some(c => c.name === 'hunger');
+        if (!hasHunger && minionCols.length > 0) {
+            db.exec("ALTER TABLE character_minion ADD COLUMN hunger INTEGER DEFAULT 50"); // 0-100
+            db.exec("ALTER TABLE character_minion ADD COLUMN preferences TEXT DEFAULT '{}'"); // JSON
+            db.exec("ALTER TABLE character_minion ADD COLUMN current_action TEXT DEFAULT 'IDLE'"); // IDLE, GATHERING, RESTING, TRADING
+            db.exec("ALTER TABLE character_minion ADD COLUMN stamina INTEGER DEFAULT 100"); // Human/Creature stamina
+            console.log("Migrated character_minion table: added hunger, preferences, current_action, stamina");
+        }
+    } catch (e) { console.log("Migration error (character_minion AI):", e); }
 
     // Seed World Map (160x80) - High Res Earth Like v4
     try {
@@ -561,12 +626,64 @@ function initSchema() {
             // Check if admin has cyborg, create if not
             const adminCyborg = db.prepare("SELECT * FROM character_cyborg WHERE user_id = ?").get(adminCheck.id);
             if (!adminCyborg) {
-                db.prepare('INSERT INTO character_cyborg (user_id, name, level) VALUES (?, ?, ?)').run(adminCheck.id, 'Admin Cyborg', 1);
-                console.log("Created cyborg for existing admin user");
+                db.prepare('INSERT OR IGNORE INTO character_cyborg (user_id, name, level) VALUES (?, ?, ?)').run(adminCheck.id, 'Admin Cyborg', 1);
+                console.log("Created cyborg for existing admin user (if not exists)");
             }
         }
     } catch (e) {
         console.log("Admin seed error or already exists", e);
+    }
+
+    // Seed Sample Resource Nodes
+    try {
+        const { ResourceType, RESOURCE_DEFINITIONS } = require('./types/ResourceTypes');
+        const nodeCount = db.prepare('SELECT COUNT(*) as count FROM resource_nodes').get();
+
+        if (nodeCount.count === 0) {
+            console.log('Seeding sample resource nodes...');
+
+            const sampleNodes = [
+                // WOOD nodes
+                { tile_id: '50_25', resource_type: ResourceType.WOOD, current_amount: 800, max_amount: 1000, regen_rate: 1.0 },
+                { tile_id: '52_26', resource_type: ResourceType.WOOD, current_amount: 600, max_amount: 1000, regen_rate: 1.0 },
+                { tile_id: '48_24', resource_type: ResourceType.WOOD, current_amount: 900, max_amount: 1000, regen_rate: 1.0 },
+
+                // ORE nodes
+                { tile_id: '55_30', resource_type: ResourceType.ORE, current_amount: 300, max_amount: 500, regen_rate: 0.5 },
+                { tile_id: '58_32', resource_type: ResourceType.ORE, current_amount: 450, max_amount: 500, regen_rate: 0.5 },
+                { tile_id: '53_28', resource_type: ResourceType.ORE, current_amount: 200, max_amount: 500, regen_rate: 0.5 },
+
+                // FOOD nodes
+                { tile_id: '45_22', resource_type: ResourceType.FOOD, current_amount: 700, max_amount: 800, regen_rate: 0.8 },
+                { tile_id: '47_23', resource_type: ResourceType.FOOD, current_amount: 650, max_amount: 800, regen_rate: 0.8 },
+                { tile_id: '49_25', resource_type: ResourceType.FOOD, current_amount: 800, max_amount: 800, regen_rate: 0.8 },
+
+                // STONE nodes
+                { tile_id: '60_35', resource_type: ResourceType.STONE, current_amount: 400, max_amount: 600, regen_rate: 0.6 },
+                { tile_id: '62_36', resource_type: ResourceType.STONE, current_amount: 550, max_amount: 600, regen_rate: 0.6 },
+
+                // ENERGY nodes (rare)
+                { tile_id: '65_40', resource_type: ResourceType.ENERGY, current_amount: 150, max_amount: 300, regen_rate: 0.3 },
+                { tile_id: '68_42', resource_type: ResourceType.ENERGY, current_amount: 200, max_amount: 300, regen_rate: 0.3 },
+
+                // MANA_CRYSTAL nodes (very rare)
+                { tile_id: '70_45', resource_type: ResourceType.MANA_CRYSTAL, current_amount: 50, max_amount: 100, regen_rate: 0.05 },
+                { tile_id: '75_48', resource_type: ResourceType.MANA_CRYSTAL, current_amount: 30, max_amount: 100, regen_rate: 0.05 }
+            ];
+
+            const insertNode = db.prepare(`
+                INSERT INTO resource_nodes (tile_id, resource_type, current_amount, max_amount, regen_rate)
+                VALUES (?, ?, ?, ?, ?)
+            `);
+
+            sampleNodes.forEach(node => {
+                insertNode.run(node.tile_id, node.resource_type, node.current_amount, node.max_amount, node.regen_rate);
+            });
+
+            console.log(`Seeded ${sampleNodes.length} sample resource nodes`);
+        }
+    } catch (e) {
+        console.log("Resource nodes seed error:", e);
     }
 
     console.log('Database initialized');

@@ -22,7 +22,10 @@ const getBuildingIcon = (type: string) => {
         factory: '🏭',
         mine: '⛏️',
         warehouse: '📦',
-        barracks: '🏡',
+        barracks: '⚔️',
+        farm: '🌾',
+        lab: '⚗️',
+        market: '⚖️',
     };
 
     const emoji = iconMap[type.toLowerCase()] || '🏢';

@@ -76,5 +76,26 @@ export const characterApi = {
         });
         if (!res.ok) throw new Error('Failed to feed minion');
         return res.json();
+    },
+
+    // Equipment
+    equipItem: async (userId: string | number, itemId: number, slot: string) => {
+        const res = await fetch(`${API_BASE}/equipment/equip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, itemId, slot })
+        });
+        if (!res.ok) throw new Error('Failed to equip item');
+        return res.json();
+    },
+
+    unequipItem: async (userId: string | number, slot: string) => {
+        const res = await fetch(`${API_BASE}/equipment/unequip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, slot })
+        });
+        if (!res.ok) throw new Error('Failed to unequip item');
+        return res.json();
     }
 };

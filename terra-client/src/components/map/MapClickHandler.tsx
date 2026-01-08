@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useMapEvents } from 'react-leaflet';
 import { LeafletMouseEvent } from 'leaflet';
 
@@ -9,6 +10,7 @@ interface MapClickHandlerProps {
     onMove: (position: [number, number]) => void;
     calculateDistance: (lat1: number, lon1: number, lat2: number, lon2: number) => number;
     onError: (message: string) => void;
+    onTileClick?: (lat: number, lng: number, point: { x: number; y: number }) => void;
 }
 
 export default function MapClickHandler({
@@ -18,10 +20,31 @@ export default function MapClickHandler({
     maxMovementRange,
     onMove,
     calculateDistance,
-    onError
+    onError,
+    onTileClick
 }: MapClickHandlerProps) {
+    const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
+
     useMapEvents({
+        click: (e: LeafletMouseEvent) => {
+            if (clickTimerRef.current) {
+                clearTimeout(clickTimerRef.current);
+                clickTimerRef.current = null;
+            }
+
+            clickTimerRef.current = setTimeout(() => {
+                if (onTileClick) {
+                    onTileClick(e.latlng.lat, e.latlng.lng, e.containerPoint);
+                }
+                clickTimerRef.current = null;
+            }, 300); // 300ms delay to distinguish from double click
+        },
         dblclick: (e: LeafletMouseEvent) => {
+            if (clickTimerRef.current) {
+                clearTimeout(clickTimerRef.current);
+                clickTimerRef.current = null;
+            }
+
             if (isConstructing) return;
 
             const { lat, lng } = e.latlng;

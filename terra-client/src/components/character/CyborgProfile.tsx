@@ -71,13 +71,13 @@ export default function CyborgProfile({ cyborg, equipment, onSlotClick }: Cyborg
                 </div>
 
                 {/* Equipment Slots Positioning */}
-                <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-8">
+                <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-8 z-20">
                     <EquipmentSlot slot="HEAD" label="HEAD SENSOR" item={getEquip('HEAD')} align="left" onClick={() => onSlotClick('HEAD')} />
                     <EquipmentSlot slot="BODY" label="CHASSIS" item={getEquip('BODY')} align="left" onClick={() => onSlotClick('BODY')} />
                     <EquipmentSlot slot="ARMS" label="MANIPULATOR" item={getEquip('ARMS')} align="left" onClick={() => onSlotClick('ARMS')} />
                 </div>
 
-                <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-8">
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-8 z-20">
                     <EquipmentSlot slot="LEGS" label="LOCOMOTION" item={getEquip('LEGS')} align="right" onClick={() => onSlotClick('LEGS')} />
                     <EquipmentSlot slot="CORE" label="POWER CORE" item={getEquip('CORE')} align="right" onClick={() => onSlotClick('CORE')} />
                     <EquipmentSlot slot="WEAPON" label="HARDPOINT A" item={getEquip('WEAPON')} align="right" onClick={() => onSlotClick('WEAPON')} />

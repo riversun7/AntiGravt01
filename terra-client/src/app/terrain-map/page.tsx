@@ -66,6 +66,14 @@ const ToastNotification = dynamic(
     () => import('@/components/ui/ToastNotification'),
     { ssr: false }
 );
+const TileInfoModal = dynamic(
+    () => import('@/components/map/TileInfoModal'),
+    { ssr: false }
+);
+const TerritoryOverlay = dynamic(
+    () => import('@/components/map/TerritoryOverlay'),
+    { ssr: false }
+);
 
 interface Building {
     id: number;
@@ -93,6 +101,137 @@ function MapResizer() {
 
 export default function TerrainMapPage() {
     const router = useRouter();
+
+    // Tile interaction states
+    const [selectedTile, setSelectedTile] = useState<any>(null);
+    const [showTileModal, setShowTileModal] = useState(false);
+    const [tileBuildings, setTileBuildings] = useState<any[]>([]);
+    const [ownedTiles, setOwnedTiles] = useState<any[]>([]);
+    const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+
+    const [territories, setTerritories] = useState<any[]>([]);
+
+    const handleTileClick = async (lat: number, lng: number, point?: { x: number; y: number }) => {
+        // Convert lat/lng to tile coordinates (160x80 grid) for legacy reference/info
+        const x = Math.floor((lng + 180) / 360 * 160);
+        const y = Math.floor((90 - lat) / 180 * 80);
+        const tileId = `${x}_${y}`;
+
+        if (point) {
+            setPopupPosition(point);
+        }
+
+        console.log(`[Tile Click] Lat: ${lat}, Lng: ${lng} -> Tile: ${tileId} (${x}, ${y})`);
+
+        // Check if point is inside any territory
+        // Simple radius check (client-side approximation)
+        let ownerId = null;
+        let ownerTerritory = null;
+
+        for (const t of territories) {
+            const dist = calculateDistance(lat, lng, t.x, t.y); // t.x is Lat? Wait, valid data check needed.
+            // Server returns t.x, t.y. In DB schema x usually mapped to Lat?
+            // Actually in server.js: x=lat, y=lng in some places, but check construct:
+            // INSERT INTO user_buildings (..., x, y, ...) VALUES (..., x, y, ...)
+            // body: { x: lat, y: lng } -> so t.x is Lat, t.y is Lng.
+            if (dist <= (t.territory_radius || 5.0)) {
+                ownerId = t.user_id;
+                ownerTerritory = t;
+                // Midpoint check if multiple? For now just take the first or closest.
+                // TODO: Strict Voronoi check.
+                break;
+            }
+        }
+
+        try {
+            // We still fetch tile info for terrain type, usage, etc.
+            const response = await fetch(`${API_BASE_URL}/api/tiles/${tileId}`);
+            let tileData = null;
+            let currentBuildings = [];
+
+            if (response.ok) {
+                const data = await response.json();
+                tileData = data.tile;
+                currentBuildings = data.buildings || [];
+            } else {
+                tileData = {
+                    id: tileId, x, y, type: 'OCEAN', name: `Sector ${x}-${y}`, owner_id: null, faction: null
+                };
+            }
+
+            // Override owner_id with our radius calculation
+            // This ensures visuals match logic
+            const effectiveOwner = ownerId || tileData.owner_id; // Prefer radius owner, fallback to tile (if any)
+
+            setSelectedTile({
+                ...tileData,
+                id: tileId, // Keep grid ID for reference
+                clickLat: lat,
+                clickLng: lng,
+                owner_id: effectiveOwner,
+                isTerritoryCenter: false // Will be determined by selected building?
+            });
+            setTileBuildings(currentBuildings);
+            setShowTileModal(true);
+
+        } catch (error) {
+            console.error('Failed to fetch tile info:', error);
+        }
+    };
+
+    const handleConstructTerritory = async () => {
+        if (!selectedTile) return;
+        // Use coords from click
+        const lat = selectedTile.clickLat || selectedTile.x; // Fallback? ClickLat should be there
+        const lng = selectedTile.clickLng || selectedTile.y;
+
+        // Check if lat/lng are actual coords or grid?
+        // In handleTileClick, we set clickLat/clickLng.
+        // If undefined, we can't build precisely.
+
+        await handleConstructBuilding('COMMAND_CENTER');
+    };
+
+    // Deprecated
+    const handleClaimTile = async () => {
+        alert("타일 소유권 주장은 더 이상 사용되지 않습니다. '사령부(Command Center)'를 건설하여 영토를 확보하세요.");
+    };
+
+    const handleConstructBuilding = async (buildingType: string) => {
+        if (!selectedTile) return;
+
+        const userId = localStorage.getItem('terra_user_id');
+        // Use precise click coordinates if available, otherwise tile center (approx)
+        const lat = selectedTile.clickLat;
+        const lng = selectedTile.clickLng;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/buildings/construct`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId,
+                    tileId: selectedTile.id,
+                    type: buildingType, // Changed from buildingType to type to match server
+                    x: lat, // Lat
+                    y: lng  // Lng
+                }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                alert(`${buildingType} 건설 완료!`);
+                // Update local state
+                setTileBuildings([...tileBuildings, data.building]);
+                loadGameState();
+            } else {
+                alert(`건설 실패: ${data.error}`);
+            }
+        } catch (error) {
+            console.error('Construction failed:', error);
+            alert('오류가 발생했습니다.');
+        }
+    };
 
     // Default position - will be replaced by GPS if available
     const [defaultPosition] = useState<[number, number]>([37.5665, 126.9780]); // Seoul
@@ -211,6 +350,21 @@ export default function TerrainMapPage() {
                 setMinions(minionsData);
                 console.log(`[GameState] Loaded ${minionsData.length} minions`);
             }
+
+            // Load owned tiles for overlay (Legacy)
+            const tilesResponse = await fetch(`${API_BASE_URL}/api/tiles/user/${userId}`);
+            if (tilesResponse.ok) {
+                const tilesData = await tilesResponse.json();
+                setOwnedTiles(tilesData.tiles || []);
+            }
+
+            // Load all territories (Radius system)
+            const territoriesResponse = await fetch(`${API_BASE_URL}/api/territories`);
+            if (territoriesResponse.ok) {
+                const tData = await territoriesResponse.json();
+                setTerritories(tData.territories || []);
+                console.log(`[GameState] Loaded ${tData.territories?.length || 0} territories`);
+            }
         } catch (error) {
             console.error('[GameState] Error loading game state:', error);
         }
@@ -276,20 +430,27 @@ export default function TerrainMapPage() {
         const isAdmin = userId === '1'; // User ID 1 is admin
 
         const buildingDefs: Record<string, { buildTime: number; adminBuildTime: number; cost: { gold: number; gem: number } }> = {
+            COMMAND_CENTER: { buildTime: 60, adminBuildTime: 5, cost: { gold: 500, gem: 5 } },
             mine: { buildTime: 30, adminBuildTime: 3, cost: { gold: 100, gem: 0 } },
             warehouse: { buildTime: 20, adminBuildTime: 2, cost: { gold: 50, gem: 0 } },
             barracks: { buildTime: 25, adminBuildTime: 2, cost: { gold: 75, gem: 0 } },
+            farm: { buildTime: 20, adminBuildTime: 2, cost: { gold: 75, gem: 0 } },
+            factory: { buildTime: 40, adminBuildTime: 4, cost: { gold: 200, gem: 0 } },
         };
 
-        const building = buildingDefs[buildingId];
-        if (!building) return;
+        const building = buildingDefs[buildingId] || buildingDefs[buildingId.toUpperCase()] || buildingDefs[buildingId.toLowerCase()];
+        if (!building) {
+            console.error('Unknown building type:', buildingId);
+            return;
+        }
 
         // Use admin build time if user is admin
         const actualBuildTime = isAdmin ? building.adminBuildTime : building.buildTime;
 
         try {
             const userId = localStorage.getItem('terra_user_id');
-            const response = await fetch(`${API_BASE_URL}/api/game/build`, {
+            // Use the new endpoint which handles territory checks
+            const response = await fetch(`${API_BASE_URL}/api/buildings/construct`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -300,10 +461,10 @@ export default function TerrainMapPage() {
                 }),
             });
 
-            if (response.ok) {
-                const newBuilding = await response.json();
+            const data = await response.json();
 
-                // Deduct resources
+            if (response.ok) {
+                // Deduct resources locally for immediate feedback (server already did it)
                 setPlayerResources(prev => ({
                     gold: prev.gold - building.cost.gold,
                     gem: prev.gem - building.cost.gem
@@ -319,17 +480,19 @@ export default function TerrainMapPage() {
                             clearInterval(timer);
                             setIsConstructing(false);
 
-                            // Reload entire game state from server instead of manually adding
+                            // Reload entire game state from server
                             loadGameState();
-
                             return 0;
                         }
                         return prev - 1;
                     });
                 }, 1000);
+            } else {
+                alert(`건설 실패: ${data.error}`);
             }
         } catch (error) {
             console.error('Failed to construct building:', error);
+            alert('건설 중 오류가 발생했습니다.');
         }
     };
 
@@ -485,6 +648,13 @@ export default function TerrainMapPage() {
                         geolocation={geolocation}
                         autoCenter={false}
                     />
+
+                    {/* Visual Overlays - Moved to below MapClickHandler or handle via TerritoryOverlay */}
+                    {/* <TileOverlay ownedTiles={ownedTiles} /> Legacy removed */}
+
+                    {/* Territory Overlay (Radius System) */}
+                    <TerritoryOverlay territories={territories} currentUserId={userId} />
+
                     <MapResizer />
                     <MapClickHandler
                         isConstructing={isConstructing}
@@ -493,7 +663,8 @@ export default function TerrainMapPage() {
                         maxMovementRange={maxMovementRange}
                         onMove={handlePlayerMove}
                         calculateDistance={calculateDistance}
-                        onError={(msg) => showToast(msg, 'error')}
+                        onError={(msg: string) => showToast(msg, 'error')}
+                        onTileClick={handleTileClick}
                     />
                 </MapContainer>
 
@@ -536,6 +707,21 @@ export default function TerrainMapPage() {
                         onAssigned={handleAssignComplete}
                     />
                 </>
+            )}
+
+
+            {/* Tile Info Modal */}
+            {showTileModal && selectedTile && (
+                <TileInfoModal
+                    tile={selectedTile}
+                    buildings={tileBuildings}
+                    onClose={() => setShowTileModal(false)}
+                    onClaim={handleClaimTile} // Deprecated but kept for type signature if needed
+                    onBuild={handleConstructBuilding}
+                    onMove={(x, y) => handlePlayerMove([selectedTile.clickLat || 0, selectedTile.clickLng || 0])}
+                    userId={userId ? parseInt(userId) : null}
+                    position={popupPosition}
+                />
             )}
 
             {/* Toast Notification */}
