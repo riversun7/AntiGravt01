@@ -953,7 +953,7 @@ app.get('/api/admin/users', (req, res) => {
             SELECT u.*, 
                    ur.gold, ur.gem,
                    cc.strength, cc.dexterity, cc.constitution, cc.agility, cc.intelligence, cc.wisdom,
-                   cc.name as cyborg_name, cc.model as cyborg_model
+                   cc.name as cyborg_name
             FROM users u
             LEFT JOIN user_resources ur ON u.id = ur.user_id
             LEFT JOIN character_cyborg cc ON u.id = cc.user_id

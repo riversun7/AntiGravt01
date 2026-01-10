@@ -14,10 +14,19 @@ export default function AdminDashboardPage() {
         fetch(`${API_BASE_URL}/api/admin/users`)
             .then(res => res.json())
             .then((data: AdminUser[]) => {
-                setUserCount(data.length);
+                if (Array.isArray(data)) {
+                    setUserCount(data.length);
+                } else {
+                    console.error("Expected array of users, got:", data);
+                    setUserCount(0);
+                }
                 setLoading(false);
             })
-            .catch(() => setLoading(false));
+            .catch((err) => {
+                console.error("Failed to load users:", err);
+                setUserCount(0);
+                setLoading(false);
+            });
     }, []);
 
     return (

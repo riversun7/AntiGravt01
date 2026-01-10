@@ -81,13 +81,32 @@ function ToastItem({ toast, onClose }: { toast: Toast, onClose: () => void }) {
     );
 }
 
-function playSound(type: ToastType) {
-    try {
+let audioCtx: AudioContext | null = null;
+
+function getAudioContext() {
+    if (typeof window === 'undefined') return null;
+    if (!audioCtx) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
+        if (AudioContext) {
+            audioCtx = new AudioContext();
+        }
+    }
+    return audioCtx;
+}
 
-        const ctx = new AudioContext();
+function playSound(type: ToastType) {
+    try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+
+        // If context is suspended (browser policy), try to resume
+        if (ctx.state === 'suspended') {
+            ctx.resume().catch(() => {
+                // Ignore resume errors (likely blocked waiting for gesture)
+            });
+        }
+
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
 
