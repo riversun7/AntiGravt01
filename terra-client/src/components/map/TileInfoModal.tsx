@@ -19,6 +19,14 @@ interface TerritoryInfo {
     is_absolute: boolean;
 }
 
+export interface Tile {
+    x: number;
+    y: number;
+    type: string;
+    name?: string;
+    owner_id?: number | null;
+}
+
 interface TileInfoModalProps {
     tile?: Tile | null; // Make optional if territoryInfo is primary
     buildings?: Building[];
