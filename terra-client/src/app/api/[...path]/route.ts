@@ -68,11 +68,17 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
                 'Content-Type': response.headers.get('content-type') || 'application/json',
             },
         });
-    } catch (error) {
-        console.error('[PROXY ERROR]', error);
+    } catch (error: any) {
+        // Suppress verbose logs for common connection issues during dev (server restarting, etc.)
+        if (error.code === 'ECONNRESET' || error.code === 'ECONNREFUSED') {
+            console.warn(`[PROXY] Backend unavailable (${error.code}) - /api/${path}`);
+        } else {
+            console.error('[PROXY ERROR]', error);
+        }
+
         return NextResponse.json(
-            { error: 'Proxy failed', details: (error as Error).message },
-            { status: 500 }
+            { error: 'Proxy failed', details: error.message },
+            { status: 502 } // 502 Bad Gateway is more appropriate for upstream failure
         );
     }
 }
