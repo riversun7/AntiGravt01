@@ -2302,6 +2302,45 @@ app.post('/api/buildings/construct', (req, res) => {
 });
 
 // ----------------------------------------------------------------------
+// ADMIN: User Management
+// ----------------------------------------------------------------------
+app.get('/api/admin/users', (req, res) => {
+    try {
+        const users = db.prepare(`
+            SELECT u.id, u.username, u.role, u.cyborg_model,
+                   ur.gold, ur.gem,
+                   us.strength, us.dexterity, us.constitution, us.intelligence, us.wisdom, us.agility
+            FROM users u
+            LEFT JOIN user_resources ur ON u.id = ur.user_id
+            LEFT JOIN user_stats us ON u.id = us.user_id
+        `).all();
+        res.json(users);
+    } catch (err) {
+        console.error("Failed to fetch users", err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.post('/api/admin/users/:id/update', (req, res) => {
+    const userId = req.params.id;
+    const { gold, gem, strength, dexterity, constitution, intelligence, wisdom, agility } = req.body;
+    try {
+        db.transaction(() => {
+            db.prepare('UPDATE user_resources SET gold = ?, gem = ? WHERE user_id = ?').run(gold, gem, userId);
+            db.prepare(`
+                UPDATE user_stats 
+                SET strength = ?, dexterity = ?, constitution = ?, intelligence = ?, wisdom = ?, agility = ?
+                WHERE user_id = ?
+            `).run(strength, dexterity, constitution, intelligence, wisdom, agility, userId);
+        })();
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Failed to update user", err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ----------------------------------------------------------------------
 // ADMIN: NPC Management
 // ----------------------------------------------------------------------
 app.get('/api/admin/npcs', (req, res) => {
