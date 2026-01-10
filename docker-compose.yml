@@ -11,12 +11,10 @@ services:
       - ./terra-data/db:/terra-data/db
     environment:
       - NODE_ENV=production
-<<<<<<< Updated upstream
+      - DB_PATH=/app/db
+      - DB_PATH=/app/db
       - CORS_ORIGIN=https://riversun7.synology.me
       - PORT=3001
-=======
-      - DB_PATH=/app/db
->>>>>>> Stashed changes
     restart: always
     networks:
       - terra-network

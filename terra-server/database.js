@@ -2,15 +2,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-<<<<<<< Updated upstream
 // Ensure db directory exists and has write permissions
-// Use terra-data/db for all environments (local dev and Docker)
-const dbDir = path.join(__dirname, '..', 'terra-data', 'db');
-=======
-// Ensure db directory exists
-// Ensure db directory exists
 const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, 'db');
->>>>>>> Stashed changes
 if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
 }
