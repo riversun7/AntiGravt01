@@ -37,24 +37,48 @@ export default function DBInspectorPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
                 {/* File List (Span 2) */}
-                <div className="lg:col-span-2 bg-surface border border-surface-border rounded-lg p-4 overflow-y-auto">
-                    <h3 className="text-gray-400 font-bold mb-4 text-xs uppercase tracking-wider">DB Files</h3>
-                    <div className="space-y-1">
-                        {files.map(file => (
-                            <div
-                                key={file.name}
-                                onClick={() => {
-                                    setSelectedFile(file.name);
-                                    setSelectedTable(null);
-                                    setTableData([]);
-                                    fetchTables(file.name);
-                                }}
-                                className={`p-2 rounded cursor-pointer transition-colors flex items-center gap-2 ${selectedFile === file.name ? 'bg-primary/20 border border-primary text-white' : 'hover:bg-surface-light text-gray-400'}`}
-                            >
-                                <FileCode size={16} />
-                                <span className="truncate text-xs font-mono">{file.name}</span>
-                            </div>
-                        ))}
+                <div className="lg:col-span-2 flex flex-col gap-4">
+                    {/* File List */}
+                    <div className="bg-surface border border-surface-border rounded-lg p-4 overflow-y-auto flex-1">
+                        <h3 className="text-gray-400 font-bold mb-4 text-xs uppercase tracking-wider">DB Files</h3>
+                        <div className="space-y-1">
+                            {files.map(file => (
+                                <div
+                                    key={file.name}
+                                    onClick={() => {
+                                        setSelectedFile(file.name);
+                                        setSelectedTable(null);
+                                        setTableData([]);
+                                        fetchTables(file.name);
+                                    }}
+                                    className={`p-2 rounded cursor-pointer transition-colors flex items-center gap-2 ${selectedFile === file.name ? 'bg-primary/20 border border-primary text-white' : 'hover:bg-surface-light text-gray-400'}`}
+                                >
+                                    <FileCode size={16} />
+                                    <span className="truncate text-xs font-mono">{file.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* DB Actions */}
+                    <div className="bg-surface border border-surface-border rounded-lg p-4">
+                        <h3 className="text-gray-400 font-bold mb-4 text-xs uppercase tracking-wider">Actions</h3>
+                        <button
+                            onClick={async () => {
+                                if (!confirm("Seeding will create random NPC factions and modify the database. Continue?")) return;
+                                try {
+                                    const res = await fetch(`${API_BASE_URL}/api/admin/seed-factions`, { method: 'POST' });
+                                    const data = await res.json();
+                                    if (data.success) alert("NPC Factions Seeded Successfully!");
+                                    else alert("Failed: " + data.error);
+                                } catch (e) {
+                                    alert("Error calling seed API");
+                                }
+                            }}
+                            className="w-full bg-red-500/10 border border-red-500 hover:bg-red-500/20 text-red-500 px-3 py-2 rounded text-xs font-bold transition-colors"
+                        >
+                            INIT NPC FACTIONS
+                        </button>
                     </div>
                 </div>
 
