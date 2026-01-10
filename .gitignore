@@ -31,6 +31,7 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+<<<<<<< Updated upstream
 # Database (unified location)
 terra-data/db/*.db
 terra-data/db/*.db-journal
@@ -40,6 +41,14 @@ terra-data/db/*.db-wal
 # Old database location (deprecated)
 terra-server/db/
 terra-server/*.db
+=======
+# Database
+*.sqlite
+*.db
+# terra-server/db/
+
+terra-server/game.db
+>>>>>>> Stashed changes
 
 # Temporary
 temp_reference*
