@@ -796,7 +796,7 @@ export default function TerrainMapPage() {
                         setSelectedTile={setSelectedTile}
                         setMap={setMap}
                         territories={territories}
-                        territories={territories}
+                        movementPreview={movementPreview}
                         path={isMoving ? activePath : plannedPath} // Show active path while moving
                         waypoints={isMoving ? [] : waypoints} // Hide waypoints while moving
                         onWaypointRemove={removeWaypoint}
