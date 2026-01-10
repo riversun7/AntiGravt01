@@ -164,8 +164,8 @@ export async function middleware(request) {
 -   **Tactical Map (2D)**: 타일 기반 전술 지도, Canvas API 사용.
 -   **Global Map (3D/D3)**: 전 세계 구체 시각화 및 노드 연결.
 -   **Terrain Map (Game Mode)**: Leaflet 기반의 위성 지도/지형 모드입니다.
-    -   **GPS Tracking**: 사용자 실시간 위치 추적 및 이동 제한 시스템 (기본 10km 반경).
-    -   **Admin Mode**: 관리자 계정('1')을 위한 확장된 이동 범위(100km) 및 고속 이동(100km/s).
+    -   **GPS Tracking**: 사용자 실시간 위치 추적 및 이동 제한 시스템.
+    -   **Admin Mode**: 관리자 계정('1')을 위한 확장된 이동 범위(100km) 및 고속 이동(1km/s).
     -   **Building System**: 건물 건설, 자원 수집, 유닛 배치, 건물 파괴 기능 (Floating Game Panel 통합).
     -   **Unit Management**: 보유 하수인 전체 목록 조회, 상태(Active/Idle) 모니터링 및 건물 배치.
     -   **Floating UI**: 정보, 유닛, 건물, 건설, 설정을 통합한 모바일 친화적 탭 인터페이스.
@@ -176,8 +176,40 @@ export async function middleware(request) {
     -   **Voronoi Visualization**: 다른 플레이어의 영토와 겹칠 경우, 두 사령부의 **중간 지점**을 기준으로 경계선이 자동으로 분할되어 시각화됩니다 (Voronoi-like Clipping).
     -   **Interaction**: 영토 영역은 클릭되지 않으며, 오직 이동 및 건설을 위한 배경으로만 작용합니다.
 
+    #### ⛰️ 지형 시스템 (Terrain System) **(New)**
+    -   **Real Elevation**: Open-Meteo API를 통해 전 세계의 실제 해발고도를 반영합니다.
+    -   **Terrain Types**: 고도에 따라 ⛰️ 산맥(>1000m), 🌲 평야/숲(0~1000m), 🌊 바다(<=0m)로 자동 구분됩니다.
+    -   **Admin Terrain Editor**: 관리자는 게임 내 설정 패널에서 특정 타일의 지형을 강제로 변경할 수 있습니다 (DB 영구 저장).
+    -   **Visual Info**: 타일 클릭 시 'TERRAIN SCAN' 패널을 통해 지형 타입과 정확한 해발고도를 확인할 수 있습니다.
+
+    #### � 이동 및 경로 탐색 시스템 (Nav & Pathfinding) **(New)**
+    -   **No-Grid System**: 기존의 그리드(Sector-Tile) 방식을 완전히 제거하고, 순수 **위도/경도(Lat/Lng)** 좌표계를 도입하여 100% 자율적인 이동을 지원합니다.
+    -   **Smart Pathfinding**: A* 알고리즘 대신, 사용자가 지정한 경유지(Waypoint) 사이를 **1km 단위의 고해상도 지형 스캔**으로 검증하는 방식을 채택했습니다. 작은 강이나 호수도 정밀하게 감지하여 통과 불가 판정을 내립니다.
+    -   **Timed Travel**: 즉시 이동이 아닌, 거리에 비례한 소요 시간이 적용됩니다.
+        -   **Admin**: 1km/s (초고속 정찰)
+        -   **User**: 0.1km/s (약 360km/h)
+    -   **Live Visualization**: 이동 경로와 실시간 플레이어 위치가 지도상에 애니메이션으로 부드럽게 표현됩니다.
+
+    #### ⚔️ NPC & 팩션 시스템 (NPC & Faction) **(New)**
+    -   **NPC Spawner**: 관리자(Admin)는 '설정' 탭에서 원하는 위치에 자유 NPC 팩션(Free Npc Faction)을 즉시 소환할 수 있습니다.
+    -   **Faction Base**: 팩션 시스템의 기초(DB 스키마)가 마련되어 있으며, NPC는 독자적인 사령부와 영토를 가집니다.
+
+    #### 🏗️ 건물 시스템 (Building System) **(New)**
+    고급 건물 관리 및 경제 시스템을 도입했습니다.
+    -   **Tech Tree (기술 트리)**: 건물은 Tier 1~2로 구분되며, 고급 건물은 **선행 건물**을 먼저 지어야 건설 가능합니다.
+        -   예: `연구소(RESEARCH_LAB)`를 짓기 위해선 `사령부(COMMAND_CENTER)` + `기본 창고(BASIC_WAREHOUSE)` 필수
+    -   **다양한 건설 비용**: Gold, Gem뿐만 아니라 Wood, Ore 등 다양한 자원을 소비합니다 (향후 확장 예정).
+    -   **유지비용 (Maintenance)**: 건물은 시간당 자원을 소비하며, `/api/buildings/:id/pay-maintenance` 엔드포인트로 유지비를 지불해야 합니다.
+    -   **유닛 슬롯**: 각 건물은 `min_units`(최소), `max_units`(최대) 유닛 배치 제한이 있습니다.
+    -   **창고 부피**: 창고는 `storage_volume` (m³) 기준으로 자원 저장량을 제한합니다.
+    -   **Admin Panel**: 관리자는 `GET/POST/PUT/DELETE /api/admin/building-types`를 통해 건물 타입을 실시간으로 추가/수정/삭제할 수 있습니다.
+    -   **Database-Driven**: 모든 건물 정의는 `building_types` 테이블에 저장되어 코드 수정 없이 관리가 가능합니다.
+
+    **시드된 건물 타입 (총 10개):**
+    - **Tier 1 (6개)**: 사령부, 기본 숙소, 기본 창고, 목재소, 광산, 농장
+    - **Tier 2 (4개)**: 연구소, 고급 창고, 병영, 공장
+
     #### 🕹️ UX 개선 (UX Improvements) **(New)**
-    -   **Action Popup**: 빈 땅을 클릭하면 화면을 가리는 모달 대신, **직관적인 팝업 메뉴**가 나타납니다.
-        -   **[🏃 Move]**: 해당 위치로 이동 (더블클릭 이동 제거로 오작동 방지)
-        -   **[🏗️ Build]**: 건설 메뉴 접근
-    -   **Clean Selection**: 불필요한 선택 박스나 하이라이트를 제거하여 지도 가시성을 높였습니다.
+    -   **Context-Aware UI**: 맵 상호작용 시 하단 제어 패널(탭)이 초기화되지 않고 현재 작업을 유지하도록 개선되었습니다.
+    -   **Clean Info**: 좌표 표시 방식이 `Sector X-Y`에서 `Loc: 37.xxx, 127.xxx`로 변경되어 직관성을 높였습니다.
+    -   **Crash Fix**: React의 렌더링 충돌(Node appendChild error)을 해결하여 맵 안정성을 확보했습니다.

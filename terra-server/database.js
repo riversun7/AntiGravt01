@@ -441,10 +441,21 @@ function initSchema() {
     // PROFESSOR: NPC System Migration
     try {
         const userCols = db.prepare('PRAGMA table_info(users)').all();
+
+        // 1. NPC Type
         const hasNpcType = userCols.some(c => c.name === 'npc_type');
         if (!hasNpcType) {
             db.exec("ALTER TABLE users ADD COLUMN npc_type TEXT DEFAULT 'NONE'"); // NONE, ABSOLUTE, FREE
             console.log("Migrated users table: added npc_type");
+        }
+
+        // 2. NPC Attributes (Personality, Tech Focus, Diplomacy)
+        const hasPersonality = userCols.some(c => c.name === 'personality');
+        if (!hasPersonality) {
+            db.exec("ALTER TABLE users ADD COLUMN personality TEXT DEFAULT 'Balanced'"); // Aggressive, Defensive, Merchant, Diplomatic
+            db.exec("ALTER TABLE users ADD COLUMN tech_focus TEXT DEFAULT 'Balanced'"); // Military, Industrial, Biotech
+            db.exec("ALTER TABLE users ADD COLUMN diplomatic_stance TEXT DEFAULT '{}'"); // JSON: { "user_id": score }
+            console.log("Migrated users table: added personality, tech_focus, diplomatic_stance");
         }
 
         const bldgCols = db.prepare('PRAGMA table_info(user_buildings)').all();
@@ -456,6 +467,158 @@ function initSchema() {
     } catch (e) {
         console.log("Migration error (NPC System):", e);
     }
+
+    const createNpcMemoryTable = `
+    CREATE TABLE IF NOT EXISTS npc_memory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        npc_id INTEGER NOT NULL,
+        target_id INTEGER NOT NULL, -- User ID or other NPC ID
+        event_type TEXT NOT NULL, -- ATTACK, TRADE, ALLIANCE_OFFER, BROKEN_PROMISE
+        value INTEGER DEFAULT 0, -- Impact score (-100 to +100)
+        description TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME DEFAULT NULL,
+        FOREIGN KEY(npc_id) REFERENCES users(id) ON DELETE CASCADE
+    );`;
+
+    db.exec(createNpcMemoryTable);
+
+    // Migration: construction_requests
+    try {
+        const tableCheckRequests = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='construction_requests'").get();
+        if (!tableCheckRequests) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS construction_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    requester_id INTEGER,
+                    owner_id INTEGER,
+                    building_type TEXT,
+                    x REAL,
+                    y REAL,
+                    world_x INTEGER,
+                    world_y INTEGER,
+                    status TEXT DEFAULT 'PENDING', -- 'PENDING', 'APPROVED', 'REJECTED'
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(requester_id) REFERENCES users(id),
+                    FOREIGN KEY(owner_id) REFERENCES users(id)
+                )
+            `);
+            console.log("Migration: 'construction_requests' table created.");
+        }
+    } catch (e) {
+        console.error("Migration error (construction_requests check):", e);
+    }
+
+    // Migration: tile_overrides & elevation_cache (Terrain System)
+    try {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS tile_overrides (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                x INTEGER,
+                y INTEGER,
+                world_x INTEGER DEFAULT 0,
+                world_y INTEGER DEFAULT 0,
+                terrain_type TEXT, -- 'MOUNTAIN', 'WATER', 'FOREST', 'PLAIN'
+                resource_type TEXT, -- 'GOLD', 'IRON', 'OIL'
+                notes TEXT,
+                UNIQUE(x, y, world_x, world_y)
+            );
+
+            CREATE TABLE IF NOT EXISTS elevation_cache (
+                lat REAL,
+                lng REAL,
+                elevation REAL,
+                fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY(lat, lng)
+            );
+        `);
+        console.log("Migration: 'tile_overrides' and 'elevation_cache' tables created.");
+    } catch (e) {
+        console.error("Migration error (terrain tables):", e);
+    }
+
+    // Migration: Faction System
+    try {
+        const tableCheckFactions = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='factions'").get();
+        if (!tableCheckFactions) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS factions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE,
+                    tag TEXT,
+                    leader_id INTEGER,
+                    description TEXT,
+                    color TEXT DEFAULT '#FFFFFF',
+                    type TEXT DEFAULT 'PLAYER', -- 'ABSOLUTE', 'FREE', 'PLAYER'
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS faction_diplomacy (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    faction_id_a INTEGER,
+                    faction_id_b INTEGER,
+                    stance INTEGER DEFAULT 0, -- -100 to 100
+                    status TEXT DEFAULT 'NEUTRAL', -- 'NEUTRAL', 'WAR', 'ALLIANCE'
+                    FOREIGN KEY(faction_id_a) REFERENCES factions(id),
+                    FOREIGN KEY(faction_id_b) REFERENCES factions(id)
+                );
+            `);
+            console.log("Migration: 'factions' and 'faction_diplomacy' tables created.");
+        }
+
+        // Add faction_id and faction_rank to users
+        const userCols = db.prepare('PRAGMA table_info(users)').all();
+        if (!userCols.some(c => c.name === 'faction_id')) {
+            db.exec("ALTER TABLE users ADD COLUMN faction_id INTEGER DEFAULT NULL REFERENCES factions(id)");
+            db.exec("ALTER TABLE users ADD COLUMN faction_rank INTEGER DEFAULT 0"); // 0: Member, 1: Officer, 2: Leader
+            console.log("Migration: Added faction_id/rank to users.");
+        }
+
+    } catch (e) {
+        console.error("Migration error (Faction System):", e);
+    }
+
+    // Migration: Building Types System
+    const createBuildingTypesTable = `
+    CREATE TABLE IF NOT EXISTS building_types (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        tier INTEGER DEFAULT 1,
+        category TEXT DEFAULT 'GENERAL',
+        
+        construction_cost TEXT DEFAULT '{}',
+        maintenance_cost TEXT DEFAULT '{}',
+        
+        min_units INTEGER DEFAULT 0,
+        max_units INTEGER DEFAULT 0,
+        
+        storage_volume REAL DEFAULT 0.0,
+        
+        production_type TEXT DEFAULT NULL,
+        production_rate REAL DEFAULT 0.0,
+        
+        is_territory_center INTEGER DEFAULT 0,
+        territory_radius REAL DEFAULT 0.0,
+        
+        prerequisites TEXT DEFAULT '[]',
+        
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`;
+
+    db.exec(createBuildingTypesTable);
+
+    // Migration: Add building_type_code and last_maintenance_at to user_buildings
+    try {
+        const buildCols = db.prepare('PRAGMA table_info(user_buildings)').all();
+        const hasBuildingTypeCode = buildCols.some(c => c.name === 'building_type_code');
+        if (!hasBuildingTypeCode && buildCols.length > 0) {
+            db.exec("ALTER TABLE user_buildings ADD COLUMN building_type_code TEXT DEFAULT NULL");
+            db.exec("ALTER TABLE user_buildings ADD COLUMN last_maintenance_at DATETIME DEFAULT CURRENT_TIMESTAMP");
+            console.log("Migrated user_buildings table: added building_type_code, last_maintenance_at");
+        }
+    } catch (e) { console.log("Migration error (user_buildings building_types):", e); }
 
     // Seed Market Items (Commodities + Equipment + Vehicles)
     try {
@@ -501,6 +664,184 @@ function initSchema() {
 
     } catch (e) {
         console.log("Market seed error:", e);
+    }
+
+    // Seed Building Types
+    try {
+        const buildingTypeCount = db.prepare('SELECT COUNT(*) as count FROM building_types').get();
+        if (buildingTypeCount.count === 0) {
+            console.log('Seeding building types...');
+
+            const buildingTypes = [
+                // TIER 1 - Basic Buildings
+                {
+                    code: 'COMMAND_CENTER',
+                    name: '사령부',
+                    description: '영토의 중심. 모든 건설의 시작점.',
+                    tier: 1,
+                    category: 'ADMIN',
+                    construction_cost: JSON.stringify({ gold: 500, gem: 5 }),
+                    maintenance_cost: JSON.stringify({ gold: 20 }),
+                    min_units: 1,
+                    max_units: 5,
+                    storage_volume: 100.0,
+                    is_territory_center: 1,
+                    territory_radius: 5.0,
+                    prerequisites: JSON.stringify([])
+                },
+                {
+                    code: 'BASIC_QUARTERS',
+                    name: '기본 숙소',
+                    description: '유닛이 휴식하고 회복하는 곳. 소량의 물품 보관 가능.',
+                    tier: 1,
+                    category: 'HOUSING',
+                    construction_cost: JSON.stringify({ gold: 100, wood: 50 }),
+                    maintenance_cost: JSON.stringify({ gold: 5 }),
+                    min_units: 0,
+                    max_units: 3,
+                    storage_volume: 20.0,
+                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
+                },
+                {
+                    code: 'BASIC_WAREHOUSE',
+                    name: '기본 창고',
+                    description: '자원을 보관하는 창고.',
+                    tier: 1,
+                    category: 'STORAGE',
+                    construction_cost: JSON.stringify({ gold: 50, wood: 100 }),
+                    maintenance_cost: JSON.stringify({ gold: 3 }),
+                    min_units: 0,
+                    max_units: 2,
+                    storage_volume: 500.0,
+                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
+                },
+                {
+                    code: 'LUMBERYARD',
+                    name: '목재소',
+                    description: '나무를 채집하는 건물. 유닛 배치 시 목재 생산.',
+                    tier: 1,
+                    category: 'RESOURCE',
+                    construction_cost: JSON.stringify({ gold: 75, wood: 30 }),
+                    maintenance_cost: JSON.stringify({ gold: 5 }),
+                    min_units: 1,
+                    max_units: 5,
+                    storage_volume: 50.0,
+                    production_type: 'WOOD',
+                    production_rate: 10.0,
+                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
+                },
+                {
+                    code: 'MINE',
+                    name: '광산',
+                    description: '광물을 채굴하는 건물.',
+                    tier: 1,
+                    category: 'RESOURCE',
+                    construction_cost: JSON.stringify({ gold: 100, wood: 50 }),
+                    maintenance_cost: JSON.stringify({ gold: 8 }),
+                    min_units: 1,
+                    max_units: 5,
+                    storage_volume: 50.0,
+                    production_type: 'ORE',
+                    production_rate: 8.0,
+                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
+                },
+                {
+                    code: 'FARM',
+                    name: '농장',
+                    description: '식량을 생산하는 건물.',
+                    tier: 1,
+                    category: 'RESOURCE',
+                    construction_cost: JSON.stringify({ gold: 75, wood: 40 }),
+                    maintenance_cost: JSON.stringify({ gold: 6 }),
+                    min_units: 1,
+                    max_units: 5,
+                    storage_volume: 50.0,
+                    production_type: 'FOOD',
+                    production_rate: 12.0,
+                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
+                },
+
+                // TIER 2 - Advanced Buildings
+                {
+                    code: 'RESEARCH_LAB',
+                    name: '연구소',
+                    description: '기술을 연구하고 고급 건물을 해금.',
+                    tier: 2,
+                    category: 'RESEARCH',
+                    construction_cost: JSON.stringify({ gold: 300, wood: 100, ore: 50 }),
+                    maintenance_cost: JSON.stringify({ gold: 15, energy: 5 }),
+                    min_units: 2,
+                    max_units: 8,
+                    storage_volume: 30.0,
+                    prerequisites: JSON.stringify(['COMMAND_CENTER', 'BASIC_WAREHOUSE'])
+                },
+                {
+                    code: 'ADVANCED_WAREHOUSE',
+                    name: '고급 창고',
+                    description: '대용량 자원 보관 시설.',
+                    tier: 2,
+                    category: 'STORAGE',
+                    construction_cost: JSON.stringify({ gold: 200, wood: 150, ore: 100 }),
+                    maintenance_cost: JSON.stringify({ gold: 10 }),
+                    min_units: 0,
+                    max_units: 3,
+                    storage_volume: 2000.0,
+                    prerequisites: JSON.stringify(['BASIC_WAREHOUSE', 'RESEARCH_LAB'])
+                },
+                {
+                    code: 'BARRACKS',
+                    name: '병영',
+                    description: '유닛을 훈련하고 전투 준비.',
+                    tier: 2,
+                    category: 'MILITARY',
+                    construction_cost: JSON.stringify({ gold: 150, wood: 80, ore: 60 }),
+                    maintenance_cost: JSON.stringify({ gold: 12 }),
+                    min_units: 1,
+                    max_units: 10,
+                    storage_volume: 100.0,
+                    prerequisites: JSON.stringify(['COMMAND_CENTER', 'RESEARCH_LAB'])
+                },
+                {
+                    code: 'FACTORY',
+                    name: '공장',
+                    description: '고급 아이템과 장비 제작.',
+                    tier: 2,
+                    category: 'INDUSTRIAL',
+                    construction_cost: JSON.stringify({ gold: 200, wood: 100, ore: 150 }),
+                    maintenance_cost: JSON.stringify({ gold: 18, energy: 10 }),
+                    min_units: 2,
+                    max_units: 8,
+                    storage_volume: 200.0,
+                    prerequisites: JSON.stringify(['RESEARCH_LAB', 'BASIC_WAREHOUSE'])
+                }
+            ];
+
+            const insertBuildingType = db.prepare(`
+                INSERT INTO building_types (
+                    code, name, description, tier, category,
+                    construction_cost, maintenance_cost,
+                    min_units, max_units, storage_volume,
+                    production_type, production_rate,
+                    is_territory_center, territory_radius,
+                    prerequisites
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+
+            buildingTypes.forEach(bt => {
+                insertBuildingType.run(
+                    bt.code, bt.name, bt.description, bt.tier, bt.category,
+                    bt.construction_cost, bt.maintenance_cost,
+                    bt.min_units, bt.max_units, bt.storage_volume,
+                    bt.production_type || null, bt.production_rate || 0.0,
+                    bt.is_territory_center || 0, bt.territory_radius || 0.0,
+                    bt.prerequisites
+                );
+            });
+
+            console.log(`Seeded ${buildingTypes.length} building types`);
+        }
+    } catch (e) {
+        console.log("Building types seed error:", e);
     }
 
     // Seed Admin
