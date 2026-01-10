@@ -46,23 +46,38 @@ export default function FloatingGamePanel({
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const panelRef = useRef<HTMLDivElement>(null);
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Check for mobile screen
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Load saved position
     useEffect(() => {
         const saved = localStorage.getItem('gamePanel_position');
-        if (saved) {
+        if (saved && !isMobile) {
             // eslint-disable-next-line react-hooks/exhaustive-deps
             setPosition(JSON.parse(saved));
         }
-    }, []);
+    }, [isMobile]);
 
     // Save position
     useEffect(() => {
-        localStorage.setItem('gamePanel_position', JSON.stringify(position));
-    }, [position]);
+        if (!isMobile) {
+            localStorage.setItem('gamePanel_position', JSON.stringify(position));
+        }
+    }, [position, isMobile]);
 
     // Drag handlers
     const handleMouseDown = (e: React.MouseEvent) => {
+        if (isMobile) return; // Disable drag on mobile
         if ((e.target as HTMLElement).closest('.drag-handle')) {
             setIsDragging(true);
             setDragOffset({
@@ -73,7 +88,7 @@ export default function FloatingGamePanel({
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-        if (isDragging) {
+        if (isDragging && !isMobile) {
             const newX = Math.max(0, Math.min(window.innerWidth - 400, e.clientX - dragOffset.x));
             const newY = Math.max(0, Math.min(window.innerHeight - 500, e.clientY - dragOffset.y));
             setPosition({ x: newX, y: newY });
@@ -137,8 +152,13 @@ export default function FloatingGamePanel({
     return (
         <div
             ref={panelRef}
-            className="fixed bg-slate-900/95 backdrop-blur-md border-2 border-purple-500/50 rounded-xl shadow-2xl z-[1500] transition-all"
-            style={{
+            className={`fixed bg-slate-900/95 backdrop-blur-md border-2 border-purple-500/50 shadow-2xl z-[1500] transition-all duration-300
+                ${isMobile ? 'rounded-t-2xl bottom-0 left-0 w-full border-b-0' : 'rounded-xl'}
+            `}
+            style={isMobile ? {
+                maxHeight: isMinimized ? '60px' : '80vh',
+                height: isMinimized ? '60px' : 'auto'
+            } : {
                 left: `${position.x}px`,
                 top: `${position.y}px`,
                 width: isMinimized ? '280px' : '400px',

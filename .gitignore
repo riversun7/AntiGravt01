@@ -39,6 +39,7 @@ terra-data/db/*.db-wal
 
 # Old database location (deprecated)
 terra-server/db/
+terra-server/*.db
 
 # Temporary
 temp_reference*

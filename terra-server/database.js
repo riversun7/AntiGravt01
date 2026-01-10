@@ -307,7 +307,7 @@ function initSchema() {
     }
 
     db.exec(createResourcesTable);
-    db.exec(createUserStatsTable);
+    // db.exec(createUserStatsTable); // REMOVED
     db.exec(createMarketItemsTable);
     db.exec(createUserInventoryTable);
     db.exec(createUserBuildingsTable);
@@ -330,29 +330,8 @@ function initSchema() {
         }
     } catch (e) { console.log("Migration error (user_buildings):", e); }
 
-    // Check World Map Version (Faction Column)
-    try {
-        const mapCols = db.prepare('PRAGMA table_info(world_map)').all();
-        const hasFaction = mapCols.some(c => c.name === 'faction');
-        if (!hasFaction && mapCols.length > 0) {
-            // Drop old table to re-seed
-            db.exec('DROP TABLE world_map');
-            console.log("Dropped legacy world_map table.");
-        }
-    } catch (e) { console.error("Error checking world_map table for faction column:", e); }
 
-    // Migration: Add expires_at to mail table
-    try {
-        const mailCols = db.prepare('PRAGMA table_info(mail)').all();
-        // Check if table exists first (it is created below if not, but migration runs before exec if not careful? No, exec is below.
-        // Actually, createMailTable is executed below at line 151.
-        // So we should run migration AFTER table creation or check if table exists.
-        // But better to check AFTER execution of createMailTable?
-        // Wait, standard practice here is to run migrations after 'ensure table exists'.
-        // Let's place it after createMailTable exec.
-    } catch (e) { }
-
-    db.exec(createWorldMapTable);
+    // db.exec(createWorldMapTable); // REMOVED
     db.exec(createMailTable);
     db.exec(createAdminTasksTable);
     db.exec(createAdminCategoriesTable);
@@ -367,6 +346,17 @@ function initSchema() {
     db.exec(createResourceNodesTable);
     db.exec(createWarehousesTable);
     db.exec(createMarketPricesTable);
+
+    // Migration: Check/Create building_assignments if missed (safety check)
+    try {
+        const check = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='building_assignments'").get();
+        if (!check) {
+            db.exec(createBuildingAssignmentsTable);
+            console.log("Migrated: Created building_assignments table.");
+        }
+    } catch (e) {
+        console.error("Migration error (building_assignments check):", e);
+    }
 
     try {
         const mailCols = db.prepare('PRAGMA table_info(mail)').all();
@@ -391,123 +381,6 @@ function initSchema() {
         }
     } catch (e) { console.log("Migration error (character_minion AI):", e); }
 
-    // Seed World Map (160x80) - High Res Earth Like v4
-    try {
-        const mapCheck = db.prepare('SELECT count(*) as count FROM world_map').get();
-        // Check for 160x80 (12800 tiles)
-        if (mapCheck.count !== 12800) {
-            console.log("Map Resolution Upgrade Required. Re-seeding High-Res Earth Map 160x80...");
-            db.exec('DROP TABLE IF EXISTS world_map');
-            db.exec(createWorldMapTable);
-
-            const insertTile = db.prepare('INSERT INTO world_map (id, x, y, type, name, faction) VALUES (?, ?, ?, ?, ?, ?)');
-
-            // 80x40 Base Template
-            const EARTH_TEMPLATE = [
-                "********************************************************************************", // 0
-                "********************************************************************************", // 1
-                "***********~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~************", // 2
-                "********~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~********", // 3
-                "*****~~~~~~......~~~~~~~~~~~~~~~...FFFF...~~~~~~~~~~..........~~~~~~~~~~~~~*****", // 4
-                "****~~~~~.........~~~~~~~~~~~~...FF....MM..~~~~~~~~~..............~~~~~~...~****", // 5
-                "***~~~~~FF.........~~~~~~~~~~~~..P.L.........~~~~~~~~.........B.....~~~~~~...****", // 6
-                "**~~~~~FFF...^^^....~~~~~~~~~~..F.....^^...~~~~~~~~~..^^^^...S.T...~~~~~~~..****", // 7
-                "**~~~~~N.....^^.....~~~~~~~~~~........^.....~~~~~~~~...^^^^........~~~~~~~..****", // 8
-                "**~~~~..F...........~~~~~~~~~~........^.....~~~~~~~~....^^^........~~~~~~~..****", // 9
-                "**~~~~...............~~~~~~~~~..............~~~~~~~~.....C.........~~~~~~~..****", // 10
-                "**~~~~........C......~~~~~~~~~..............~~~~~~~~~.............~~~~~~~~..****", // 11
-                "**~~~~~.............~~~~~~~~~~..............~~~~~~~~~~............~~~~~~~~..****", // 12
-                "***~~~~.............~~~~~~~~~~.......DDDD...~~~~~~~~~~...DDDD.....~~~~~~~~..****", // 13
-                "***~~~~C...........~~~~~~~~~~~......DDDDDD..~~~~~~~~~~~.DDDDDD....~~~~~~~~..****", // 14
-                "****~~~~..........~~~~~~~~~~~~......DDDDDD...~~~~~~~~~~.DDDDDD...~~~~~~~~..*****", // 15
-                "****~~~~~.........~~~~~~~~~~~~~.....DDDDDD...~~~~~~~~~~~..DDDD....~~~~~~~...*****", // 16
-                "*****~~~~~.......~~~~~~~~~~~~~~......DDDD....~~~~~~~~~~..........~~~~~~....*****", // 17
-                "*****~~~~~~......~~~~~~~~~~~~~~~............~~~~~~~~~~~JJJJJJ....~~~~~.....*****", // 18
-                "******~~~~~~....~~~~~~~~~~~~~~~~............~~~~~~~~~~JJJJJJJJ...~~~~......*****", // 19
-                "******~~~~~~...~~~~~~~~~~~~~~~~~............~~~~~~~~~~JJJJJJJJ...~~~~......*****", // 20
-                "*******~~~~~..~~~~~~~~~~~~~~~~~~..JJJJJJ....~~~~~~~~~~JJJJJJJJ...~~~~......*****", // 21
-                "*******~~~~~.~~~~~~~~~~~~~~~~~~~.JJJJJJJJ...~~~~~~~~~~~JJJJJJ....~~~~......*****", // 22
-                "********~~~~.~~~~~~~~~~~~~~~~~~~.JJJJJJJJ...~~~~~~~~~~~~~~~~.....~~~~......*****", // 23
-                "********~~~~.~~~~~~~~~~~~~~~~~~~..JJJJJJ....~~~~~~~~~~~~~~~~...~~~~~~......*****", // 24
-                "*********~~~.~~~~~~~~~~~~~~~~~~~............~~~~~~~~~~~~~~~~..~~~~~~~......*****", // 25
-                "*********~~~.~~~~~~~~~~~~~~~~~~~............~~~~~~~~~~~~~~~~..~~~~~~~......*****", // 26
-                "**********~~.~~~~~~~~~~~~~~~~~~~~..........~~~~~~~~~~~~~~~~~~~~~~~~~~......*****", // 27
-                "**********~~..~~~~~~~~~~~~~~~~~~~..........~~~~~~~~~~~~~~~~~~~~~~~~~~......*****", // 28
-                "***********~...~~~~~~~~~~~~~~~~~~..........~~~~~~~~~~~~~~~~~~~~~~~~~~......*****", // 29
-                "***********~...~~~~~~~~~~~~~~~~~~~........~~~~~~~~~~~~~~~~~~~~~~~~~~~......*****", // 30
-                "************~..~~~~~~~~~~~~~~~~~~~........~~~~~~~~~~~~~~~~~~~~~~~~~~************", // 31
-                "************~..~~~~~~~~~~~~~~~~~~~~......~~~~~~~~~~~~~~~~~~~~~..~~~~************", // 32
-                "*************~~~~~~~~~~~~~~~~~~~~~~......~~~~~~~~~~~~~~~~~~~~....~~~************", // 33
-                "*************~~~~~~~~~~~~~~~~~~~~~~~....~~~~~~~~~~~~~~~~~~~~~...~~~~************", // 34
-                "**************~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...**********", // 35
-                "***************~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...***********", // 36
-                "****************~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...************", // 37
-                "********************************************************************************", // 38
-                "********************************************************************************"  // 39
-            ];
-
-            const BASE_WIDTH = 80;
-            const BASE_HEIGHT = 40;
-            const SCALE = 2; // 2x Scaling -> 160x80
-
-            db.transaction(() => {
-                for (let y = 0; y < BASE_HEIGHT * SCALE; y++) {
-                    const baseY = Math.floor(y / SCALE);
-                    const row = EARTH_TEMPLATE[baseY] || "".padEnd(BASE_WIDTH, '~');
-
-                    for (let x = 0; x < BASE_WIDTH * SCALE; x++) {
-                        const baseX = Math.floor(x / SCALE);
-                        const char = row[baseX] || '~';
-
-                        const id = `${x}_${y}`;
-                        let type = 'OCEAN';
-                        let faction = null;
-                        let customName = null;
-
-                        switch (char) {
-                            case '*': type = 'ICE'; break;
-                            case '.': type = 'PLAIN'; break;
-                            case 'F': type = 'FOREST'; break;
-                            case '^': type = 'MOUNTAIN'; break;
-                            case 'D': type = 'DESERT'; break;
-                            case 'J': type = 'JUNGLE'; break;
-                            case 'C': type = 'CITY'; break;
-                            case 'L': type = 'CITY'; customName = 'London'; faction = 'TERRAN'; break;
-                            case 'P': type = 'CITY'; customName = 'Paris'; faction = 'TERRAN'; break;
-                            case 'N': type = 'CITY'; customName = 'New York'; faction = 'TERRAN'; break;
-                            case 'M': type = 'CITY'; customName = 'Moscow'; faction = 'IRON'; break;
-                            case 'B': type = 'CITY'; customName = 'Beijing'; faction = 'CYBER'; break;
-                            case 'T': type = 'CITY'; customName = 'Tokyo'; faction = 'CYBER'; break;
-                            case 'S': type = 'CITY'; customName = 'Seoul'; faction = 'CYBER'; break;
-                            case '~': default: type = 'OCEAN'; break;
-                        }
-
-                        // Distributed Factions
-                        if (type === 'CITY' && !faction) {
-                            if (baseX < 30) faction = 'TERRAN';
-                            else if (baseX < 50) faction = 'IRON';
-                            else faction = 'CYBER';
-                        }
-
-                        // Scaling Logic for Names (Prevent duplication)
-                        if (customName) {
-                            if (x % SCALE === 0 && y % SCALE === 0) {
-                                // Original
-                            } else {
-                                customName = `Greater ${customName}`;
-                            }
-                        }
-
-                        const sectorName = customName || `Sector ${x}-${y}`;
-                        insertTile.run(id, x, y, type, sectorName, faction);
-                    }
-                }
-            })();
-            console.log(`World Map (High Res Earth 160x80 v4) seeded.`);
-        }
-    } catch (e) {
-        console.log("World Map seed error:", e);
-    }
 
     const createUserEquipmentTable = `
     CREATE TABLE IF NOT EXISTS user_equipment (
@@ -521,13 +394,15 @@ function initSchema() {
 
     db.exec(createUserEquipmentTable);
 
+    // const createUserVehiclesTable ... REMOVED
+
     // Migration: Update market_items schema
     try {
         const itemCols = db.prepare('PRAGMA table_info(market_items)').all();
 
         const hasType = itemCols.some(c => c.name === 'type');
         if (!hasType) {
-            db.exec("ALTER TABLE market_items ADD COLUMN type TEXT DEFAULT 'RESOURCE'"); // RESOURCE, EQUIPMENT
+            db.exec("ALTER TABLE market_items ADD COLUMN type TEXT DEFAULT 'RESOURCE'"); // RESOURCE, EQUIPMENT, VEHICLE
             db.exec("ALTER TABLE market_items ADD COLUMN slot TEXT DEFAULT NULL");
             db.exec("ALTER TABLE market_items ADD COLUMN stats TEXT DEFAULT '{}'"); // JSON string
             console.log("Migrated market_items table: added type, slot, stats");
@@ -536,69 +411,89 @@ function initSchema() {
         const hasRarity = itemCols.some(c => c.name === 'rarity');
         if (!hasRarity) {
             db.exec("ALTER TABLE market_items ADD COLUMN rarity TEXT DEFAULT 'common'");
-            console.log("Migrated market_items table: added rarity");
         }
 
         const hasImage = itemCols.some(c => c.name === 'image');
         if (!hasImage) {
             db.exec("ALTER TABLE market_items ADD COLUMN image TEXT DEFAULT NULL");
-            console.log("Migrated market_items table: added image");
+        }
+
+        // PHYSICAL ATTRIBUTES MIGRATION
+        const hasWeight = itemCols.some(c => c.name === 'weight');
+        if (!hasWeight) {
+            db.exec("ALTER TABLE market_items ADD COLUMN weight REAL DEFAULT 0.1");
+            db.exec("ALTER TABLE market_items ADD COLUMN volume REAL DEFAULT 0.1");
+            console.log("Migrated market_items table: added weight, volume");
         }
 
     } catch (e) { console.log("Migration error (market_items):", e); }
 
-    // Seed Market Items (Commodities + Equipment)
+    // Migration: Update character_minion for Weight
+    try {
+        const minionCols = db.prepare('PRAGMA table_info(character_minion)').all();
+        const hasSelfWeight = minionCols.some(c => c.name === 'self_weight');
+        if (!hasSelfWeight) {
+            db.exec("ALTER TABLE character_minion ADD COLUMN self_weight REAL DEFAULT 70.0"); // kg
+            db.exec("ALTER TABLE character_minion ADD COLUMN carry_weight REAL DEFAULT 50.0"); // kg capacity
+            console.log("Migrated character_minion table: added self_weight, carry_weight");
+        }
+    } catch (e) { console.log("Migration error (character_minion physics):", e); }
+
+    // PROFESSOR: NPC System Migration
+    try {
+        const userCols = db.prepare('PRAGMA table_info(users)').all();
+        const hasNpcType = userCols.some(c => c.name === 'npc_type');
+        if (!hasNpcType) {
+            db.exec("ALTER TABLE users ADD COLUMN npc_type TEXT DEFAULT 'NONE'"); // NONE, ABSOLUTE, FREE
+            console.log("Migrated users table: added npc_type");
+        }
+
+        const bldgCols = db.prepare('PRAGMA table_info(user_buildings)').all();
+        const hasBoundary = bldgCols.some(c => c.name === 'custom_boundary');
+        if (!hasBoundary) {
+            db.exec("ALTER TABLE user_buildings ADD COLUMN custom_boundary TEXT DEFAULT NULL"); // JSON string
+            console.log("Migrated user_buildings table: added custom_boundary");
+        }
+    } catch (e) {
+        console.log("Migration error (NPC System):", e);
+    }
+
+    // Seed Market Items (Commodities + Equipment + Vehicles)
     try {
         // ALWAYS try to seed new items (logic inside checks for existence)
         if (true) {
             const newItems = [
                 // -- HEAD --
-                { name: 'Titanium Helmet', code: 'TITANIUM_HELM', price: 1200, vol: 5, desc: 'Standard issue infantry protection.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ constitution: 3, wisdom: 1 }) },
-                { name: 'Cyber Eye Mk.I', code: 'CYBER_EYE_1', price: 800, vol: 5, desc: 'Basic optical enhancement.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ wisdom: 2, accuracy: 5 }) },
-                { name: 'Tactical Visor', code: 'TAC_VISOR', price: 1500, vol: 6, desc: 'HUD with threat detection.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ wisdom: 4, accuracy: 8 }) },
-                { name: 'Neural Link Interface', code: 'NEURAL_LINK', price: 3500, vol: 8, desc: 'Direct brain-computer interface.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ intelligence: 8, wisdom: 5 }) },
+                { name: 'Titanium Helmet', code: 'TITANIUM_HELM', price: 1200, vol: 5, weight: 2.0, desc: 'Standard issue infantry protection.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ constitution: 3, wisdom: 1 }) },
+                { name: 'Cyber Eye Mk.I', code: 'CYBER_EYE_1', price: 800, vol: 0.5, weight: 0.2, desc: 'Basic optical enhancement.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ wisdom: 2, accuracy: 5 }) },
+                { name: 'Tactical Visor', code: 'TAC_VISOR', price: 1500, vol: 1, weight: 0.5, desc: 'HUD with threat detection.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ wisdom: 4, accuracy: 8 }) },
+                { name: 'Neural Link Interface', code: 'NEURAL_LINK', price: 3500, vol: 1, weight: 0.1, desc: 'Direct brain-computer interface.', type: 'EQUIPMENT', slot: 'HEAD', stats: JSON.stringify({ intelligence: 8, wisdom: 5 }) },
 
                 // -- BODY --
-                { name: 'Titanium Plating', code: 'TITANIUM_PLATE', price: 1800, vol: 5, desc: 'Heavy duty chest protection.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ constitution: 8 }) },
-                { name: 'Carbon Fiber Vest', code: 'CARBON_VEST', price: 1200, vol: 4, desc: 'Lightweight and durable.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ constitution: 4, agility: 2 }) },
-                { name: 'Reactive Armor', code: 'REACTIVE_ARMOR', price: 4000, vol: 7, desc: 'Explodes outward on impact.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ constitution: 12, strength: 2 }) },
-                { name: 'Stealth Suit', code: 'STEALTH_SUIT', price: 5000, vol: 9, desc: 'Active camouflage coating.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ agility: 8, constitution: 2 }) },
-
-                // -- ARMS --
-                { name: 'Hydraulic Arms', code: 'HYDRA_ARMS', price: 1500, vol: 5, desc: 'Increases lifting capacity.', type: 'EQUIPMENT', slot: 'ARMS', stats: JSON.stringify({ strength: 5 }) },
-                { name: 'Stabilizer Grips', code: 'STAB_GRIPS', price: 1100, vol: 4, desc: 'Recoil reduction system.', type: 'EQUIPMENT', slot: 'ARMS', stats: JSON.stringify({ dexterity: 4, accuracy: 5 }) },
-                { name: 'Power Gauntlets', code: 'POWER_GAUNTLET', price: 2200, vol: 6, desc: 'Crushes rock and bone.', type: 'EQUIPMENT', slot: 'ARMS', stats: JSON.stringify({ strength: 8 }) },
-                { name: 'Nano-Weave Sleeves', code: 'NANO_SLEEVES', price: 1800, vol: 5, desc: 'Self-repairing fabric.', type: 'EQUIPMENT', slot: 'ARMS', stats: JSON.stringify({ constitution: 3, dexterity: 3 }) },
-
-                // -- LEGS --
-                { name: 'Servo Legs', code: 'SERVO_LEGS', price: 1400, vol: 5, desc: 'Assisted walking servos.', type: 'EQUIPMENT', slot: 'LEGS', stats: JSON.stringify({ agility: 4, strength: 1 }) },
-                { name: 'Jump Jets', code: 'JUMP_JETS', price: 2500, vol: 7, desc: 'Short-range thrusters.', type: 'EQUIPMENT', slot: 'LEGS', stats: JSON.stringify({ agility: 8 }) },
-                { name: 'Magnetic Boots', code: 'MAG_BOOTS', price: 1000, vol: 3, desc: 'Adheres to metal surfaces.', type: 'EQUIPMENT', slot: 'LEGS', stats: JSON.stringify({ dexterity: 3, constitution: 2 }) },
-                { name: 'Sprinter Pistons', code: 'SPRINT_PISTONS', price: 2100, vol: 6, desc: 'Optimized for high speed.', type: 'EQUIPMENT', slot: 'LEGS', stats: JSON.stringify({ agility: 7 }) },
-
-                // -- CORE --
-                { name: 'Fusion Core', code: 'FUSION_CORE', price: 3000, vol: 2, desc: 'Standard fusion battery.', type: 'EQUIPMENT', slot: 'CORE', stats: JSON.stringify({ intelligence: 5, energy: 100 }) },
-                { name: 'Antimatter Cell', code: 'ANTIMATTER_CELL', price: 8000, vol: 10, desc: 'High-risk high-output power.', type: 'EQUIPMENT', slot: 'CORE', stats: JSON.stringify({ intelligence: 10, energy: 200 }) },
-                { name: 'Solar Converter', code: 'SOLAR_CONV', price: 1500, vol: 3, desc: 'Renewable energy drip.', type: 'EQUIPMENT', slot: 'CORE', stats: JSON.stringify({ wisdom: 4, energy: 50 }) },
-                { name: 'Overclock Module', code: 'OC_MODULE', price: 4500, vol: 8, desc: 'Push systems beyond limits.', type: 'EQUIPMENT', slot: 'CORE', stats: JSON.stringify({ agility: 5, strength: 5, energy: -20 }) },
+                { name: 'Titanium Plating', code: 'TITANIUM_PLATE', price: 1800, vol: 10, weight: 15.0, desc: 'Heavy duty chest protection.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ constitution: 8 }) },
+                { name: 'Carbon Fiber Vest', code: 'CARBON_VEST', price: 1200, vol: 4, weight: 3.0, desc: 'Lightweight and durable.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ constitution: 4, agility: 2 }) },
+                { name: 'Reactive Armor', code: 'REACTIVE_ARMOR', price: 4000, vol: 7, weight: 12.0, desc: 'Explodes outward on impact.', type: 'EQUIPMENT', slot: 'BODY', stats: JSON.stringify({ constitution: 12, strength: 2 }) },
 
                 // -- WEAPON --
-                { name: 'Plasma Cutter', code: 'PLASMA_CUTTER', price: 2000, vol: 8, desc: 'Mining tool weaponized.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 15 }) },
-                { name: 'Laser Rifle', code: 'LASER_RIFLE', price: 3500, vol: 7, desc: 'Precision energy weapon.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 25, accuracy: 10 }) },
-                { name: 'Railgun Prototype', code: 'RAILGUN_PROTO', price: 6000, vol: 9, desc: 'Devastating kinetic impact.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 45, agility: -2 }) },
-                { name: 'Shock Baton', code: 'SHOCK_BATON', price: 800, vol: 4, desc: 'Non-lethal pacification.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 8, dexterity: 2 }) },
-                { name: 'Nanite Swarm Canister', code: 'NANO_SWARM', price: 4500, vol: 8, desc: 'Unleashes consuming bots.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 20, wisdom: 5 }) }
+                { name: 'Plasma Cutter', code: 'PLASMA_CUTTER', price: 2000, vol: 8, weight: 5.0, desc: 'Mining tool weaponized.', type: 'EQUIPMENT', slot: 'WEAPON', stats: JSON.stringify({ attack: 15 }) },
+
+                // -- VEHICLES --
+                { name: 'Transport Truck T1', code: 'TRUCK_T1', price: 5000, vol: 2000, weight: 3000.0, desc: 'Basic transport vehicle.', type: 'VEHICLE', slot: null, stats: JSON.stringify({ max_weight: 1000, max_volume: 500 }) },
+                { name: 'Cargo Drone V1', code: 'DRONE_V1', price: 2500, vol: 50, weight: 20.0, desc: 'Aerial transport drone.', type: 'VEHICLE', slot: null, stats: JSON.stringify({ max_weight: 50, max_volume: 20 }) }
             ];
 
-            const insertItem = db.prepare('INSERT INTO market_items (name, code, base_price, current_price, volatility, description, type, slot, stats) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            const insertItem = db.prepare('INSERT INTO market_items (name, code, base_price, current_price, volatility, description, type, slot, stats, weight, volume) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            const updateItem = db.prepare('UPDATE market_items SET weight = ?, volume = ? WHERE code = ?');
+
             newItems.forEach(item => {
-                // Check if exists first to avoid duplicate code error
                 const exists = db.prepare('SELECT id FROM market_items WHERE code = ?').get(item.code);
                 if (!exists) {
-                    insertItem.run(item.name, item.code, item.price, item.price, item.vol, item.desc, item.type, item.slot, item.stats);
+                    insertItem.run(item.name, item.code, item.price, item.price, item.vol || 1.0, item.desc, item.type, item.slot, item.stats, item.weight || 1.0, item.vol || 1.0);
+                } else {
+                    updateItem.run(item.weight || 1.0, item.vol || 1.0, item.code);
                 }
             });
-            console.log("Equipment seeded.");
+            console.log("Equipment & Vehicles seeded.");
         }
 
         // Ensure initial resources have types
@@ -618,7 +513,7 @@ function initSchema() {
             const admin = db.prepare("SELECT id FROM users WHERE username = 'admin'").get();
             // Init resources/stats/inventory for admin
             db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(admin.id, 999999, 999999);
-            db.prepare('INSERT INTO user_stats (user_id) VALUES (?)').run(admin.id);
+            // db.prepare('INSERT INTO user_stats (user_id) VALUES (?)').run(admin.id); // REMOVED
             // Create cyborg character for admin
             db.prepare('INSERT INTO character_cyborg (user_id, name, level) VALUES (?, ?, ?)').run(admin.id, 'Admin Cyborg', 1);
             console.log("Admin user seeded: admin / 1234 (with cyborg)");

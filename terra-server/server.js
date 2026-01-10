@@ -49,8 +49,12 @@ app.post('/api/login', (req, res) => {
 
             // Initialize resources
             db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 1000, 10);
-            // Initialize defaults stats
-            db.prepare('INSERT INTO user_stats (user_id) VALUES (?)').run(userId);
+            // Initialize resources
+            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 1000, 10);
+
+            // Create default cyborg with base stats
+            // Base stats defaults handled by table schema or explicit insert here
+            db.prepare('INSERT INTO character_cyborg (user_id, name) VALUES (?, ?)').run(userId, 'New Commander');
 
             user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
             console.log(`New user created: ${username}`);
@@ -105,7 +109,9 @@ app.get('/api/user/:id', (req, res) => {
         }
 
         const resources = db.prepare('SELECT * FROM user_resources WHERE user_id = ?').get(req.params.id);
-        const stats = db.prepare('SELECT * FROM user_stats WHERE user_id = ?').get(req.params.id);
+
+        // Fetch Main Character (Cyborg) for stats display on User Profile if needed
+        const cyborg = db.prepare('SELECT * FROM character_cyborg WHERE user_id = ?').get(req.params.id);
 
         // Fetch Equipment with Item Details
         const equipment = db.prepare(`
@@ -115,7 +121,27 @@ app.get('/api/user/:id', (req, res) => {
             WHERE ue.user_id = ?
         `).all(req.params.id);
 
-        res.json({ ...user, resources, stats, equipment });
+        // Return cyborg stats merged at top level for backward compatibility if client expects "stats" object, 
+        // OR just return cyborg object. Client seems to use "user.stats" in some places?
+        // Let's check client usage later. For now, we can map cyborg stats to "stats" property if needed.
+        // Actually, previous code did: ...user, resources, stats, equipment
+        // So "stats" was a top-level key.
+
+        let stats = null;
+        if (cyborg) {
+            stats = {
+                strength: cyborg.strength,
+                dexterity: cyborg.dexterity,
+                constitution: cyborg.constitution,
+                agility: cyborg.agility,
+                intelligence: cyborg.intelligence,
+                wisdom: cyborg.wisdom,
+                hp: cyborg.hp,
+                mp: cyborg.mp
+            };
+        }
+
+        res.json({ ...user, resources, stats, equipment, cyborg });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal server error' });
@@ -140,7 +166,7 @@ app.put('/api/user/:id', (req, res) => {
             stats = { strength: 9, dexterity: 4, constitution: 8, agility: 4, intelligence: 7, wisdom: 3 };
         }
 
-        db.prepare(`UPDATE user_stats SET strength = ?, dexterity = ?, constitution = ?, agility = ?, intelligence = ?, wisdom = ? WHERE user_id = ?`)
+        db.prepare(`UPDATE character_cyborg SET strength = ?, dexterity = ?, constitution = ?, agility = ?, intelligence = ?, wisdom = ? WHERE user_id = ?`)
             .run(stats.strength, stats.dexterity, stats.constitution, stats.agility, stats.intelligence, stats.wisdom, req.params.id);
 
         res.json({ success: true, stats });
@@ -731,14 +757,7 @@ app.post('/api/market/trade', (req, res) => {
 });
 
 // Map APIs
-app.get('/api/world-map', (req, res) => {
-    try {
-        const map = db.prepare('SELECT * FROM world_map').all();
-        res.json(map);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+// app.get('/api/world-map', (req, res) => { ... }); // REMOVED (Client uses TerrainMap/Leaflet tiles)
 
 // Update User Position (Move)
 app.post('/api/map/move', (req, res) => {
@@ -921,77 +940,8 @@ app.post('/api/production/collect', (req, res) => {
     }
 });
 
-app.get('/api/local-map/:id', (req, res) => {
-    const tileId = req.params.id; // e.g., "5_5"
-
-    // Get Biome
-    const worldTile = db.prepare('SELECT type FROM world_map WHERE id = ?').get(tileId);
-    const biome = worldTile ? worldTile.type : 'PLAIN';
-
-    const [worldX, worldY] = tileId.split('_').map(Number);
-
-    // Generate Clustered Terrain
-    const grid = [];
-    const size = 10;
-
-    // 1. Initialize Base
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            grid.push({ x, y, type: 'BASE' }); // Placeholder
-        }
-    }
-
-    // 2. Apply Biome Logic with Noise Clustering
-    // Fetch User Buildings for this World Tile
-    const buildings = db.prepare('SELECT * FROM user_buildings WHERE world_x = ? AND world_y = ?').all(worldX, worldY);
-
-    grid.forEach(tile => {
-        const seed = (worldX * 100 + worldY) * 1000 + (tile.x * 10 + tile.y);
-        const noise = Math.abs(Math.sin(seed) * 10000) % 1; // 0-1
-
-        let type = 'DIRT';
-
-        // Check if building exists here
-        const building = buildings.find(b => b.x === tile.x && b.y === tile.y);
-        if (building) {
-            tile.type = building.type;
-            tile.building = building; // Pass full info
-        } else {
-            // Natural Terrain Logic
-            if (biome === 'DESERT') {
-                type = 'SAND';
-                if (noise > 0.85) type = 'ROCK';
-                if (noise > 0.96) type = 'OIL_RIG';
-            } else if (biome === 'FOREST') {
-                type = 'GRASS';
-                if (noise > 0.4) type = 'TREE';
-                if (noise > 0.9) type = 'Ruins'; // New!
-            } else if (biome === 'ICE') {
-                type = 'SNOW';
-                if (noise > 0.7) type = 'ICE_WALL';
-            } else if (biome === 'CITY') {
-                type = 'CONCRETE';
-                if (noise > 0.5) type = 'BUILDING';
-                if (noise > 0.9) type = 'FACTORY';
-            } else if (biome === 'MOUNTAIN') {
-                type = 'ROCK';
-                if (noise > 0.8) type = 'ORE'; // Future resource
-            } else {
-                // Plain
-                type = 'GRASS';
-                if (noise > 0.8) type = 'TREE';
-            }
-
-            tile.type = type;
-        }
-    });
-
-    // 3. Cellular Automata Smoothing (Optional - for now just Return Grid)
-    // A simple smoothing pass could make it look more organic:
-    // ... logic omitted for MVP speed ...
-
-    res.json({ id: tileId, grid: grid, biome });
-});
+// Map APIs
+// app.get('/api/local-map/:id', ...); // REMOVED (Client uses TerrainMap/Leaflet tiles)
 
 // Admin APIs
 const fs = require('fs');
@@ -1002,10 +952,11 @@ app.get('/api/admin/users', (req, res) => {
         const users = db.prepare(`
             SELECT u.*, 
                    ur.gold, ur.gem,
-                   us.strength, us.dexterity, us.constitution, us.agility, us.intelligence, us.wisdom
+                   cc.strength, cc.dexterity, cc.constitution, cc.agility, cc.intelligence, cc.wisdom,
+                   cc.name as cyborg_name, cc.model as cyborg_model
             FROM users u
             LEFT JOIN user_resources ur ON u.id = ur.user_id
-            LEFT JOIN user_stats us ON u.id = us.user_id
+            LEFT JOIN character_cyborg cc ON u.id = cc.user_id
         `).all();
         res.json(users);
     } catch (err) {
@@ -1094,7 +1045,7 @@ app.post('/api/admin/users/:id/update', (req, res) => {
             }
             if (strength !== undefined) {
                 db.prepare(`
-                    UPDATE user_stats 
+                    UPDATE character_cyborg 
                     SET strength = COALESCE(?, strength),
                         dexterity = COALESCE(?, dexterity),
                         constitution = COALESCE(?, constitution),
@@ -1419,27 +1370,7 @@ app.get('/api/game/state', (req, res) => {
     }
 });
 
-// Save Player Position
-app.post('/api/game/move', (req, res) => {
-    const { userId, x, y } = req.body;
-
-    if (!userId) {
-        return res.status(400).json({ error: 'User ID required' });
-    }
-
-    try {
-        // Save position with decimal precision as "x_y" format in current_pos
-        const position = `${x}_${y}`;
-        db.prepare('UPDATE users SET current_pos = ? WHERE id = ?').run(position, userId);
-
-        res.json({ success: true, position: { x, y } });
-    } catch (err) {
-        console.error('Move error:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Place Building on Game Map
+// Place Building on Game Map (With Tech Tree Logic)
 app.post('/api/game/build', (req, res) => {
     const { userId, type, x, y } = req.body;
 
@@ -1448,16 +1379,42 @@ app.post('/api/game/build', (req, res) => {
     }
 
     try {
+        const buildingType = type.toUpperCase();
+
+        // 1. Tech Tree Verification
+        if (buildingType === 'FACTORY') {
+            // Requirement: Command Center (COMMANDER) must exist and be Level >= 2
+            const commandCenter = db.prepare(`
+                SELECT level FROM user_buildings 
+                WHERE user_id = ? AND type = 'COMMANDER'
+            `).get(userId);
+
+            if (!commandCenter) {
+                return res.status(400).json({ error: 'Requires Command Center to build Factory' });
+            }
+            if (commandCenter.level < 2) {
+                return res.status(400).json({ error: 'Command Center Level 2 required for Factory' });
+            }
+        }
+
+        // 2. Limit Checks
+        if (buildingType === 'COMMANDER') {
+            const existing = db.prepare(`SELECT id FROM user_buildings WHERE user_id = ? AND type = 'COMMANDER'`).get(userId);
+            if (existing) {
+                return res.status(400).json({ error: 'You can only have one Command Center' });
+            }
+        }
+
         // Use world_x and world_y as 0 for game map (non-world map buildings)
         // Use x,y as the game map coordinates - keep decimal precision
         const result = db.prepare(`
             INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, level)
             VALUES (?, ?, ?, ?, 0, 0, 1)
-        `).run(userId, type.toUpperCase(), x, y);
+        `).run(userId, buildingType, x, y);
 
         const newBuilding = {
             id: result.lastInsertRowid,
-            type: type,
+            type: buildingType,
             x: x,
             y: y,
             user_id: parseInt(userId),
@@ -1482,10 +1439,22 @@ app.delete('/api/game/building/:buildingId', (req, res) => {
 
     try {
         // Verify ownership
-        const building = db.prepare('SELECT * FROM user_buildings WHERE id = ? AND user_id = ?').get(buildingId, userId);
+        // Verify existence
+        const building = db.prepare('SELECT * FROM user_buildings WHERE id = ?').get(buildingId);
 
         if (!building) {
-            return res.status(404).json({ error: 'Building not found or not owned by user' });
+            return res.status(404).json({ error: 'Building not found' });
+        }
+
+        // CHECK: Absolute NPC Protection
+        const owner = db.prepare('SELECT npc_type FROM users WHERE id = ?').get(building.user_id);
+        if (owner && owner.npc_type === 'ABSOLUTE') {
+            return res.status(403).json({ error: 'Target is an Absolute Neutral Faction. Cannot be destroyed.' });
+        }
+
+        // Verify ownership (or Admin override)
+        if (String(building.user_id) !== String(userId) && String(userId) !== '1') {
+            return res.status(403).json({ error: 'Not authorized to destroy this building' });
         }
 
         // Delete building (CASCADE will remove assignments)
@@ -1580,32 +1549,172 @@ app.post('/api/buildings/:buildingId/assign', (req, res) => {
         }
 
         // Calculate production efficiency based on stats
-        const baseEfficiency = 1.0;
-        const statBonus = (minion.strength + minion.intelligence) / 20; // 0.5 to 1.0 range typically
-        const productionRate = baseEfficiency * (1 + statBonus * 0.5); // Max 1.5x efficiency
+        const rate = (minion.strength + minion.intelligence) / 10.0; // Higher is better
 
         // Create assignment
-        const result = db.prepare(`
+        db.prepare(`
             INSERT INTO building_assignments (building_id, minion_id, task_type, production_rate)
             VALUES (?, ?, ?, ?)
-        `).run(buildingId, minionId, taskType, productionRate);
+        `).run(buildingId, minionId, taskType, rate);
 
-        const newAssignment = db.prepare(`
-            SELECT 
-                a.*,
-                m.name as minion_name,
-                m.type as minion_type
-            FROM building_assignments a
-            JOIN character_minion m ON a.minion_id = m.id
-            WHERE a.id = ?
-        `).get(result.lastInsertRowid);
+        // Update minion status for UI
+        db.prepare('UPDATE character_minion SET current_action = ? WHERE id = ?')
+            .run(taskType.toUpperCase(), minionId);
 
-        res.json(newAssignment);
+        res.json({ success: true, message: 'Minion assigned successfully' });
     } catch (err) {
         console.error('Assign minion error:', err);
         res.status(500).json({ error: err.message });
     }
 });
+
+// Unassign a minion (Recall)
+app.delete('/api/buildings/:buildingId/assign/:minionId', (req, res) => {
+    const { buildingId, minionId } = req.params;
+
+    try {
+        // 1. Collect any pending resources first
+        const assignment = db.prepare(`
+            SELECT resources_collected, minion_id 
+            FROM building_assignments 
+            WHERE building_id = ? AND minion_id = ?
+        `).get(buildingId, minionId);
+
+        if (assignment && assignment.resources_collected > 0) {
+            const minion = db.prepare('SELECT user_id FROM character_minion WHERE id = ?').get(minionId);
+            if (minion) {
+                db.prepare('UPDATE user_resources SET gold = gold + ? WHERE user_id = ?')
+                    .run(assignment.resources_collected, minion.user_id);
+            }
+        }
+
+        // 2. Remove assignment
+        const result = db.prepare(`
+            DELETE FROM building_assignments 
+            WHERE building_id = ? AND minion_id = ?
+        `).run(buildingId, minionId);
+
+        if (result.changes === 0) {
+            return res.status(404).json({ error: 'Assignment not found' });
+        }
+
+        // 3. Reset Minion Status
+        db.prepare("UPDATE character_minion SET current_action = 'IDLE' WHERE id = ?").run(minionId);
+
+        res.json({ success: true, message: 'Minion recalled', collected: assignment ? assignment.resources_collected : 0 });
+    } catch (err) {
+        console.error('Recall minion error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Collect resources from building (All minions)
+app.post('/api/buildings/:buildingId/collect', (req, res) => {
+    const { buildingId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) return res.status(400).json({ error: 'User ID required' });
+
+    try {
+        // Collect Transaction
+        const tx = db.transaction(() => {
+            // 1. Calculate Total Pending Resources
+            const total = db.prepare(`
+                SELECT SUM(resources_collected) as amount 
+                FROM building_assignments 
+                WHERE building_id = ?
+            `).get(buildingId);
+
+            if (!total.amount || total.amount <= 0) {
+                return { success: true, amount: 0, message: 'No resources to collect' };
+            }
+
+            // 2. Calculate User Storage Capacity (VOLUME BASED)
+            // Constants
+            const VOL_PER_GOLD = 0.001; // 1000 Gold = 1 Volume
+            const VOL_PER_GEM = 0.0001;
+
+            const warehouses = db.prepare(`
+                SELECT level FROM user_buildings 
+                WHERE user_id = ? AND type = 'WAREHOUSE'
+            `).all(userId);
+
+            const BASE_VOLUME_CAPACITY = 10.0; // 10,000 Gold cap base
+            const WAREHOUSE_VOL_PER_LEVEL = 50.0; // 50,000 Gold cap per warehouse level
+
+            const maxVolume = BASE_VOLUME_CAPACITY + warehouses.reduce((sum, w) => sum + (w.level * WAREHOUSE_VOL_PER_LEVEL), 0);
+
+            // 3. Get Current Volume (Gold + Gem)
+            // Note: Ideally we sum inventory too, but for resource collection cap, we usually focus on liquid assets.
+            // Extending to include inventory would require summing all item volumes. Included for completeness if simple.
+            const userRes = db.prepare('SELECT gold, gem FROM user_resources WHERE user_id = ?').get(userId);
+            const currentGold = userRes ? userRes.gold : 0;
+            const currentGem = userRes ? userRes.gem : 0;
+
+            const currentVolume = (currentGold * VOL_PER_GOLD) + (currentGem * VOL_PER_GEM);
+
+            // 4. Calculate Collectible Amount (Gold Only for now)
+            const availableVolume = maxVolume - currentVolume;
+
+            if (availableVolume <= 0) {
+                return { success: false, error: 'Storage Volume Full! Build more Warehouses.' };
+            }
+
+            const pendingGold = total.amount;
+            const pendingVolume = pendingGold * VOL_PER_GOLD;
+
+            const collectableVolume = Math.min(pendingVolume, availableVolume);
+            const amountToCollect = Math.floor(collectableVolume / VOL_PER_GOLD);
+
+            if (amountToCollect <= 0) {
+                return { success: false, error: 'Storage Volume Full! Build more Warehouses.' };
+            }
+
+            const remaining = pendingGold - amountToCollect;
+
+            // 5. Update User Resources
+            db.prepare('UPDATE user_resources SET gold = gold + ? WHERE user_id = ?').run(amountToCollect, userId);
+
+            // 6. Update Assignments
+            if (remaining <= 0) {
+                db.prepare('UPDATE building_assignments SET resources_collected = 0 WHERE building_id = ?').run(buildingId);
+            } else {
+                const assignments = db.prepare('SELECT id, resources_collected FROM building_assignments WHERE building_id = ? AND resources_collected > 0').all(buildingId);
+
+                let collectedSoFar = 0;
+                for (const a of assignments) {
+                    if (collectedSoFar >= amountToCollect) break;
+
+                    const take = Math.min(a.resources_collected, amountToCollect - collectedSoFar);
+                    db.prepare('UPDATE building_assignments SET resources_collected = resources_collected - ? WHERE id = ?').run(take, a.id);
+                    collectedSoFar += take;
+                }
+            }
+
+            // Update last collected time
+            db.prepare('UPDATE user_buildings SET last_collected_at = CURRENT_TIMESTAMP WHERE id = ?').run(buildingId);
+
+            return {
+                success: true,
+                amount: amountToCollect,
+                maxStorage: maxVolume / VOL_PER_GOLD, // Display as Gold Equiv
+                currentGold: currentGold + amountToCollect,
+                volumeUsage: { current: currentVolume + collectableVolume, max: maxVolume }
+            };
+        });
+
+        const result = tx();
+        if (result.error) {
+            return res.status(400).json(result);
+        }
+        res.json(result);
+
+    } catch (err) {
+        console.error('Collect resources error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 // Remove a minion from a building
 app.delete('/api/buildings/:buildingId/assign/:minionId', (req, res) => {
@@ -2053,51 +2162,25 @@ app.post('/api/tiles/claim', (req, res) => {
 });
 
 // Get tile info
+// Get tile info (Deprecated - world_map removed)
 app.get('/api/tiles/:tileId', (req, res) => {
-    try {
-        const tile = db.prepare('SELECT * FROM world_map WHERE id = ?').get(req.params.tileId);
-        
-        if (!tile) {
-            return res.status(404).json({ error: 'Tile not found' });
-        }
-        
-        // Get buildings on this tile (Legacy check)
-        // New system relies on coordinate-based buildings, but we map them to tiles for now or use range query.
-        // Actually, user_buildings stores x/y (lat/lng?) or grid coords.
-        // Let's assume user_buildings uses world_x/world_y which matches tile x/y.
-        const buildings = db.prepare(`
-            SELECT * FROM user_buildings 
-            WHERE world_x = ? AND world_y = ?
-        `).all(tile.x, tile.y);
-        
-        res.json({
-            tile,
-            buildings
-        });
-    } catch (err) {
-        console.error('Get tile info error:', err);
-        res.status(500).json({ error: err.message });
-    }
+    res.status(404).json({ error: 'Tile system deprecated' });
 });
 
-// Get user owned tiles
+// Get user owned tiles (Deprecated - world_map removed)
 app.get('/api/tiles/user/:userId', (req, res) => {
-    try {
-        const tiles = db.prepare('SELECT * FROM world_map WHERE owner_id = ?').all(req.params.userId);
-        res.json({ tiles });
-    } catch (err) {
-        console.error('Get user tiles error:', err);
-        res.status(500).json({ error: err.message });
-    }
+    res.json({ tiles: [] });
 });
 
 // Get all territories (Command Centers)
 app.get('/api/territories', (req, res) => {
     try {
         const territories = db.prepare(`
-            SELECT id, user_id, x, y, territory_radius, is_territory_center 
-            FROM user_buildings 
-            WHERE is_territory_center = 1
+            SELECT ub.id, ub.user_id, ub.x, ub.y, ub.territory_radius, ub.is_territory_center, ub.custom_boundary, ub.level,
+                   u.username as owner_name, u.npc_type
+            FROM user_buildings ub
+            LEFT JOIN users u ON ub.user_id = u.id
+            WHERE ub.is_territory_center = 1
         `).all();
         res.json({ territories });
     } catch (err) {
@@ -2184,7 +2267,7 @@ app.post('/api/buildings/construct', (req, res) => {
             // User requirement: "Build buildings... in territory".
             // If strictly enforced:
             if (!inTerritory && userId !== '1') { // Admin override
-                 return res.status(400).json({ error: 'Must build within your territory' });
+                return res.status(400).json({ error: 'Must build within your territory' });
             }
         }
 
@@ -2215,6 +2298,45 @@ app.post('/api/buildings/construct', (req, res) => {
     } catch (err) {
         console.error('Construction error:', err);
         res.status(500).json({ error: err.message });
+    }
+});
+
+// ----------------------------------------------------------------------
+// ADMIN: NPC Management
+// ----------------------------------------------------------------------
+app.get('/api/admin/npcs', (req, res) => {
+    try {
+        const npcs = db.prepare(`
+            SELECT u.id, u.username, u.npc_type, 
+                   ub.id as building_id, ub.x, ub.y, ub.custom_boundary, ub.territory_radius
+            FROM users u
+            LEFT JOIN user_buildings ub ON u.id = ub.user_id AND ub.is_territory_center = 1
+            WHERE u.npc_type IN ('ABSOLUTE', 'FREE')
+        `).all();
+        res.json({ npcs });
+    } catch (err) {
+        console.error("Failed to fetch NPCs", err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.put('/api/admin/npcs/:id', (req, res) => {
+    const userId = req.params.id;
+    const { npc_type, boundary, building_id, radius } = req.body;
+
+    try {
+        db.prepare('UPDATE users SET npc_type = ? WHERE id = ?').run(npc_type, userId);
+
+        if (building_id) {
+            // Handle empty string as null
+            const boundVal = (boundary && boundary.trim() !== "") ? boundary : null;
+            db.prepare('UPDATE user_buildings SET custom_boundary = ?, territory_radius = ? WHERE id = ?')
+                .run(boundVal, radius || 5, building_id);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Failed to update NPC", err);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 

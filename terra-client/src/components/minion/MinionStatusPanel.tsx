@@ -19,13 +19,7 @@ export default function MinionStatusPanel({ userId }: { userId: number }) {
     const [minions, setMinions] = useState<Minion[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        fetchMinions();
-        const interval = setInterval(fetchMinions, 10000); // Refresh every 10s
-        return () => clearInterval(interval);
-    }, [userId]);
-
-    const fetchMinions = async () => {
+    const fetchMinions = React.useCallback(async () => {
         try {
             const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
             const response = await fetch(`${API_BASE_URL}/api/minions/${userId}`);
@@ -36,7 +30,13 @@ export default function MinionStatusPanel({ userId }: { userId: number }) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [userId]);
+
+    useEffect(() => {
+        fetchMinions();
+        const interval = setInterval(fetchMinions, 10000); // Refresh every 10s
+        return () => clearInterval(interval);
+    }, [fetchMinions]);
 
     if (loading) {
         return <div className="text-gray-400">미니언 정보 로딩 중...</div>;

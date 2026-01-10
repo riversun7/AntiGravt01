@@ -206,7 +206,7 @@ export default function Mailbox() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[200] bg-black/80 flex items-start justify-center pt-24 px-4"
+                        className="fixed inset-0 z-[9999] bg-black/80 flex items-start justify-center pt-24 px-4"
                     >
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}

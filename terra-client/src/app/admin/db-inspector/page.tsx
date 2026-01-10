@@ -35,11 +35,11 @@ export default function DBInspectorPage() {
         <div className="h-full flex flex-col">
             <h2 className="text-2xl font-bold mb-6 text-white">Database Inspector</h2>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-                {/* File List */}
-                <div className="bg-surface border border-surface-border rounded-lg p-4 overflow-y-auto">
-                    <h3 className="text-gray-400 font-bold mb-4 text-sm uppercase">Database Files</h3>
-                    <div className="space-y-2">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
+                {/* File List (Span 2) */}
+                <div className="lg:col-span-2 bg-surface border border-surface-border rounded-lg p-4 overflow-y-auto">
+                    <h3 className="text-gray-400 font-bold mb-4 text-xs uppercase tracking-wider">DB Files</h3>
+                    <div className="space-y-1">
                         {files.map(file => (
                             <div
                                 key={file.name}
@@ -49,48 +49,63 @@ export default function DBInspectorPage() {
                                     setTableData([]);
                                     fetchTables(file.name);
                                 }}
-                                className={`p-3 rounded cursor-pointer transition-colors flex items-center gap-3 ${selectedFile === file.name ? 'bg-primary/20 border border-primary text-white' : 'hover:bg-surface-light text-gray-400'}`}
+                                className={`p-2 rounded cursor-pointer transition-colors flex items-center gap-2 ${selectedFile === file.name ? 'bg-primary/20 border border-primary text-white' : 'hover:bg-surface-light text-gray-400'}`}
                             >
-                                <FileCode size={18} />
-                                <span className="truncate text-sm font-mono">{file.name}</span>
+                                <FileCode size={16} />
+                                <span className="truncate text-xs font-mono">{file.name}</span>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* Table Lister / Data Viewer */}
-                <div className="col-span-2 bg-surface border border-surface-border rounded-lg p-4 overflow-hidden flex flex-col">
+                {/* Table List (Span 2) - Vertical now */}
+                <div className="lg:col-span-2 bg-surface border border-surface-border rounded-lg p-4 overflow-y-auto">
+                    <h3 className="text-gray-400 font-bold mb-4 text-xs uppercase tracking-wider">Tables</h3>
                     {selectedFile ? (
+                        <div className="space-y-1">
+                            {tables.map(table => (
+                                <button
+                                    key={table}
+                                    onClick={() => fetchTableData(selectedFile, table)}
+                                    className={`w-full text-left px-3 py-2 rounded text-xs font-mono whitespace-nowrap transition-colors flex items-center justify-between ${selectedTable === table ? 'bg-secondary text-black font-bold' : 'text-gray-300 hover:bg-surface-light hover:text-white'}`}
+                                >
+                                    <span>{table}</span>
+                                    {/* Optional: Add row count if available in future */}
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-gray-600 text-xs italic">Select a file...</div>
+                    )}
+                </div>
+
+                {/* Data Viewer (Span 8) */}
+                <div className="lg:col-span-8 bg-surface border border-surface-border rounded-lg p-4 overflow-hidden flex flex-col">
+                    {selectedTable ? (
                         <>
-                            <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 border-b border-surface-border">
-                                <span className="text-xs text-gray-500 font-bold uppercase shrink-0">Tables:</span>
-                                {tables.map(table => (
-                                    <button
-                                        key={table}
-                                        onClick={() => fetchTableData(selectedFile, table)}
-                                        className={`px-3 py-1 rounded-full text-xs font-mono whitespace-nowrap transition-colors ${selectedTable === table ? 'bg-secondary text-black font-bold' : 'bg-surface-light text-gray-300 hover:bg-surface-border'}`}
-                                    >
-                                        {table}
-                                    </button>
-                                ))}
+                            <div className="mb-4 flex items-center justify-between border-b border-surface-border pb-2">
+                                <h3 className="text-white font-bold text-sm font-mono flex items-center gap-2">
+                                    <span className="text-secondary">{selectedTable}</span>
+                                    <span className="text-gray-600 text-xs">({tableData.length} rows)</span>
+                                </h3>
+                                {/* Future: Export/Edit actions */}
                             </div>
 
                             <div className="flex-1 overflow-auto">
-                                {selectedTable && tableData.length > 0 ? (
+                                {tableData.length > 0 ? (
                                     <table className="w-full text-left text-xs">
-                                        <thead className="sticky top-0 bg-surface-light text-gray-300 font-bold">
+                                        <thead className="sticky top-0 bg-surface-light text-gray-300 font-bold z-10">
                                             <tr>
                                                 {Object.keys(tableData[0]).map(key => (
-                                                    <th key={key} className="px-4 py-2 border-b border-surface-border">{key}</th>
+                                                    <th key={key} className="px-4 py-2 border-b border-surface-border whitespace-nowrap bg-surface-light">{key}</th>
                                                 ))}
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-surface-border">
                                             {tableData.map((row, i) => (
-                                                <tr key={i} className="hover:bg-white/5 font-mono text-gray-400">
-                                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                <tr key={i} className="hover:bg-white/5 font-mono text-gray-400 transition-colors">
                                                     {Object.values(row).map((val: unknown, j) => (
-                                                        <td key={j} className="px-4 py-2 whitespace-nowrap">{String(val)}</td>
+                                                        <td key={j} className="px-4 py-2 whitespace-nowrap max-w-[200px] truncate" title={String(val)}>{String(val)}</td>
                                                     ))}
                                                 </tr>
                                             ))}
@@ -98,14 +113,14 @@ export default function DBInspectorPage() {
                                     </table>
                                 ) : (
                                     <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-                                        {selectedTable ? "No data found or loading..." : "Select a table to view data"}
+                                        Empty table
                                     </div>
                                 )}
                             </div>
                         </>
                     ) : (
                         <div className="flex items-center justify-center h-full text-gray-500">
-                            Select a database file to inspect
+                            {selectedFile ? "Select a table to inspect data" : "Select a database file"}
                         </div>
                     )}
                 </div>

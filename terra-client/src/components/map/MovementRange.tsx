@@ -6,9 +6,10 @@ import { useEffect } from 'react';
 interface MovementRangeProps {
     center: [number, number];
     radiusKm: number;
+    color?: string;
 }
 
-export default function MovementRange({ center, radiusKm }: MovementRangeProps) {
+export default function MovementRange({ center, radiusKm, color = '#3388ff' }: MovementRangeProps) {
     const map = useMap();
 
     useEffect(() => {
@@ -23,8 +24,8 @@ export default function MovementRange({ center, radiusKm }: MovementRangeProps) 
             center={center}
             radius={radiusKm * 1000} // Convert km to meters
             pathOptions={{
-                color: '#8b5cf6',
-                fillColor: '#8b5cf6',
+                color: color,
+                fillColor: color,
                 fillOpacity: 0.1,
                 weight: 2,
                 dashArray: '5, 10',

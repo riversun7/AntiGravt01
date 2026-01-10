@@ -169,3 +169,15 @@ export async function middleware(request) {
     -   **Building System**: 건물 건설, 자원 수집, 유닛 배치, 건물 파괴 기능 (Floating Game Panel 통합).
     -   **Unit Management**: 보유 하수인 전체 목록 조회, 상태(Active/Idle) 모니터링 및 건물 배치.
     -   **Floating UI**: 정보, 유닛, 건물, 건설, 설정을 통합한 모바일 친화적 탭 인터페이스.
+
+    #### 🌍 영토 시스템 (Territory System) **(New)**
+    -   **Command Center (사령부)**: 영토를 확립하는 핵심 건물입니다. 건설 탭의 '👑 영토' 카테고리에서 건설할 수 있습니다.
+    -   **Radius Control**: 사령부를 건설하면 반경 **5km**의 영토가 즉시 확보됩니다. (이전의 타일 단위 점령 방식 대체)
+    -   **Voronoi Visualization**: 다른 플레이어의 영토와 겹칠 경우, 두 사령부의 **중간 지점**을 기준으로 경계선이 자동으로 분할되어 시각화됩니다 (Voronoi-like Clipping).
+    -   **Interaction**: 영토 영역은 클릭되지 않으며, 오직 이동 및 건설을 위한 배경으로만 작용합니다.
+
+    #### 🕹️ UX 개선 (UX Improvements) **(New)**
+    -   **Action Popup**: 빈 땅을 클릭하면 화면을 가리는 모달 대신, **직관적인 팝업 메뉴**가 나타납니다.
+        -   **[🏃 Move]**: 해당 위치로 이동 (더블클릭 이동 제거로 오작동 방지)
+        -   **[🏗️ Build]**: 건설 메뉴 접근
+    -   **Clean Selection**: 불필요한 선택 박스나 하이라이트를 제거하여 지도 가시성을 높였습니다.

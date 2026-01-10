@@ -6,60 +6,21 @@ import dynamic from 'next/dynamic';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { TILE_PROVIDERS, type TileProvider } from '@/components/map/TileProviderSelector';
 import { useRouter } from 'next/navigation';
-import FloatingGamePanel from '@/components/map/FloatingGamePanel';
+
 import { API_BASE_URL } from "@/lib/config";
 
 // Leaflet은 클라이언트 사이드에서만 작동하므로 동적 import 사용
-const MapContainer = dynamic(
-    () => import('react-leaflet').then(mod => mod.MapContainer),
+const TerrainMapContent = dynamic(
+    () => import('@/components/map/TerrainMapContent'),
     { ssr: false }
 );
-const TileLayer = dynamic(
-    () => import('react-leaflet').then(mod => mod.TileLayer),
-    { ssr: false }
-);
-const Marker = dynamic(
-    () => import('react-leaflet').then(mod => mod.Marker),
-    { ssr: false }
-);
-const Popup = dynamic(
-    () => import('react-leaflet').then(mod => mod.Popup),
-    { ssr: false }
-);
-const ZoomLevelDisplay = dynamic(
-    () => import('@/components/map/ZoomLevelDisplay'),
-    { ssr: false }
-);
-const LocationButton = dynamic(
-    () => import('@/components/map/LocationButton'),
-    { ssr: false }
-);
-const UserLocationMarker = dynamic(
-    () => import('@/components/map/UserLocationMarker'),
-    { ssr: false }
-);
-const PlayerMarker = dynamic(
-    () => import('@/components/map/PlayerMarker'),
-    { ssr: false }
-);
-const MovementRange = dynamic(
-    () => import('@/components/map/MovementRange'),
-    { ssr: false }
-);
-const BuildingMarkers = dynamic(
-    () => import('@/components/map/BuildingMarkers'),
-    { ssr: false }
-);
-const BuildingInteractionModal = dynamic(
-    () => import('@/components/map/BuildingInteractionModal'),
+
+const GameControlPanel = dynamic(
+    () => import('@/components/map/GameControlPanel'),
     { ssr: false }
 );
 const AssignUnitModal = dynamic(
     () => import('@/components/map/AssignUnitModal'),
-    { ssr: false }
-);
-const MapClickHandler = dynamic(
-    () => import('@/components/map/MapClickHandler'),
     { ssr: false }
 );
 const ToastNotification = dynamic(
@@ -70,17 +31,15 @@ const TileInfoModal = dynamic(
     () => import('@/components/map/TileInfoModal'),
     { ssr: false }
 );
-const TerritoryOverlay = dynamic(
-    () => import('@/components/map/TerritoryOverlay'),
-    { ssr: false }
-);
+
+// Other helper function imports retained if needed but components like TerritoryOverlay are now inside TerrainMapContent
 
 interface Building {
     id: number;
     type: string;
     lat: number;
     lng: number;
-    level?: number; // Optional, defaults to 1
+    level?: number;
 }
 
 function MapResizer() {
@@ -103,8 +62,9 @@ export default function TerrainMapPage() {
     const router = useRouter();
 
     // Tile interaction states
+    // Tile interaction states
     const [selectedTile, setSelectedTile] = useState<any>(null);
-    const [showTileModal, setShowTileModal] = useState(false);
+    const [selectedTerritory, setSelectedTerritory] = useState<any>(null); // Territory Info State
     const [tileBuildings, setTileBuildings] = useState<any[]>([]);
     const [ownedTiles, setOwnedTiles] = useState<any[]>([]);
     const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
@@ -112,7 +72,7 @@ export default function TerrainMapPage() {
     const [territories, setTerritories] = useState<any[]>([]);
 
     const handleTileClick = async (lat: number, lng: number, point?: { x: number; y: number }) => {
-        // Convert lat/lng to tile coordinates (160x80 grid) for legacy reference/info
+        setSelectedTerritory(null); // Clear territory selection
         const x = Math.floor((lng + 180) / 360 * 160);
         const y = Math.floor((90 - lat) / 180 * 80);
         const tileId = `${x}_${y}`;
@@ -123,28 +83,16 @@ export default function TerrainMapPage() {
 
         console.log(`[Tile Click] Lat: ${lat}, Lng: ${lng} -> Tile: ${tileId} (${x}, ${y})`);
 
-        // Check if point is inside any territory
-        // Simple radius check (client-side approximation)
         let ownerId = null;
-        let ownerTerritory = null;
-
         for (const t of territories) {
-            const dist = calculateDistance(lat, lng, t.x, t.y); // t.x is Lat? Wait, valid data check needed.
-            // Server returns t.x, t.y. In DB schema x usually mapped to Lat?
-            // Actually in server.js: x=lat, y=lng in some places, but check construct:
-            // INSERT INTO user_buildings (..., x, y, ...) VALUES (..., x, y, ...)
-            // body: { x: lat, y: lng } -> so t.x is Lat, t.y is Lng.
+            const dist = calculateDistance(lat, lng, t.x, t.y);
             if (dist <= (t.territory_radius || 5.0)) {
                 ownerId = t.user_id;
-                ownerTerritory = t;
-                // Midpoint check if multiple? For now just take the first or closest.
-                // TODO: Strict Voronoi check.
                 break;
             }
         }
 
         try {
-            // We still fetch tile info for terrain type, usage, etc.
             const response = await fetch(`${API_BASE_URL}/api/tiles/${tileId}`);
             let tileData = null;
             let currentBuildings = [];
@@ -159,78 +107,46 @@ export default function TerrainMapPage() {
                 };
             }
 
-            // Override owner_id with our radius calculation
-            // This ensures visuals match logic
-            const effectiveOwner = ownerId || tileData.owner_id; // Prefer radius owner, fallback to tile (if any)
+            const effectiveOwner = ownerId || tileData.owner_id;
 
             setSelectedTile({
                 ...tileData,
-                id: tileId, // Keep grid ID for reference
+                id: tileId,
                 clickLat: lat,
                 clickLng: lng,
                 owner_id: effectiveOwner,
-                isTerritoryCenter: false // Will be determined by selected building?
+                isTerritoryCenter: false,
+                displayX: x, // Add grid coords for display
+                displayY: y
             });
             setTileBuildings(currentBuildings);
-            setShowTileModal(true);
+
+            // Clear building selection to focus on tile
+            setSelectedBuilding(null);
 
         } catch (error) {
             console.error('Failed to fetch tile info:', error);
         }
     };
 
-    const handleConstructTerritory = async () => {
-        if (!selectedTile) return;
-        // Use coords from click
-        const lat = selectedTile.clickLat || selectedTile.x; // Fallback? ClickLat should be there
-        const lng = selectedTile.clickLng || selectedTile.y;
+    const handleTerritoryClick = (t: any, e: any) => {
+        console.log("Territory Clicked", t);
 
-        // Check if lat/lng are actual coords or grid?
-        // In handleTileClick, we set clickLat/clickLng.
-        // If undefined, we can't build precisely.
+        // Prepare info for modal
+        setSelectedTerritory({
+            id: t.id,
+            owner_name: t.owner_name,
+            level: t.level || 1,
+            radius: t.territory_radius,
+            is_absolute: t.npc_type === 'ABSOLUTE'
+        });
 
-        await handleConstructBuilding('COMMAND_CENTER');
-    };
-
-    // Deprecated
-    const handleClaimTile = async () => {
-        alert("타일 소유권 주장은 더 이상 사용되지 않습니다. '사령부(Command Center)'를 건설하여 영토를 확보하세요.");
-    };
-
-    const handleConstructBuilding = async (buildingType: string) => {
-        if (!selectedTile) return;
-
-        const userId = localStorage.getItem('terra_user_id');
-        // Use precise click coordinates if available, otherwise tile center (approx)
-        const lat = selectedTile.clickLat;
-        const lng = selectedTile.clickLng;
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/buildings/construct`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId,
-                    tileId: selectedTile.id,
-                    type: buildingType, // Changed from buildingType to type to match server
-                    x: lat, // Lat
-                    y: lng  // Lng
-                }),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                alert(`${buildingType} 건설 완료!`);
-                // Update local state
-                setTileBuildings([...tileBuildings, data.building]);
-                loadGameState();
-            } else {
-                alert(`건설 실패: ${data.error}`);
-            }
-        } catch (error) {
-            console.error('Construction failed:', error);
-            alert('오류가 발생했습니다.');
+        // Set position from click
+        if (e && e.containerPoint) {
+            setPopupPosition(e.containerPoint);
         }
+
+        setSelectedTile(null); // Clear tile selection
     };
 
     // Default position - will be replaced by GPS if available
@@ -241,12 +157,13 @@ export default function TerrainMapPage() {
     const [minions, setMinions] = useState<any[]>([]);
     const [currentTileProvider, setCurrentTileProvider] = useState('openstreetmap');
     const [isConstructing, setIsConstructing] = useState(false);
+    const [constructingBuildingName, setConstructingBuildingName] = useState<string | null>(null);
     const [constructionTimeLeft, setConstructionTimeLeft] = useState(0);
     const [playerResources, setPlayerResources] = useState({ gold: 1000, gem: 10 });
+    const [currentTick, setCurrentTick] = useState(Date.now()); // For pure rendering of timers
 
     // Building interaction states
     const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
-    const [showBuildingModal, setShowBuildingModal] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
 
     // Toast state
@@ -313,7 +230,6 @@ export default function TerrainMapPage() {
                 const data = await response.json();
                 console.log('[GameState] Loaded:', data);
 
-                // Convert x, y coordinates to lat, lng if needed
                 if (data.buildings && data.buildings.length > 0) {
                     const mappedBuildings = data.buildings.map((b: { id: number; type: string; x: number; y: number; level?: number }) => ({
                         id: b.id,
@@ -325,7 +241,6 @@ export default function TerrainMapPage() {
                     setBuildings(mappedBuildings);
                     console.log(`[GameState] Loaded ${mappedBuildings.length} buildings`);
                 } else {
-                    console.log('[GameState] No buildings found');
                     setBuildings([]);
                 }
 
@@ -334,10 +249,7 @@ export default function TerrainMapPage() {
                     const { x, y } = data.playerPosition;
                     if (x && y) {
                         setPlayerPosition([x, y]);
-                        console.log(`[GameState] Player position restored: ${x}, ${y}`);
                     }
-                } else {
-                    console.log('[GameState] No saved position, using GPS or default');
                 }
             } else {
                 console.error('[GameState] Failed to load:', response.status);
@@ -348,7 +260,6 @@ export default function TerrainMapPage() {
             if (minionsResponse.ok) {
                 const minionsData = await minionsResponse.json();
                 setMinions(minionsData);
-                console.log(`[GameState] Loaded ${minionsData.length} minions`);
             }
 
             // Load owned tiles for overlay (Legacy)
@@ -363,7 +274,6 @@ export default function TerrainMapPage() {
             if (territoriesResponse.ok) {
                 const tData = await territoriesResponse.json();
                 setTerritories(tData.territories || []);
-                console.log(`[GameState] Loaded ${tData.territories?.length || 0} territories`);
             }
         } catch (error) {
             console.error('[GameState] Error loading game state:', error);
@@ -378,32 +288,10 @@ export default function TerrainMapPage() {
     // Initialize player position from GPS only if no saved position
     useEffect(() => {
         if (geolocation.position && playerPosition[0] === defaultPosition[0] && playerPosition[1] === defaultPosition[1]) {
-            // Only use GPS if we're still at default position (no saved position loaded)
             setPlayerPosition(geolocation.position);
             console.log('[GPS] Using GPS position:', geolocation.position);
         }
-    }, [geolocation.position]);
-
-    // Check if player is out of range from GPS (only when GPS changes)
-    useEffect(() => {
-        if (!geolocation.position) return;
-
-        const userId = localStorage.getItem('terra_user_id');
-        const isAdmin = userId === '1';
-        const maxRange = isAdmin ? 100 : 10; // Admin: 100km, Normal: 10km
-
-        const distanceFromGPS = calculateDistance(
-            playerPosition[0],
-            playerPosition[1],
-            geolocation.position[0],
-            geolocation.position[1]
-        );
-
-        if (distanceFromGPS > maxRange) {
-            console.warn(`[GPS] Player is ${distanceFromGPS.toFixed(2)}km from GPS. Resetting to GPS position.`);
-            setPlayerPosition(geolocation.position);
-        }
-    }, [geolocation.position, playerPosition, defaultPosition]); // Check constraints when position updates
+    }, [geolocation.position, playerPosition, defaultPosition]);
 
     const handlePlayerMove = async (position: [number, number]) => {
         try {
@@ -429,13 +317,13 @@ export default function TerrainMapPage() {
         const userId = localStorage.getItem('terra_user_id');
         const isAdmin = userId === '1'; // User ID 1 is admin
 
-        const buildingDefs: Record<string, { buildTime: number; adminBuildTime: number; cost: { gold: number; gem: number } }> = {
-            COMMAND_CENTER: { buildTime: 60, adminBuildTime: 5, cost: { gold: 500, gem: 5 } },
-            mine: { buildTime: 30, adminBuildTime: 3, cost: { gold: 100, gem: 0 } },
-            warehouse: { buildTime: 20, adminBuildTime: 2, cost: { gold: 50, gem: 0 } },
-            barracks: { buildTime: 25, adminBuildTime: 2, cost: { gold: 75, gem: 0 } },
-            farm: { buildTime: 20, adminBuildTime: 2, cost: { gold: 75, gem: 0 } },
-            factory: { buildTime: 40, adminBuildTime: 4, cost: { gold: 200, gem: 0 } },
+        const buildingDefs: Record<string, { name: string; buildTime: number; adminBuildTime: number; cost: { gold: number; gem: number } }> = {
+            COMMAND_CENTER: { name: '사령부', buildTime: 60, adminBuildTime: 5, cost: { gold: 500, gem: 5 } },
+            mine: { name: '자원 채굴장', buildTime: 30, adminBuildTime: 3, cost: { gold: 100, gem: 0 } },
+            warehouse: { name: '창고', buildTime: 20, adminBuildTime: 2, cost: { gold: 50, gem: 0 } },
+            barracks: { name: '숙소', buildTime: 25, adminBuildTime: 2, cost: { gold: 75, gem: 0 } },
+            farm: { name: '농장', buildTime: 20, adminBuildTime: 2, cost: { gold: 75, gem: 0 } },
+            FACTORY: { name: '공장', buildTime: 120, adminBuildTime: 5, cost: { gold: 500, gem: 5 } },
         };
 
         const building = buildingDefs[buildingId] || buildingDefs[buildingId.toUpperCase()] || buildingDefs[buildingId.toLowerCase()];
@@ -444,12 +332,10 @@ export default function TerrainMapPage() {
             return;
         }
 
-        // Use admin build time if user is admin
         const actualBuildTime = isAdmin ? building.adminBuildTime : building.buildTime;
 
         try {
             const userId = localStorage.getItem('terra_user_id');
-            // Use the new endpoint which handles territory checks
             const response = await fetch(`${API_BASE_URL}/api/buildings/construct`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -464,14 +350,13 @@ export default function TerrainMapPage() {
             const data = await response.json();
 
             if (response.ok) {
-                // Deduct resources locally for immediate feedback (server already did it)
                 setPlayerResources(prev => ({
                     gold: prev.gold - building.cost.gold,
                     gem: prev.gem - building.cost.gem
                 }));
 
-                // Start construction timer
                 setIsConstructing(true);
+                setConstructingBuildingName(building.name || buildingId);
                 setConstructionTimeLeft(actualBuildTime);
 
                 const timer = setInterval(() => {
@@ -479,8 +364,7 @@ export default function TerrainMapPage() {
                         if (prev <= 1) {
                             clearInterval(timer);
                             setIsConstructing(false);
-
-                            // Reload entire game state from server
+                            setConstructingBuildingName(null);
                             loadGameState();
                             return 0;
                         }
@@ -488,256 +372,210 @@ export default function TerrainMapPage() {
                     });
                 }, 1000);
             } else {
-                alert(`건설 실패: ${data.error}`);
+                showToast(`건설 실패: ${data.error}`, 'error');
             }
         } catch (error) {
             console.error('Failed to construct building:', error);
-            alert('건설 중 오류가 발생했습니다.');
+            showToast('건설 중 오류가 발생했습니다.', 'error');
         }
     };
 
-    const handleBuildingClick = (building: Building) => {
-        setSelectedBuilding(building);
-        setShowBuildingModal(true);
-        if (map) {
-            map.flyTo([building.lat, building.lng], 16);
-        }
-    };
+    // --- Demolition Logic ---
+    const [demolitionStates, setDemolitionStates] = useState<Record<number, number>>({});
 
-    const handleAssignUnit = () => {
-        setShowBuildingModal(false);
-        setShowAssignModal(true);
-    };
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const now = Date.now();
+            setCurrentTick(now); // Update tick for UI sync
+            setDemolitionStates(prev => {
+                const next = { ...prev };
+                let changed = false;
 
-    const handleAssignComplete = () => {
-        setShowAssignModal(false);
-        setShowBuildingModal(true);
-    };
+                Object.keys(next).forEach(key => {
+                    const id = Number(key);
+                    if (now >= next[id]) {
+                        delete next[id];
+                        executeDestruction(id);
+                        changed = true;
+                    }
+                });
+                return changed ? next : prev;
+            });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
 
-    const handleCollectResources = () => {
-        // Reload game state to update resources
-        loadGameState();
-    };
-
-    const handleDestroyBuilding = async () => {
-        if (!selectedBuilding) return;
-
+    const executeDestruction = async (buildingId: number) => {
         try {
             const userId = localStorage.getItem('terra_user_id');
             const response = await fetch(
-                `${API_BASE_URL}/api/game/building/${selectedBuilding.id}?userId=${userId}`,
+                `${API_BASE_URL}/api/game/building/${buildingId}?userId=${userId}`,
                 { method: 'DELETE' }
             );
 
             if (response.ok) {
-                alert('건물이 파괴되었습니다');
-                setShowBuildingModal(false);
-                setSelectedBuilding(null);
-                // Reload game state to update building list
+                showToast(`건물이 철거되었습니다.`, 'success');
+                if (selectedBuilding?.id === buildingId) {
+                    setSelectedBuilding(null);
+                }
                 loadGameState();
             } else {
-                alert('건물 파괴에 실패했습니다');
+                showToast('건물 철거 실패', 'error');
             }
         } catch (error) {
             console.error('Failed to destroy building:', error);
-            alert('건물 파괴 중 오류가 발생했습니다');
         }
     };
 
-    // Use GPS position as center if available, otherwise use default
+    const handleRequestDemolition = (buildingId: number) => {
+        const finishTime = Date.now() + 60000; // 1 minute
+        setDemolitionStates(prev => ({ ...prev, [buildingId]: finishTime }));
+        showToast('철거를 시작합니다. (60초 소요)', 'info');
+    };
+
+    const handleCancelDemolition = (buildingId: number) => {
+        setDemolitionStates(prev => {
+            const next = { ...prev };
+            delete next[buildingId];
+            return next;
+        });
+        showToast('철거가 취소되었습니다.', 'info');
+    };
+
+    const handleMoveToTile = (lat: number, lng: number) => {
+        const currentPos = geolocation.position || playerPosition;
+        const dist = calculateDistance(currentPos[0], currentPos[1], lat, lng);
+        if (dist <= maxMovementRange) {
+            setPlayerPosition([lat, lng]);
+        } else {
+            showToast(`Cannot move: Out of range (${maxMovementRange}km)`, 'error');
+        }
+    };
+
     const mapCenter = geolocation.position || defaultPosition;
 
     return (
-        <div className="min-h-screen bg-background text-white p-4 overflow-hidden">
-            <header className="flex items-center justify-between mb-4 pb-2 border-b border-surface-border relative z-[900]">
-                <div className="flex items-center gap-4">
-                    <SystemMenu activePage="terrain" />
-                    <div>
-                        <h1 className="text-xl font-bold flex items-center gap-2 text-cyan-400">
-                            🏔️ TERRAIN MAP (GAME MODE)
-                        </h1>
-                        <p className="text-xs text-gray-500 font-mono">
-                            GPS TRACKING // 10KM RANGE // BUILDING SYSTEM
-                        </p>
+        <div className="h-screen bg-background text-white overflow-hidden flex flex-col md:flex-row">
+            {/* Main Content Area (Header + Map) */}
+            <div className="flex-1 flex flex-col relative z-[0] min-h-0 md:pb-0 pb-[45vh]">
+                <header className="flex flex-wrap items-center justify-between p-3 border-b border-white/5 bg-slate-900/80 backdrop-blur-md gap-2 shrink-0 relative z-[50]">
+                    <div className="flex items-center gap-4">
+                        <SystemMenu activePage="terrain" />
+                        <div>
+                            <h1 className="text-lg md:text-xl font-bold flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 whitespace-nowrap drop-shadow-sm">
+                                🏔️ TERRAIN MAP
+                            </h1>
+                        </div>
                     </div>
-                </div>
 
-                {/* GPS Status indicator */}
-                <div className="flex items-center gap-3">
-                    {geolocation.loading && (
-                        <div className="text-xs text-yellow-400 font-mono animate-pulse">
-                            🛰️ Acquiring GPS...
-                        </div>
-                    )}
-                    {geolocation.error && (
-                        <div className="text-xs text-red-400 font-mono">
-                            ⚠️ {geolocation.error}
-                        </div>
-                    )}
-                    {geolocation.watching && !geolocation.error && (
-                        <div className="text-xs text-green-400 font-mono">
-                            🟢 GPS Active
-                        </div>
-                    )}
-                    <div className="text-xs text-slate-400 font-mono">
-                        💰 {playerResources.gold} | 💎 {playerResources.gem}
+                    {/* GPS Status indicator */}
+                    <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-end">
+                        {geolocation.loading && <div className="text-[10px] font-bold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded-full animate-pulse flex items-center gap-1">🛰️ SEEKING...</div>}
+                        {geolocation.watching && !geolocation.error && <div className="text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-1 rounded-full flex items-center gap-1">🟢 GPS ACTIVE</div>}
+                        {geolocation.error && <div className="text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1 rounded-full flex items-center gap-1">🔴 NO SIGNAL</div>}
+                        {isConstructing && <div className="text-[10px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-1 rounded-full animate-pulse flex items-center gap-1">🏗️ BUILDING... {constructionTimeLeft}s</div>}
                     </div>
-                    <div className="text-xs text-slate-400 font-mono">
-                        Buildings: {buildings.length}
-                    </div>
-                    {isConstructing && (
-                        <div className="text-xs text-orange-400 font-mono animate-pulse">
-                            🏗️ Building... {constructionTimeLeft}s
-                        </div>
-                    )}
-                </div>
-            </header>
+                </header>
 
-            <div className="map-container h-[calc(100vh-120px)] overflow-hidden relative rounded-lg border border-surface-border">
-                <MapContainer
-                    center={mapCenter}
-                    zoom={currentZoom}
-                    style={{ height: '100%', width: '100%', background: '#242f3e' }}
-                    zoomControl={true}
-                    minZoom={2}
-                    maxZoom={tileProvider.maxZoom || 19}
-                    ref={setMap}
-                    doubleClickZoom={false}
-                >
-                    {/* Tile layer with selected provider */}
-                    <TileLayer
-                        key={tileProvider.id}
-                        attribution={tileProvider.attribution}
-                        url={tileProvider.url}
-                        maxZoom={tileProvider.maxZoom}
-                    />
-
-                    {/* Movement range circle (10km) */}
-                    <MovementRange
-                        center={geolocation?.position || playerPosition}
-                        radiusKm={maxMovementRange}
-                    />
-
-                    {/* Player character marker */}
-                    <PlayerMarker
-                        initialPosition={playerPosition}
-                        maxDistanceKm={maxMovementRange}
-                        onMove={handlePlayerMove}
+                <div className="flex-1 relative overflow-hidden bg-slate-900 z-[0]">
+                    <TerrainMapContent
+                        mapCenter={mapCenter}
+                        currentZoom={currentZoom}
+                        tileProvider={tileProvider}
+                        maxMovementRange={maxMovementRange}
+                        geolocation={geolocation}
+                        userId={userId}
+                        playerPosition={playerPosition}
+                        setPlayerPosition={handlePlayerMove}
+                        showToast={showToast}
+                        handleTileClick={handleTileClick}
+                        handleTerritoryClick={handleTerritoryClick}
                         isConstructing={isConstructing}
                         constructionTimeLeft={constructionTimeLeft}
                         isAdmin={isAdmin}
-                    />
-
-                    {/* Building markers */}
-                    <BuildingMarkers
-                        buildings={buildings}
-                        onBuildingClick={handleBuildingClick}
-                    />
-
-                    {/* User location marker (GPS) */}
-                    <UserLocationMarker
-                        geolocation={geolocation}
-                        showAccuracyCircle={true}
-                    />
-
-                    {/* Zoom level display */}
-                    <ZoomLevelDisplay onZoomChange={setCurrentZoom} />
-
-                    {/* Location button */}
-                    <LocationButton
-                        geolocation={geolocation}
-                        autoCenter={false}
-                    />
-
-                    {/* Visual Overlays - Moved to below MapClickHandler or handle via TerritoryOverlay */}
-                    {/* <TileOverlay ownedTiles={ownedTiles} /> Legacy removed */}
-
-                    {/* Territory Overlay (Radius System) */}
-                    <TerritoryOverlay territories={territories} currentUserId={userId} />
-
-                    <MapResizer />
-                    <MapClickHandler
-                        isConstructing={isConstructing}
-                        geolocation={geolocation}
-                        playerPosition={playerPosition}
-                        maxMovementRange={maxMovementRange}
-                        onMove={handlePlayerMove}
                         calculateDistance={calculateDistance}
-                        onError={(msg: string) => showToast(msg, 'error')}
-                        onTileClick={handleTileClick}
+                        buildings={buildings}
+                        setSelectedBuilding={setSelectedBuilding}
+                        selectedTile={selectedTile}
+                        setSelectedTile={setSelectedTile}
+                        setMap={setMap}
+                        territories={territories}
                     />
-                </MapContainer>
 
-                {/* Unified Floating Game Panel */}
-                <FloatingGamePanel
+                    {/* Fixed floating toast */}
+                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[2000] pointer-events-none w-auto flex justify-center">
+                        <ToastNotification
+                            message={toast.message}
+                            type={toast.type}
+                            show={toast.show}
+                            onClose={() => setToast({ ...toast, show: false })}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Side Panel (Fixed right on Desktop, Fixed Bottom on Mobile) */}
+            <div className="fixed bottom-0 left-0 w-full h-[45vh] md:static md:w-[400px] md:h-full shrink-0 z-[5000] border-t md:border-t-0 md:border-l border-slate-700 shadow-xl bg-slate-900">
+                <GameControlPanel
                     playerPosition={playerPosition}
                     playerResources={playerResources}
                     buildings={buildings}
                     isConstructing={isConstructing}
+                    constructingBuildingName={constructingBuildingName}
                     constructionTimeLeft={constructionTimeLeft}
                     minions={minions}
+                    currentTick={currentTick}
                     onBuild={handleBuildingConstruct}
-                    onBuildingClick={handleBuildingClick}
+                    onBuildingClick={(b) => {
+                        setSelectedBuilding(b);
+                        setSelectedTile(null);
+                    }}
+                    selectedTile={selectedTile}
+                    onCloseTileInfo={() => setSelectedTile(null)}
+                    onMoveToTile={(lat, lng) => handleMoveToTile(lat, lng)}
+
+                    selectedBuilding={selectedBuilding}
+                    onCloseBuildingInfo={() => setSelectedBuilding(null)}
+                    demolitionStates={demolitionStates}
+                    onBuildingAction={(action, buildingId) => {
+                        if (action === 'assign') {
+                            setShowAssignModal(true);
+                        } else if (action === 'collect') {
+                            showToast('자원 수집 완료! (구현 예정)', 'success');
+                        } else if (action === 'destroy') {
+                            handleRequestDemolition(buildingId);
+                        } else if (action === 'cancel_destroy') {
+                            handleCancelDemolition(buildingId);
+                        }
+                    }}
+
                     currentTileProvider={tileProvider.id}
                     onTileProviderChange={setTileProvider}
                     tileProviders={TILE_PROVIDERS}
                 />
-
-                <div className="absolute bottom-4 left-4 z-[1000] text-gray-500 text-xs font-mono pointer-events-none">
-                    TERRAIN // GAME_MODE // {tileProvider.name.toUpperCase()}
-                </div>
             </div>
 
-            {/* Building Interaction Modals */}
-            {selectedBuilding && (
-                <>
-                    <BuildingInteractionModal
-                        building={selectedBuilding}
-                        isOpen={showBuildingModal}
-                        onClose={() => setShowBuildingModal(false)}
-                        onAssignUnit={handleAssignUnit}
-                        onCollectResources={handleCollectResources}
-                        onDestroyBuilding={handleDestroyBuilding}
-                    />
-                    <AssignUnitModal
-                        buildingId={selectedBuilding.id}
-                        buildingType={selectedBuilding.type}
-                        isOpen={showAssignModal}
-                        onClose={() => setShowAssignModal(false)}
-                        onAssigned={handleAssignComplete}
-                    />
-                </>
-            )}
-
-
-            {/* Tile Info Modal */}
-            {showTileModal && selectedTile && (
-                <TileInfoModal
-                    tile={selectedTile}
-                    buildings={tileBuildings}
-                    onClose={() => setShowTileModal(false)}
-                    onClaim={handleClaimTile} // Deprecated but kept for type signature if needed
-                    onBuild={handleConstructBuilding}
-                    onMove={(x, y) => handlePlayerMove([selectedTile.clickLat || 0, selectedTile.clickLng || 0])}
-                    userId={userId ? parseInt(userId) : null}
-                    position={popupPosition}
+            {/* Modals outside map container context */}
+            {showAssignModal && selectedBuilding && (
+                <AssignUnitModal
+                    buildingId={selectedBuilding.id}
+                    buildingType={selectedBuilding.type}
+                    isOpen={showAssignModal}
+                    onClose={() => setShowAssignModal(false)}
+                    onAssigned={() => {
+                        console.log(`Assigned unit to building ${selectedBuilding.id}`);
+                        setShowAssignModal(false);
+                        showToast(`유닛 배치 완료`, 'success');
+                    }}
                 />
             )}
-
-            {/* Toast Notification */}
-            <ToastNotification
-                show={toast.show}
-                message={toast.message}
-                type={toast.type}
-                onClose={() => setToast(prev => ({ ...prev, show: false }))}
-            />
         </div>
     );
 }
 
 // Helper moved outside to avoid dependency cycle
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371; // Earth's radius in km
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a =

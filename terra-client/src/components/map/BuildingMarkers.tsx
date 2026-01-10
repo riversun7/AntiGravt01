@@ -66,7 +66,8 @@ export default function BuildingMarkers({ buildings, onBuildingClick }: Building
                     position={[building.lat, building.lng]}
                     icon={getBuildingIcon(building.type)}
                     eventHandlers={{
-                        click: () => {
+                        click: (e) => {
+                            L.DomEvent.stopPropagation(e as any);
                             if (onBuildingClick) {
                                 onBuildingClick(building);
                             }

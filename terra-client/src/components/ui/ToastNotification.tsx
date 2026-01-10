@@ -38,8 +38,8 @@ export default function ToastNotification({ message, type = 'info', show, onClos
     };
 
     return (
-        <div className={`fixed top-24 left-1/2 transform -translate-x-1/2 z-[2000] px-6 py-3 rounded-lg border shadow-lg transition-all animate-bounce ${bgColors[type]} ${borderColors[type]}`}>
-            <span className={`font-semibold text-sm ${textColors[type]}`}>
+        <div className={`pointer-events-auto flex items-center gap-2 px-6 py-3 rounded-full shadow-lg backdrop-blur-md border border-white/10 transition-all ${bgColors[type]} ${borderColors[type]}`}>
+            <span className={`font-medium text-sm whitespace-nowrap ${textColors[type]}`}>
                 {message}
             </span>
         </div>

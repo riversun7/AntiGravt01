@@ -1,36 +1,88 @@
 import { Polygon, Tooltip } from 'react-leaflet';
+import { useMemo } from 'react';
+import * as L from 'leaflet';
 
-interface Territory {
+export interface Territory {
     id: number;
     user_id: string | number;
     x: number; // lat
     y: number; // lng
     territory_radius: number; // km
     is_territory_center: number; // 1 or 0
+    custom_boundary?: string; // JSON string of coordinates
+    // Parsed cache
+    _boundaryPoints?: [number, number][]; // Flattened ring for logic
+    _rawBoundary?: any; // Leaflet format for render
 }
 
 interface TerritoryOverlayProps {
     territories: Territory[];
     currentUserId: string | null;
+    onTerritoryClick?: (territory: Territory, e: any) => void;
 }
 
-export default function TerritoryOverlay({ territories, currentUserId }: TerritoryOverlayProps) {
-    if (!territories || territories.length === 0) return null;
+export default function TerritoryOverlay({ territories, currentUserId, onTerritoryClick }: TerritoryOverlayProps) {
+    // Pre-process territories to parse boundaries once
+    const processedTerritories = useMemo(() => {
+        if (!territories) return [];
+        return territories.map(t => {
+            if (t.custom_boundary) {
+                try {
+                    const parsed = JSON.parse(t.custom_boundary);
+                    // Handle Leaflet MultiPolygon or simple Polygon structure
+                    // Support [[[lat,lng],..]] (Leaflet default for single poly often nested)
+                    // Flatten if necessary to get the outer ring for clipping checks
+                    let ring: [number, number][] = [];
+
+                    // Allow simple [[lat,lng],...] or nested [[[lat,lng],...]]
+                    if (Array.isArray(parsed[0]) && typeof parsed[0][0] === 'number') {
+                        ring = parsed as [number, number][];
+                    } else if (Array.isArray(parsed[0]) && Array.isArray(parsed[0][0])) {
+                        // Take the first ring of the polygon
+                        ring = parsed[0] as [number, number][];
+                    } else {
+                        // Fallback
+                        ring = parsed as any;
+                    }
+
+                    return { ...t, _boundaryPoints: ring, _rawBoundary: parsed };
+                } catch (e) {
+                    console.error("Bound parse err", e);
+                    return t;
+                }
+            }
+            return t;
+        });
+    }, [territories]);
+
+    if (!processedTerritories || processedTerritories.length === 0) return null;
 
     return (
         <>
-            {territories.map((t) => {
+            {processedTerritories.map((t) => {
                 const isMine = String(t.user_id) === String(currentUserId);
-                const color = isMine ? '#00FFFF' : '#FF4444'; // Cyan for mine, Red for others
+                const color = isMine ? '#00FFFF' : '#FF4444';
 
                 // Calculate geometry
-                const positions = calculateClippedTerritory(t, territories);
+                let positions: any = [];
+                if (t._rawBoundary) {
+                    // Absolute Territory -> Render exact shape
+                    positions = t._rawBoundary;
+                } else {
+                    positions = calculateClippedTerritory(t, processedTerritories);
+                }
 
                 return (
                     <Polygon
                         key={t.id}
                         positions={positions}
-                        interactive={false} // Disable interaction so clicks pass through to map
+                        interactive={true}
+                        eventHandlers={{
+                            click: (e) => {
+                                L.DomEvent.stopPropagation(e.originalEvent);
+                                if (onTerritoryClick) onTerritoryClick(t, e);
+                            }
+                        }}
                         pathOptions={{
                             color: color,
                             fillColor: color,
@@ -42,7 +94,7 @@ export default function TerritoryOverlay({ territories, currentUserId }: Territo
                         <Tooltip sticky direction="top">
                             {isMine ? "My Territory" : `Territory #${t.id}`}
                             <br />
-                            Radius: {t.territory_radius}km
+                            {t.custom_boundary ? "Absolute Territory" : `Radius: ${t.territory_radius}km`}
                         </Tooltip>
                     </Polygon>
                 );
@@ -60,7 +112,6 @@ function calculateClippedTerritory(current: Territory, all: Territory[]): [numbe
     const latRad = current.x * Math.PI / 180;
     const lngScale = Math.cos(latRad);
 
-    // Radius in degrees (approximate: 1 deg lat = 111km)
     const maxRadiusDeg = current.territory_radius / 111.32;
 
     // Convert current to "Projected" space
@@ -78,27 +129,70 @@ function calculateClippedTerritory(current: Territory, all: Territory[]): [numbe
         for (const other of all) {
             if (other.id === current.id) continue;
 
+            // ABSOLUTE TERRITORY CHECK (Polygon Clipping)
+            if (other._boundaryPoints) {
+                // Project Polygon points and intersect
+                const poly = other._boundaryPoints;
+                // Optimization Check: Distance to Center of Polygon? 
+                // Or simplified BBox check. 
+                // Let's assume poly is close enough to check.
+
+                for (let j = 0; j < poly.length; j++) {
+                    const p1 = poly[j];
+                    const p2 = poly[(j + 1) % poly.length];
+
+                    // Project Coordinates
+                    const ax = p1[1] * lngScale; const ay = p1[0];
+                    const bx = p2[1] * lngScale; const by = p2[0];
+
+                    // Intersection: Ray(cx,cy, ux,uy) vs Segment(ax,ay, bx,by)
+                    // Ray: P = O + tD
+                    // Seg: P = A + u(B-A)
+
+                    const v1x = ax - cx;
+                    const v1y = ay - cy;
+                    const v2x = bx - ax; // Segment Vector
+                    const v2y = by - ay;
+                    // Ray Vector (ux, uy)
+
+                    // Solve for t (Ray Dist) and u (Seg Param)
+                    // O + tD = A + uV2
+                    // tD - uV2 = A - O
+                    // Matrix: [ux  -v2x] [t] = [v1x]
+                    //         [uy  -v2y] [u] = [v1y]
+
+                    const det = ux * (-v2y) - (-v2x) * uy; // -ux*v2y + v2x*uy
+                    if (Math.abs(det) < 1e-9) continue; // Parallel
+
+                    const t = (v1x * (-v2y) - (-v2x) * v1y) / det;
+                    const u = (ux * v1y - v1x * uy) / det;
+
+                    if (u >= 0 && u <= 1 && t > 0) {
+                        // Valid intersection with segment
+                        if (t < rayLen) {
+                            rayLen = t;
+                            // We found a hard wall.
+                        }
+                    }
+                }
+                continue;
+            }
+
+            // STANDARD VORONOI CHECK (Circle/Point Clipping)
             const ox = other.y * lngScale;
             const oy = other.x;
 
-            // Vector to neighbor
             const vx = ox - cx;
             const vy = oy - cy;
             const distSq = vx * vx + vy * vy;
             const dist = Math.sqrt(distSq);
 
-            // Optimization: If neighbor is too far (sum of radii), ignore
-            // Max possible interaction distance is roughly (r1 + r2) / 111
-            // 10km / 111 ~= 0.1 deg. If dist > 0.15, likely no overlap.
+            // Optimization
             if (dist > (current.territory_radius + other.territory_radius) / 111.0 * 1.5) continue;
 
-            // Dot product of Ray Direction and Vector to Neighbor
             const dot = ux * vx + uy * vy;
 
-            // If dot > 0, neighbor is roughly in front. Check bisector intersection.
             if (dot > 0) {
-                // Distance to bisector along ray
-                // t = (0.5 * |V|^2) / (U . V)
                 const t = (0.5 * distSq) / dot;
                 if (t < rayLen) {
                     rayLen = t;
@@ -106,7 +200,6 @@ function calculateClippedTerritory(current: Territory, all: Territory[]): [numbe
             }
         }
 
-        // Convert back to Lat/Lng
         const px = cx + ux * rayLen;
         const py = cy + uy * rayLen;
         const finalLng = px / lngScale;
