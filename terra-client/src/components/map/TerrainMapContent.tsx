@@ -9,6 +9,7 @@ import MapClickHandler from "./MapClickHandler";
 import PlayerMarker from "./PlayerMarker";
 import BuildingMarkers from "./BuildingMarkers";
 import SelectedPointMarker from "./SelectedPointMarker";
+import PathOverlay from "./PathOverlay";
 
 interface GeolocationState {
     loading: boolean;
@@ -56,6 +57,9 @@ interface TerrainMapContentProps {
     setSelectedTile: (t: unknown) => void; // Keeping unknown for selectedTile as it has complex structure
     setMap: (map: L.Map | null) => void;
     territories: Territory[];
+    path?: Array<{ lat: number; lng: number }>;
+    waypoints?: Array<{ lat: number; lng: number }>;
+    onWaypointRemove?: (index: number) => void;
 }
 
 export default function TerrainMapContent({
@@ -79,7 +83,10 @@ export default function TerrainMapContent({
     selectedTile,
     setSelectedTile,
     setMap,
-    territories
+    territories,
+    path = [],
+    waypoints = [],
+    onWaypointRemove
 }: TerrainMapContentProps) {
 
     // Fix Leaflet Icons
@@ -104,11 +111,9 @@ export default function TerrainMapContent({
             zoomControl={false}
             minZoom={2}
             maxZoom={tileProvider.maxZoom || 19}
-            ref={setMap}
             doubleClickZoom={false}
         >
             <TileLayer
-                key={tileProvider.id}
                 attribution={tileProvider.attribution}
                 url={tileProvider.url}
                 maxZoom={tileProvider.maxZoom}
@@ -134,6 +139,12 @@ export default function TerrainMapContent({
                         ? [selectedTile.clickLat, selectedTile.clickLng]
                         : null
                 }
+            />
+
+            <PathOverlay
+                path={path}
+                waypoints={waypoints}
+                onWaypointClick={onWaypointRemove}
             />
 
             <MapClickHandler

@@ -4,6 +4,68 @@ import { useState, useRef, useEffect } from 'react';
 import { Info, Hammer, Map, Zap, UserPlus, LucideIcon, MapPin, X } from 'lucide-react';
 import { TileProvider } from '@/components/map/TileProviderSelector';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+// Internal NPC Spawner Component
+function NPCSpawner({ selectedTile }: { selectedTile: any }) {
+    const [name, setName] = useState('');
+    const [color, setColor] = useState('#ff0000');
+
+    const handleSpawn = async () => {
+        if (!name) return alert('Name is required');
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/admin/spawn-free-npc`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    color,
+                    lat: selectedTile?.clickLat,
+                    lng: selectedTile?.clickLng
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Spawned!');
+                setName('');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Spawn failed');
+        }
+    };
+
+    return (
+        <div className="flex flex-col gap-2">
+            <input
+                type="text"
+                placeholder="Faction Name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                className="bg-slate-900 border border-slate-700 text-white text-xs p-1 rounded"
+            />
+            <div className="flex gap-2">
+                <input
+                    type="color"
+                    value={color}
+                    onChange={e => setColor(e.target.value)}
+                    className="h-6 w-6 rounded cursor-pointer"
+                />
+                <button
+                    onClick={handleSpawn}
+                    disabled={!selectedTile}
+                    className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded"
+                >
+                    Spawn Here
+                </button>
+            </div>
+            {!selectedTile && <div className="text-[10px] text-orange-400">Select a tile first</div>}
+        </div>
+    );
+}
+
 interface GameControlPanelProps {
     // Info tab
     playerPosition: [number, number];
@@ -13,6 +75,7 @@ interface GameControlPanelProps {
     constructingBuildingName?: string | null;
     constructionTimeLeft: number;
     currentTick?: number;
+    isAdmin?: boolean; // Added prop for Admin Mode
 
     // Units tab
     minions: Array<{ id: number; name: string; type: string; hp: number; battery: number; fatigue: number; status?: string }>;
@@ -59,6 +122,7 @@ export default function GameControlPanel({
     constructingBuildingName,
     constructionTimeLeft,
     currentTick = 0,
+    isAdmin = true, // Default true for prototype
     minions = [],
     onBuild,
     onBuildingClick,
@@ -76,13 +140,50 @@ export default function GameControlPanel({
     tileProviders,
 }: GameControlPanelProps) {
     const [activeTab, setActiveTab] = useState<TabType>('info');
+    const [terrainInfo, setTerrainInfo] = useState<any>(null);
+
+    // Fetch Terrain Info
+    useEffect(() => {
+        if (selectedTile) {
+            fetch(`${API_BASE_URL}/api/map/terrain?lat=${selectedTile.clickLat}&lng=${selectedTile.clickLng}`)
+                .then(res => res.json())
+                .then(data => setTerrainInfo(data))
+                .catch(err => console.error(err));
+        } else {
+            setTerrainInfo(null);
+        }
+    }, [selectedTile]);
+
+    // Admin Terrain Set Helper
+    const setTerrainOverride = async (type: string) => {
+        if (!selectedTile) return;
+        try {
+            const x = Math.floor((selectedTile.clickLng + 180) / 360 * 160);
+            const y = Math.floor((90 - selectedTile.clickLat) / 180 * 80);
+
+            await fetch(`${API_BASE_URL}/api/admin/tile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    x, y,
+                    terrain_type: type,
+                    notes: 'Admin Tool'
+                })
+            });
+            // Refresh
+            const res = await fetch(`${API_BASE_URL}/api/map/terrain?lat=${selectedTile.clickLat}&lng=${selectedTile.clickLng}`);
+            const data = await res.json();
+            setTerrainInfo(data);
+        } catch (e) { console.error(e); }
+    };
 
     // Auto-switch to 'info' or a 'selection' view when tile or building is selected
-    useEffect(() => {
-        if (selectedTile || selectedBuilding || selectedTerritory) {
-            setActiveTab('info');
-        }
-    }, [selectedTile, selectedBuilding, selectedTerritory]);
+    // Auto-switch removed by user request
+    // useEffect(() => {
+    //     if (selectedTile || selectedBuilding || selectedTerritory) {
+    //         setActiveTab('info');
+    //     }
+    // }, [selectedTile, selectedBuilding, selectedTerritory]);
 
     const tabs: Array<{ id: TabType; label: string; icon: LucideIcon }> = [
         { id: 'info', label: '정보', icon: Info },
@@ -166,7 +267,9 @@ export default function GameControlPanel({
                             <div className="flex items-center gap-2">
                                 <MapPin className="text-cyan-400" size={18} />
                                 <span className="font-bold text-white text-md">
-                                    {selectedTile.name || `Sector ${selectedTile.x}, ${selectedTile.y}`}
+                                    {selectedTile.name || (selectedTile.clickLat && selectedTile.clickLng
+                                        ? `Loc: ${selectedTile.clickLat.toFixed(4)}, ${selectedTile.clickLng.toFixed(4)}`
+                                        : 'Location Selected')}
                                 </span>
                             </div>
                             <button onClick={onCloseTileInfo} className="text-slate-400 hover:text-white p-1">
@@ -179,6 +282,22 @@ export default function GameControlPanel({
                             <div>Owner: <span className={selectedTile.owner_id ? "text-green-400" : "text-slate-500"}>
                                 {selectedTile.owner_id ? `User ${selectedTile.owner_id}` : 'Create New'}
                             </span></div>
+                            <div className="col-span-2 bg-slate-800 p-2 rounded mt-2 border border-slate-700">
+                                <div className="text-[10px] text-slate-400 uppercase font-bold">TERRAIN SCAN</div>
+                                {terrainInfo ? (
+                                    <div className="flex justify-between items-center mt-1">
+                                        <div className="text-white font-bold flex items-center gap-2">
+                                            {terrainInfo.type === 'MOUNTAIN' ? '⛰️' : terrainInfo.type === 'WATER' ? '🌊' : '🌲'}
+                                            {terrainInfo.type}
+                                        </div>
+                                        <div className="text-cyan-400 font-mono text-xs">
+                                            {terrainInfo.elevation?.toFixed(1)}m
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-slate-500 italic">Scanning...</div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 mt-auto">
@@ -560,6 +679,39 @@ export default function GameControlPanel({
                         </div>
                     </div>
                 )}
+
+                {/* Admin Tools (Inside Settings for now) */}
+                {activeTab === 'settings' && isAdmin && (
+                    <div className="space-y-4 mt-6 pt-4 border-t border-slate-700">
+                        <h3 className="text-sm font-semibold text-red-400 mb-2 flex items-center gap-2">
+                            <span className="animate-pulse">🛠️</span> Admin Tools
+                        </h3>
+
+                        {/* Terrain Editor */}
+                        <div className="bg-slate-800/50 p-3 rounded">
+                            <div className="text-xs text-slate-300 font-bold mb-2">Terrain Editor</div>
+                            <div className="text-xs text-slate-400 mb-2">
+                                Select a tile on map to edit.
+                            </div>
+                            {selectedTile ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button onClick={() => setTerrainOverride('MOUNTAIN')} className="bg-slate-800 p-2 text-xs border border-slate-600 hover:bg-slate-700 text-white rounded">Mountain ⛰️</button>
+                                    <button onClick={() => setTerrainOverride('WATER')} className="bg-slate-800 p-2 text-xs border border-slate-600 hover:bg-slate-700 text-white rounded">Water 🌊</button>
+                                    <button onClick={() => setTerrainOverride('FOREST')} className="bg-slate-800 p-2 text-xs border border-slate-600 hover:bg-slate-700 text-white rounded">Forest 🌲</button>
+                                    <button onClick={() => setTerrainOverride('PLAIN')} className="bg-slate-800 p-2 text-xs border border-slate-600 hover:bg-slate-700 text-white rounded">Plain 🌾</button>
+                                </div>
+                            ) : (
+                                <div className="text-xs text-orange-400 italic">No tile selected</div>
+                            )}
+                        </div>
+
+                        {/* NPC Spawner */}
+                        <div className="bg-slate-800/50 p-3 rounded mt-2">
+                            <div className="text-xs text-slate-300 font-bold mb-2">Spawn Free NPC Faction</div>
+                            <NPCSpawner selectedTile={selectedTile} />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Bottom Tabs Navigation */}
@@ -583,6 +735,6 @@ export default function GameControlPanel({
                     );
                 })}
             </div>
-        </div>
+        </div >
     );
 }

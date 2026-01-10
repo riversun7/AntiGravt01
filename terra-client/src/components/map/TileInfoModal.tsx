@@ -22,6 +22,8 @@ interface TerritoryInfo {
 export interface Tile {
     x: number;
     y: number;
+    clickLat?: number;
+    clickLng?: number;
     type: string;
     name?: string;
     owner_id?: number | null;
@@ -34,7 +36,7 @@ interface TileInfoModalProps {
     onClose: () => void;
     onClaim?: () => void;
     onBuild?: (buildingType: string) => void;
-    onMove?: (x: number, y: number) => void;
+    onMove?: (lat: number, lng: number) => void;
     userId: number | null;
     position: { x: number; y: number };
 }
@@ -125,7 +127,11 @@ export default function TileInfoModal({ tile, buildings = [], territoryInfo, onC
                     ) : (
                         <>
                             <MapPin className="text-cyan-400" size={16} />
-                            <span className="font-bold text-white text-sm">{tile?.name || `Sector ${tile?.x}, ${tile?.y}`}</span>
+                            <span className="font-bold text-white text-sm">
+                                {tile?.name || (tile?.clickLat && tile?.clickLng
+                                    ? `Loc: ${tile.clickLat.toFixed(4)}, ${tile.clickLng.toFixed(4)}`
+                                    : 'Location Selected')}
+                            </span>
                         </>
                     )}
                 </div>
@@ -190,7 +196,11 @@ export default function TileInfoModal({ tile, buildings = [], territoryInfo, onC
             <div className="grid grid-cols-3 gap-2 mb-2">
                 {onMove && tile && (
                     <button
-                        onClick={() => onMove(tile.x, tile.y)}
+                        onClick={() => {
+                            if (tile.clickLat && tile.clickLng) {
+                                onMove(tile.clickLat, tile.clickLng);
+                            }
+                        }}
                         className="flex flex-col items-center justify-center p-2 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/50 rounded transition-colors"
                     >
                         <span className="text-lg mb-1">🏃</span>

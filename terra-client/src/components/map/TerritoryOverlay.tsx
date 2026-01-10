@@ -10,6 +10,9 @@ export interface Territory {
     territory_radius: number; // km
     is_territory_center: number; // 1 or 0
     custom_boundary?: string; // JSON string of coordinates
+    color?: string; // Hex color from server
+    owner_name?: string;
+    npc_type?: string;
     // Parsed cache
     _boundaryPoints?: [number, number][]; // Flattened ring for logic
     _rawBoundary?: any; // Leaflet format for render
@@ -29,19 +32,13 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
             if (t.custom_boundary) {
                 try {
                     const parsed = JSON.parse(t.custom_boundary);
-                    // Handle Leaflet MultiPolygon or simple Polygon structure
-                    // Support [[[lat,lng],..]] (Leaflet default for single poly often nested)
-                    // Flatten if necessary to get the outer ring for clipping checks
                     let ring: [number, number][] = [];
 
-                    // Allow simple [[lat,lng],...] or nested [[[lat,lng],...]]
                     if (Array.isArray(parsed[0]) && typeof parsed[0][0] === 'number') {
                         ring = parsed as [number, number][];
                     } else if (Array.isArray(parsed[0]) && Array.isArray(parsed[0][0])) {
-                        // Take the first ring of the polygon
                         ring = parsed[0] as [number, number][];
                     } else {
-                        // Fallback
                         ring = parsed as any;
                     }
 
@@ -61,12 +58,12 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
         <>
             {processedTerritories.map((t) => {
                 const isMine = String(t.user_id) === String(currentUserId);
-                const color = isMine ? '#00FFFF' : '#FF4444';
+                // Use server color if available, else fallback
+                const color = t.color || (isMine ? '#00FFFF' : '#FF4444');
 
                 // Calculate geometry
                 let positions: any = [];
                 if (t._rawBoundary) {
-                    // Absolute Territory -> Render exact shape
                     positions = t._rawBoundary;
                 } else {
                     positions = calculateClippedTerritory(t, processedTerritories);
@@ -86,15 +83,17 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                         pathOptions={{
                             color: color,
                             fillColor: color,
-                            fillOpacity: 0.1,
-                            weight: 2,
-                            dashArray: isMine ? undefined : '5, 10'
+                            fillOpacity: t.npc_type === 'ABSOLUTE' ? 0.3 : 0.15, // Denser for official nations
+                            weight: isMine ? 3 : 2,
+                            dashArray: isMine || t.npc_type === 'ABSOLUTE' ? undefined : '5, 5'
                         }}
                     >
                         <Tooltip sticky direction="top">
-                            {isMine ? "My Territory" : `Territory #${t.id}`}
-                            <br />
-                            {t.custom_boundary ? "Absolute Territory" : `Radius: ${t.territory_radius}km`}
+                            <div className="text-center">
+                                <strong>{t.owner_name || `Territory #${t.id}`}</strong>
+                                <br />
+                                <span className="text-xs">{t.npc_type === 'ABSOLUTE' ? 'City-State' : (t.npc_type === 'FREE' ? 'Free Faction' : 'User Territory')}</span>
+                            </div>
                         </Tooltip>
                     </Polygon>
                 );

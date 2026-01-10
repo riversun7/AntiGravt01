@@ -1,11 +1,7 @@
-const Database = require('better-sqlite3');
 const path = require('path');
+const db = require('./database');
 
-// Match database.js path logic
-const dbPath = path.join(__dirname, '..', 'terra-data', 'db', 'terra.db');
-const db = new Database(dbPath);
-
-console.log('Connected to:', dbPath);
+console.log('Connected to database via module');
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
 console.log('Tables:', tables.map(t => t.name));
 
@@ -34,72 +30,112 @@ const capitals = [
 ];
 
 db.transaction(() => {
-    // 1. Update/Create Users with NPC Type
+    // 1. Seed Factions & Capital Users (Absolute)
     for (const f of factions) {
+        // Check/Create Faction
+        let faction = db.prepare('SELECT id FROM factions WHERE name = ?').get(f.name);
+        if (!faction) {
+            const info = db.prepare('INSERT INTO factions (name, tag, description, color, type) VALUES (?, ?, ?, ?, ?)')
+                .run(f.name, f.username.slice(0, 3).toUpperCase(), f.desc, f.color, 'ABSOLUTE');
+            faction = { id: info.lastInsertRowid };
+            console.log(`Created Absolute Faction: ${f.name}`);
+        }
+
+        // Check/Create Leader User
         let user = db.prepare('SELECT id FROM users WHERE username = ?').get(f.username);
+        const personality = f.personality || 'Balanced';
+        const tech = f.tech || 'Balanced';
+
         if (!user) {
-            const info = db.prepare('INSERT INTO users (username, password, npc_type) VALUES (?, ?, ?)')
-                .run(f.username, 'npc_password', 'ABSOLUTE');
+            const info = db.prepare('INSERT INTO users (username, password, npc_type, personality, tech_focus, faction_id, faction_rank) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                .run(f.username, 'npc_password', 'ABSOLUTE', personality, tech, faction.id, 2); // Rank 2 = Leader
             user = { id: info.lastInsertRowid };
-            console.log(`Created faction user: ${f.name}`);
+            console.log(`Created Leader User: ${f.username}`);
             db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(user.id, 999999, 999999);
         } else {
-            // Update existing NPC to ABSOLUTE
-            db.prepare('UPDATE users SET npc_type = \'ABSOLUTE\' WHERE id = ?').run(user.id);
-            console.log(`Updated faction user type: ${f.name}`);
+            // Update existing NPC
+            db.prepare('UPDATE users SET faction_id = ?, faction_rank = 2, npc_type = \'ABSOLUTE\' WHERE id = ?').run(faction.id, user.id);
         }
-        f.id = user.id;
+
+        // Link Leader to Faction
+        db.prepare('UPDATE factions SET leader_id = ? WHERE id = ?').run(user.id, faction.id);
+        f.id = user.id; // Keep user ID for building ownership
     }
 
-    // 2. Update Capitals (Command Centers)
+    // 2. Seed Free Factions (Wanderers/Warlords)
+    const freeFactions = [
+        { name: 'Red Scorpions', username: 'free_scorpion', npc_type: 'FREE', personality: 'Aggressive', tech: 'Military', color: '#FF8800' },
+        { name: 'Trade Convoy Alpha', username: 'free_merchant', npc_type: 'FREE', personality: 'Merchant', tech: 'Industrial', color: '#00CCFF' },
+        { name: 'Lost Battalion', username: 'free_battalion', npc_type: 'FREE', personality: 'Defensive', tech: 'Military', color: '#555555' }
+    ];
+
+    for (const f of freeFactions) {
+        // Faction
+        let faction = db.prepare('SELECT id FROM factions WHERE name = ?').get(f.name);
+        if (!faction) {
+            const info = db.prepare('INSERT INTO factions (name, tag, description, color, type) VALUES (?, ?, ?, ?, ?)')
+                .run(f.name, f.username.slice(0, 3).toUpperCase(), 'Free Roaming Faction', f.color, 'FREE');
+            faction = { id: info.lastInsertRowid };
+            console.log(`Created Free Faction: ${f.name}`);
+        }
+
+        // Leader User
+        let user = db.prepare('SELECT id FROM users WHERE username = ?').get(f.username);
+        if (!user) {
+            const info = db.prepare('INSERT INTO users (username, password, npc_type, personality, tech_focus, faction_id, faction_rank) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                .run(f.username, 'npc_password', 'FREE', f.personality, f.tech, faction.id, 2);
+            user = { id: info.lastInsertRowid };
+
+            // Give resources & Outpost
+            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(user.id, 5000, 100);
+
+            // Random location
+            const wx = Math.floor(Math.random() * 20) - 10;
+            const wy = Math.floor(Math.random() * 20) - 10;
+            const realX = 36.0 + (wx * 0.1);
+            const realY = 127.0 + (wy * 0.1);
+
+            db.prepare(`
+                 INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level)
+                 VALUES (?, 'OUTPOST', ?, ?, ?, ?, 1, 2.0, 1)
+             `).run(user.id, realX, realY, wx, wy);
+            console.log(`- Established Outpost for ${f.name}`);
+
+        } else {
+            db.prepare('UPDATE users SET faction_id = ?, faction_rank = 2, npc_type = \'FREE\' WHERE id = ?').run(faction.id, user.id);
+        }
+
+        db.prepare('UPDATE factions SET leader_id = ? WHERE id = ?').run(user.id, faction.id);
+    }
+
+    // 3. Update Capitals (Command Centers)
     const checkBldg = db.prepare('SELECT id FROM user_buildings WHERE user_id = ? AND type = ? AND x = ? AND y = ?');
     const insertBldg = db.prepare(`
         INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level, custom_boundary)
         VALUES (?, 'COMMAND_CENTER', ?, ?, 0, 0, 1, ?, 5, ?)
     `);
-    const updateBoundary = db.prepare('UPDATE user_buildings SET custom_boundary = ? WHERE id = ?');
 
-    // Polygon for Seoul (Octagon)
-    // Center: 37.5665, 126.9780, Radius ~0.15
+    // Polygon for Seoul (Octagon) - Reused
     const seoulBoundary = JSON.stringify([
-        [
-            [37.7165, 126.9780], // N
-            [37.6726, 127.0841], // NE
-            [37.5665, 127.1280], // E
-            [37.4604, 127.0841], // SE
-            [37.4165, 126.9780], // S
-            [37.4604, 126.8719], // SW
-            [37.5665, 126.8280], // W
-            [37.6726, 126.8719]  // NW
-        ]
+        [[37.7165, 126.9780], [37.6726, 127.0841], [37.5665, 127.1280], [37.4604, 127.0841],
+        [37.4165, 126.9780], [37.4604, 126.8719], [37.5665, 126.8280], [37.6726, 126.8719]]
     ]);
 
     for (const c of capitals) {
-        const faction = factions.find(f => f.username === c.faction);
-        if (!faction) {
-            console.log("Faction not found for", c.faction);
-            continue;
-        }
+        // Find User ID map
+        // Usernames match c.faction (rok_npc, etc)
+        const u = db.prepare('SELECT id FROM users WHERE username = ?').get(c.faction);
+        if (!u) continue;
 
-        let boundary = null;
-        if (c.faction === 'rok_npc') boundary = seoulBoundary;
-
-        const exists = checkBldg.get(faction.id, 'COMMAND_CENTER', c.x, c.y);
-        // console.log(`Checking ${c.name}: Exists? ${!!exists}`);
+        let boundary = (c.faction === 'rok_npc') ? seoulBoundary : null;
+        const exists = checkBldg.get(u.id, 'COMMAND_CENTER', c.x, c.y);
 
         if (!exists) {
-            insertBldg.run(faction.id, c.x, c.y, c.radius, boundary);
-            console.log(`Established ${c.name} at ${c.x}, ${c.y}`);
+            insertBldg.run(u.id, c.x, c.y, c.radius, boundary);
+            console.log(`Established ${c.name}`);
         } else {
-            // Update boundary if specific city
-            if (boundary) {
-                console.log(`Updating boundary for ${c.name}, ID: ${exists.id}`);
-                const res = updateBoundary.run(boundary, exists.id);
-                console.log(`Changes: ${res.changes}`);
-            } else {
-                // Ensure radius is set even if not boundary
-                db.prepare('UPDATE user_buildings SET territory_radius = ? WHERE id = ?').run(c.radius, exists.id);
-            }
+            // Ensure radius/boundary updates
+            if (boundary) db.prepare('UPDATE user_buildings SET custom_boundary = ? WHERE id = ?').run(boundary, exists.id);
         }
     }
 })();

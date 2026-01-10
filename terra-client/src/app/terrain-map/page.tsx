@@ -31,6 +31,10 @@ const TileInfoModal = dynamic(
     () => import('@/components/map/TileInfoModal'),
     { ssr: false }
 );
+const DiplomacyPanel = dynamic(
+    () => import('@/components/ui/DiplomacyPanel'),
+    { ssr: false }
+);
 
 // Other helper function imports retained if needed but components like TerritoryOverlay are now inside TerrainMapContent
 
@@ -72,6 +76,14 @@ export default function TerrainMapPage() {
     const [territories, setTerritories] = useState<any[]>([]);
 
     const handleTileClick = async (lat: number, lng: number, point?: { x: number; y: number }) => {
+        // If in Path Planning mode, add/remove waypoint
+        if (isPathPlanning) {
+            const newWaypoints = [...waypoints, { lat, lng }];
+            setWaypoints(newWaypoints);
+            calculatePath(newWaypoints);
+            return;
+        }
+
         setSelectedTerritory(null); // Clear territory selection
         const x = Math.floor((lng + 180) / 360 * 160);
         const y = Math.floor((90 - lat) / 180 * 80);
@@ -168,6 +180,20 @@ export default function TerrainMapPage() {
 
     // Toast state
     const [toast, setToast] = useState({ show: false, message: '', type: 'info' as 'info' | 'error' | 'success' });
+    const [showDiplomacy, setShowDiplomacy] = useState(false);
+
+    // Path Planning State
+    const [isPathPlanning, setIsPathPlanning] = useState(false);
+    const [plannedPath, setPlannedPath] = useState<Array<{ lat: number; lng: number }>>([]);
+    const [waypoints, setWaypoints] = useState<Array<{ lat: number; lng: number }>>([]);
+    const [pathDistance, setPathDistance] = useState(0);
+
+    // Movement Animation State
+    const [isMoving, setIsMoving] = useState(false);
+    const [moveStartTime, setMoveStartTime] = useState<number | null>(null);
+    const [moveArrivalTime, setMoveArrivalTime] = useState<number | null>(null);
+    const [moveStartPos, setMoveStartPos] = useState<[number, number] | null>(null);
+    const [activePath, setActivePath] = useState<Array<{ lat: number; lng: number }>>([]); // Path being traversed
 
     const showToast = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
         setToast({ show: true, message, type });
@@ -214,6 +240,25 @@ export default function TerrainMapPage() {
         };
     }, []);
 
+    // Load Player Resources (Gold/Gem) from DB
+    const loadPlayerResources = useCallback(async () => {
+        try {
+            const userId = localStorage.getItem('terra_user_id');
+            if (!userId) return;
+
+            const response = await fetch(`${API_BASE_URL}/api/user/${userId}`);
+            if (response.ok) {
+                const userData = await response.json();
+                if (userData.resources) {
+                    setPlayerResources({ gold: userData.resources.gold || 0, gem: userData.resources.gem || 0 });
+                    console.log('[Resources] Loaded:', userData.resources);
+                }
+            }
+        } catch (error) {
+            console.error('[Resources] Error loading resources:', error);
+        }
+    }, []);
+
     const loadGameState = useCallback(async () => {
         try {
             const userId = localStorage.getItem('terra_user_id');
@@ -255,6 +300,9 @@ export default function TerrainMapPage() {
                 console.error('[GameState] Failed to load:', response.status);
             }
 
+            // Load player resources (Gold/Gem)
+            await loadPlayerResources();
+
             // Load minions separately
             const minionsResponse = await fetch(`${API_BASE_URL}/api/characters/minions?userId=${userId}`);
             if (minionsResponse.ok) {
@@ -278,7 +326,7 @@ export default function TerrainMapPage() {
         } catch (error) {
             console.error('[GameState] Error loading game state:', error);
         }
-    }, [router]);
+    }, [router, loadPlayerResources]);
 
     // Load game state on mount
     useEffect(() => {
@@ -442,13 +490,254 @@ export default function TerrainMapPage() {
         showToast('철거가 취소되었습니다.', 'info');
     };
 
+    // Diplomacy Data
+    const [factions, setFactions] = useState<any[]>([]);
+
+    useEffect(() => {
+        fetchFactions();
+    }, []);
+
+    const fetchFactions = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/factions`);
+            if (res.ok) {
+                const data = await res.json();
+                setFactions(data.factions || []);
+            }
+        } catch (e) {
+            console.error("Failed to fetch factions for movement check:", e);
+        }
+    };
+
+    const calculatePath = async (currentWaypoints: Array<{ lat: number; lng: number }>) => {
+        if (currentWaypoints.length === 0) return;
+
+        const startPos = playerPosition;
+        const endPos = currentWaypoints[currentWaypoints.length - 1];
+        // Intermediaries are strictly between start and end?
+        // Actually, if we just append clicks, they are waypoints.
+        // But backend expects Start -> End, with waypoints in between.
+        // If I click 3 times: [A, B, C]. 
+        // Logic: Start -> A -> B -> C.
+        // So user clicks are effectively a sequence of destinations.
+        // The last one is the "End", others are "Waypoints".
+
+        const intermediaries = currentWaypoints.slice(0, currentWaypoints.length - 1);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/game/path`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    startLat: startPos[0],
+                    startLng: startPos[1],
+                    endLat: endPos.lat,
+                    endLng: endPos.lng,
+                    waypoints: intermediaries
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    setPlannedPath(data.path);
+                    setPathDistance(data.distance);
+                } else {
+                    showToast(data.error || '경로를 찾을 수 없습니다.', 'error');
+                }
+            }
+        } catch (e) {
+            console.error('Path calc error:', e);
+        }
+    };
+
     const handleMoveToTile = (lat: number, lng: number) => {
-        const currentPos = geolocation.position || playerPosition;
-        const dist = calculateDistance(currentPos[0], currentPos[1], lat, lng);
-        if (dist <= maxMovementRange) {
+        // Start Path Planning Mode
+        setIsPathPlanning(true);
+        setSelectedTile(null); // Hide popup
+        const initialWaypoints = [{ lat, lng }];
+        setWaypoints(initialWaypoints);
+        calculatePath(initialWaypoints);
+        showToast("경로 계획 모드: 지도를 클릭하여 경유지를 추가하세요.", 'info');
+    };
+
+    const confirmMove = async () => {
+        if (waypoints.length === 0) return;
+        const endPos = waypoints[waypoints.length - 1];
+
+        // Validate max range
+        if (!isAdmin && pathDistance > maxMovementRange) {
+            showToast(`이동 불가: 작전 반경(${maxMovementRange}km) 초과.`, 'error');
+            return;
+        }
+
+        try {
+            const userId = localStorage.getItem('terra_user_id');
+            const response = await fetch(`${API_BASE_URL}/api/game/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId,
+                    x: endPos.lat,
+                    y: endPos.lng,
+                    path: plannedPath
+                }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+
+                // Start Animation on Client
+                const now = Date.now();
+                const arrival = new Date(data.arrival_time).getTime();
+
+                setIsPathPlanning(false); // Hide planning UI
+                setIsMoving(true);
+                setMoveStartTime(now);
+                setMoveArrivalTime(arrival);
+                setMoveStartPos(playerPosition);
+                setActivePath([...plannedPath]); // Copy path for animation
+
+                showToast(`이동 시작! (소요시간: ${data.duration_seconds.toFixed(1)}초)`, 'success');
+
+                // Note: We do NOT clear waypoints/path here immediately so they can be used for animation
+                // But we hide the planning UI.
+            } else {
+                const err = await response.json();
+                showToast(`이동 실패: ${err.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Failed to move:', error);
+            showToast('이동 중 오류 발생', 'error');
+        }
+    };
+
+    // Animation Loop
+    useEffect(() => {
+        if (!isMoving || !moveStartTime || !moveArrivalTime || !activePath.length) return;
+
+        const interval = setInterval(() => {
+            const now = Date.now();
+            if (now >= moveArrivalTime) {
+                // Arrival
+                setIsMoving(false);
+                setMoveStartTime(null);
+                setMoveArrivalTime(null);
+                setActivePath([]);
+                setWaypoints([]);
+                setPlannedPath([]);
+                setPathDistance(0);
+
+                // Final position snap (Server should have updated it, fetch state or just snap)
+                // loadGameState(); 
+                // Snap to end of path for smoothness
+                const end = activePath[activePath.length - 1];
+                setPlayerPosition([end.lat, end.lng]);
+                showToast("목적지 도착!", 'success');
+
+                clearInterval(interval);
+                return;
+            }
+
+            // Interpolate
+            const totalDuration = moveArrivalTime - moveStartTime;
+            const elapsed = now - moveStartTime;
+            const progress = Math.min(elapsed / totalDuration, 1.0);
+
+            // Interpolate along path
+            // Simple approach: Percentage of total path length?
+            // Or simple index based?
+            // Let's assume uniform speed.
+            // We need total length of path again or assume segments are small.
+            // Simplified: Interpolate between Start and End of the path? NO, must follow path.
+
+            // 1. Calculate target distance from start
+            // (We need total distance to do this accurately, but let's approximate by segment index)
+            // If path has N points. We are at index = floor(progress * N).
+            // Actually, precise interpolation:
+            // Let's map progress (0..1) to path segments.
+
+            const pointCount = activePath.length;
+            // Include start pos in path for smooth start? 
+            // activePath usually [point1, point2, ...]. It doesn't include current pos strictly if we didn't add it.
+            // But A* path usually starts from first step.
+
+            // Let's create a full path array: [StartPos, ...Path]
+            // But activePath might already be that? API returns path excluding start usually?
+            // Let's assume activePath is the steps.
+
+            const fullPath = moveStartPos ? [{ lat: moveStartPos[0], lng: moveStartPos[1] }, ...activePath] : activePath;
+            if (fullPath.length < 2) return;
+
+            const totalSegments = fullPath.length - 1;
+            const currentSegIndex = Math.min(Math.floor(progress * totalSegments), totalSegments - 1);
+            const segProgress = (progress * totalSegments) - currentSegIndex;
+
+            const p1 = fullPath[currentSegIndex];
+            const p2 = fullPath[currentSegIndex + 1];
+
+            const lat = p1.lat + (p2.lat - p1.lat) * segProgress;
+            const lng = p1.lng + (p2.lng - p1.lng) * segProgress;
+
             setPlayerPosition([lat, lng]);
+
+        }, 50); // 20fps
+
+        return () => clearInterval(interval);
+    }, [isMoving, moveStartTime, moveArrivalTime, activePath, moveStartPos]);
+
+
+    const cancelPlanning = () => {
+        setIsPathPlanning(false);
+        setWaypoints([]);
+        setPlannedPath([]);
+        setPathDistance(0);
+    };
+
+    const removeWaypoint = (index: number) => {
+        const newWaypoints = [...waypoints];
+        newWaypoints.splice(index, 1);
+        setWaypoints(newWaypoints);
+        if (newWaypoints.length > 0) {
+            calculatePath(newWaypoints);
         } else {
-            showToast(`Cannot move: Out of range (${maxMovementRange}km)`, 'error');
+            setPlannedPath([]);
+            setPathDistance(0);
+        }
+    };
+
+    const checkMovementPermission = async (lat: number, lng: number): Promise<boolean> => {
+        // Quick fetch of territories to validate (Caching would be better)
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/territories`);
+            const data = await res.json();
+            const allTerritories = data.territories || [];
+
+            // Find if inside any territory
+            const inside = allTerritories.find((t: any) => {
+                const distKm = calculateDistance(lat, lng, t.x, t.y);
+                return distKm <= t.territory_radius;
+            });
+
+            if (inside && inside.user_id != localStorage.getItem('terra_user_id')) {
+                // Check relations
+                // Find owner in factions list (Match by Faction Name or ID)
+                // API /factions returns 'username' as Name. 
+                // API /territories returns 'faction_name'.
+                const owner = factions.find(f => f.username === inside.faction_name);
+                // If owner not found (maybe player execution), skip check or default
+                const myId = localStorage.getItem('terra_user_id') || "";
+                const relation = owner?.diplomatic_stance?.[myId] || 0;
+
+                if (relation < -20) {
+                    showToast(`⛔ Cannot enter Hostile Territory (Relation: ${relation})`, 'error');
+                    return false;
+                }
+            }
+            return true;
+        } catch (e) {
+            console.error(e);
+            return true; // Fail safe: Allow movement if check fails
         }
     };
 
@@ -459,6 +748,7 @@ export default function TerrainMapPage() {
             {/* Main Content Area (Header + Map) */}
             <div className="flex-1 flex flex-col relative z-[0] min-h-0 md:pb-0 pb-[45vh]">
                 <header className="flex flex-wrap items-center justify-between p-3 border-b border-white/5 bg-slate-900/80 backdrop-blur-md gap-2 shrink-0 relative z-[50]">
+
                     <div className="flex items-center gap-4">
                         <SystemMenu activePage="terrain" />
                         <div>
@@ -466,6 +756,12 @@ export default function TerrainMapPage() {
                                 🏔️ TERRAIN MAP
                             </h1>
                         </div>
+                        <button
+                            onClick={() => setShowDiplomacy(true)}
+                            className="bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-600 px-3 py-1 rounded text-xs font-bold flex items-center gap-2"
+                        >
+                            🤝 DIPLOMACY
+                        </button>
                     </div>
 
                     {/* GPS Status indicator */}
@@ -500,6 +796,10 @@ export default function TerrainMapPage() {
                         setSelectedTile={setSelectedTile}
                         setMap={setMap}
                         territories={territories}
+                        territories={territories}
+                        path={isMoving ? activePath : plannedPath} // Show active path while moving
+                        waypoints={isMoving ? [] : waypoints} // Hide waypoints while moving
+                        onWaypointRemove={removeWaypoint}
                     />
 
                     {/* Fixed floating toast */}
@@ -511,6 +811,37 @@ export default function TerrainMapPage() {
                             onClose={() => setToast({ ...toast, show: false })}
                         />
                     </div>
+
+                    {/* Path Planning Controls */}
+                    {isPathPlanning && (
+                        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-[2000] bg-slate-900/90 border border-cyan-500/50 p-4 rounded-lg shadow-2xl flex flex-col gap-2 items-center min-w-[300px]">
+                            <h3 className="text-cyan-400 font-bold text-lg mb-1">🗺️ 경로 계획 모드</h3>
+                            <div className="text-sm text-gray-300 w-full flex justify-between">
+                                <span>총 거리:</span>
+                                <span className={pathDistance > maxMovementRange ? "text-red-400 font-bold" : "text-green-400 font-bold"}>{pathDistance.toFixed(2)} km</span>
+                            </div>
+                            <div className="text-xs text-gray-500 mb-2">지도를 클릭하여 경유지를 추가하세요</div>
+
+                            <div className="flex gap-2 w-full">
+                                <button
+                                    onClick={cancelPlanning}
+                                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded font-bold transition-colors"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    onClick={confirmMove}
+                                    disabled={pathDistance === 0 || waypoints.length === 0}
+                                    className={`flex-1 py-2 rounded font-bold transition-colors ${pathDistance > maxMovementRange && !isAdmin
+                                        ? 'bg-red-900/50 text-gray-500 cursor-not-allowed border border-red-800'
+                                        : 'bg-cyan-600 hover:bg-cyan-500 text-white border border-cyan-500'
+                                        }`}
+                                >
+                                    {pathDistance > maxMovementRange && !isAdmin ? '거리 초과' : '이동 시작'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -537,11 +868,27 @@ export default function TerrainMapPage() {
                     selectedBuilding={selectedBuilding}
                     onCloseBuildingInfo={() => setSelectedBuilding(null)}
                     demolitionStates={demolitionStates}
-                    onBuildingAction={(action, buildingId) => {
+                    onBuildingAction={async (action, buildingId) => {
                         if (action === 'assign') {
                             setShowAssignModal(true);
                         } else if (action === 'collect') {
-                            showToast('자원 수집 완료! (구현 예정)', 'success');
+                            // Call collection API endpoint
+                            try {
+                                const response = await fetch(`${API_BASE_URL}/api/buildings/${buildingId}/collect`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    showToast(`💰 ${data.gold || 0} 골드 수집!`, 'success');
+                                    await loadPlayerResources(); // Refresh displayed resources
+                                } else {
+                                    showToast('수집 실패', 'error');
+                                }
+                            } catch (e) {
+                                console.error(e);
+                                showToast('수집 오류', 'error');
+                            }
                         } else if (action === 'destroy') {
                             handleRequestDemolition(buildingId);
                         } else if (action === 'cancel_destroy') {
@@ -569,6 +916,12 @@ export default function TerrainMapPage() {
                     }}
                 />
             )}
+
+            <DiplomacyPanel
+                isOpen={showDiplomacy}
+                onClose={() => setShowDiplomacy(false)}
+                currentUserId={userId}
+            />
         </div>
     );
 }

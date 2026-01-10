@@ -1,0 +1,54 @@
+import { Polyline, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+
+interface PathOverlayProps {
+    path: Array<{ lat: number; lng: number }>;
+    waypoints: Array<{ lat: number; lng: number }>;
+    onWaypointClick?: (index: number) => void;
+}
+
+export default function PathOverlay({ path, waypoints, onWaypointClick }: PathOverlayProps) {
+    if (!path || path.length === 0) return null;
+
+    // Convert to Leaflet LatLngExpression
+    const positions = path.map(p => [p.lat, p.lng] as [number, number]);
+
+    // Waypoint Icons
+    // Waypoint Icons (Safe DivIcon)
+    const waypointIcon = new L.DivIcon({
+        className: 'custom-div-icon',
+        html: `<div style="background-color:rgba(0,0,0,0.5); border-radius:50%; width:24px; height:24px; display:flex; justify-content:center; align-items:center; border:2px solid #fbbf24;">📍</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+    });
+
+    return (
+        <>
+            <Polyline
+                positions={positions}
+                pathOptions={{ color: '#fbbf24', weight: 4, opacity: 0.8, dashArray: '10, 10' }}
+            />
+            {waypoints.map((wp, i) => (
+                <Marker
+                    key={`wp-${i}`}
+                    position={[wp.lat, wp.lng]}
+                    icon={waypointIcon}
+                    eventHandlers={{
+                        click: () => onWaypointClick && onWaypointClick(i)
+                    }}
+                >
+                    <Popup>
+                        Waypoint {i + 1}
+                        <br />
+                        <button
+                            className="bg-red-500 text-white px-2 py-1 rounded text-xs mt-1"
+                            onClick={() => onWaypointClick && onWaypointClick(i)}
+                        >
+                            Remove
+                        </button>
+                    </Popup>
+                </Marker>
+            ))}
+        </>
+    );
+}
