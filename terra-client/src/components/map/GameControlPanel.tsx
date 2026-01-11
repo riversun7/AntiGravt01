@@ -158,14 +158,13 @@ export default function GameControlPanel({
     const setTerrainOverride = async (type: string) => {
         if (!selectedTile) return;
         try {
-            const x = Math.floor((selectedTile.clickLng + 180) / 360 * 160);
-            const y = Math.floor((90 - selectedTile.clickLat) / 180 * 80);
-
+            // Send Lat/Lng directly. Server handles legacy grid conversion if needed.
             await fetch(`${API_BASE_URL}/api/admin/tile`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    x, y,
+                    lat: selectedTile.clickLat,
+                    lng: selectedTile.clickLng,
                     terrain_type: type,
                     notes: 'Admin Tool'
                 })

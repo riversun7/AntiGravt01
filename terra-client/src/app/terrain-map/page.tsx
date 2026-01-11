@@ -85,15 +85,14 @@ export default function TerrainMapPage() {
         }
 
         setSelectedTerritory(null); // Clear territory selection
-        const x = Math.floor((lng + 180) / 360 * 160);
-        const y = Math.floor((90 - lat) / 180 * 80);
-        const tileId = `${x}_${y}`;
+        // Grid calculation removed as per user request (Grid-less system)
+        // const x = Math.floor((lng + 180) / 360 * 160);
+        // const y = Math.floor((90 - lat) / 180 * 80);
+        // const tileId = `${x}_${y}`;
 
         if (point) {
             setPopupPosition(point);
         }
-
-        console.log(`[Tile Click] Lat: ${lat}, Lng: ${lng} -> Tile: ${tileId} (${x}, ${y})`);
 
         let ownerId = null;
         for (const t of territories) {
@@ -104,45 +103,42 @@ export default function TerrainMapPage() {
             }
         }
 
+        // Create virtual tile object from Lat/Lng (No grid fetch)
+        setSelectedTile({
+            id: `loc_${lat.toFixed(4)}_${lng.toFixed(4)}`,
+            x: 0,
+            y: 0,
+            type: 'TERRAIN',
+            name: null,
+            owner_id: ownerId,
+            clickLat: lat,
+            clickLng: lng,
+            isTerritoryCenter: false,
+            // displayX: x, // Removed
+            // displayY: y  // Removed
+        });
+
+        // Buildings are now loaded via global state or could be fetched by region if needed.
+        // For now, we don't clear/set tileBuildings specific to this point unless we filter the global list.
+        // setTileBuildings([]); // Or filter `buildings` state by distance?
+
+        // Simple filter of global buildings near click (e.g. 100m)
+        const nearbyBuildings = buildings.filter(b => calculateDistance(lat, lng, b.lat, b.lng) < 0.1);
+        setTileBuildings(nearbyBuildings);
+
+        // Clear building selection to focus on updated tile info
+        setSelectedBuilding(null);
+
+        /* Legacy Fetch Removed
         try {
             const response = await fetch(`${API_BASE_URL}/api/tiles/${tileId}`);
-            let tileData = null;
-            let currentBuildings = [];
-
-            if (response.ok) {
-                const data = await response.json();
-                tileData = data.tile;
-                currentBuildings = data.buildings || [];
-            } else {
-                tileData = {
-                    id: tileId, x, y, type: 'OCEAN', name: null, owner_id: null, faction: null
-                };
-            }
-
-            const effectiveOwner = ownerId || tileData.owner_id;
-
-            setSelectedTile({
-                ...tileData,
-                id: tileId,
-                clickLat: lat,
-                clickLng: lng,
-                owner_id: effectiveOwner,
-                isTerritoryCenter: false,
-                displayX: x, // Add grid coords for display
-                displayY: y
-            });
-            setTileBuildings(currentBuildings);
-
-            // Clear building selection to focus on tile
-            setSelectedBuilding(null);
-
-        } catch (error) {
-            console.error('Failed to fetch tile info:', error);
-        }
+            ...
+        } catch (error) { ... }
+        */
     };
 
     const handleTerritoryClick = (t: any, e: any) => {
-        console.log("Territory Clicked", t);
+        // console.log("Territory Clicked", t);
 
         // Prepare info for modal
         setSelectedTerritory({

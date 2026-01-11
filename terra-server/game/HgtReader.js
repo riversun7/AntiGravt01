@@ -82,6 +82,9 @@ class HgtReader {
                 console.error(`[HgtReader] Error reading ${filename}:`, e);
                 return null;
             }
+        } else {
+            // Debug log (Only print once per file to avoid spam? Or just print for now to debug user issue)
+            // console.log(`[HgtReader] File not found: ${filePath}`); 
         }
 
         return null; // File not found

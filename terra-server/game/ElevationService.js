@@ -1,5 +1,6 @@
 const axios = require('axios'); // Ensure axios is installed or use fetch
 const path = require('path');
+const fs = require('fs');
 const HgtReader = require('./HgtReader');
 
 // Open-Meteo Elevation API
@@ -9,19 +10,40 @@ const API_URL = 'https://api.open-meteo.com/v1/elevation';
 class ElevationService {
     constructor(database) {
         this.db = database;
-        // Data directory mapped in Docker
-        const dataDir = process.env.ELEVATION_PATH || path.join(__dirname, '../../data/elevation');
-        // In Docker: /app/data/elevation. Locally: ../../terra-data/elevation via relative path if running locally outside docker?
-        // Let's use absolute path for Docker, or relative for local dev.
-        // Dockerfile WORKDIR is /app.
-        // So /app/data/elevation is good.
-        // Local dev: project_root/terra-data/elevation.
-        // server.js is in project_root/terra-server.
-        // So ../../terra-data/elevation seems correct for local dev structure if running from terra-server folder.
 
-        // Better: Use an env var or default to absolute path in container, relative in dev.
-        // Just use the mapped path logic.
-        this.hgtReader = new HgtReader(process.env.ELEVATION_DATA_DIR || '/app/data/elevation');
+        // Robust Path Resolution
+        // Docker: /app/data/elevation
+        // Local:  [ProjectRoot]/terra-data/elevation (Relative to this file: ../../../terra-data/elevation)
+        // Note: This file is in terra-server/game/ElevationService.js
+        // ../../ goes to terra-server root. ../../../ goes to Project root.
+
+        let defaultPath;
+        if (process.env.NODE_ENV === 'production' && process.env.ELEVATION_PATH) {
+            defaultPath = process.env.ELEVATION_PATH;
+        } else if (fs.existsSync('/app/data/elevation')) {
+            defaultPath = '/app/data/elevation';
+        } else {
+            // Local Fallback: resolve from this file's location to project root
+            defaultPath = path.resolve(__dirname, '../../terra-data/elevation');
+            // Note: terra-server/game/.. -> terra-server/.. -> terra-server -> 
+            // Wait. __dirname is terra-server/game. 
+            // path.join(__dirname, '../../terra-data') -> terra-server/game/../../terra-data -> terra-server/../terra-data -> root/terra-data.
+            // Correct.
+        }
+
+        const dataDir = process.env.ELEVATION_DATA_DIR || defaultPath;
+
+        console.log(`[ElevationService] 🌍 HGT Data Directory: "${dataDir}"`);
+
+        // Debug: Check if directory exists and list sample
+        if (fs.existsSync(dataDir)) {
+            const files = fs.readdirSync(dataDir).slice(0, 3);
+            console.log(`[ElevationService] ✅ Directory found. Sample files: ${files.join(', ')}`);
+        } else {
+            console.warn(`[ElevationService] ❌ Directory NOT found at "${dataDir}". check paths! usage: ${process.cwd()}`);
+        }
+
+        this.hgtReader = new HgtReader(dataDir);
     }
 
     /**

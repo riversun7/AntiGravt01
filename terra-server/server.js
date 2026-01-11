@@ -2412,7 +2412,34 @@ app.post('/api/tiles/claim', (req, res) => {
 // Get tile info
 // Get tile info (Deprecated - world_map removed)
 app.get('/api/tiles/:tileId', (req, res) => {
-    res.status(404).json({ error: 'Tile system deprecated' });
+    const { tileId } = req.params;
+
+    // Check if tile exists (Legacy check, we now generate dynamic ocean)
+    // const tile = db.prepare('SELECT * FROM world_map WHERE id = ?').get(tileId);
+
+    // Dynamic Tile Generation for "Ocean"
+    // We assume everything is ocean unless it has specific data (which we don't have for full map yet)
+    // So we just return coordinate info.
+
+    const parts = tileId.split('_');
+    const x = parseInt(parts[0]);
+    const y = parseInt(parts[1]);
+
+    const tileData = {
+        id: tileId,
+        x: isNaN(x) ? 0 : x,
+        y: isNaN(y) ? 0 : y,
+        type: 'OCEAN', // Default
+        name: null,
+        owner_id: null,
+        faction: null
+    };
+
+    // Check for buildings on this tile
+    const buildings = db.prepare('SELECT * FROM user_buildings WHERE x = ? AND y = ?').all(x, y); // Note: user_buildings uses x,y not tileId string in this schema? Checking schema...
+    // Schema check: user_buildings has x, y.
+
+    res.json({ tile: tileData, buildings });
 });
 
 // Get user owned tiles (Deprecated - world_map removed)
