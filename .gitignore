@@ -36,6 +36,7 @@ terra-data/db/*.db
 terra-data/db/*.db-journal
 terra-data/db/*.db-shm
 terra-data/db/*.db-wal
+terra-data/elevation/
 
 # Old database location (deprecated)
 terra-server/db/

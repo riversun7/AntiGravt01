@@ -15,7 +15,16 @@ export const getApiBaseUrl = (): string => {
         return process.env.NEXT_PUBLIC_API_URL;
     }
 
-    // 4. Ultimate fallback
+    // 4. Client-Side: Dynamic Hostname Fallback (PROD/NAS Support)
+    // If running in browser, assume Server is on same host but port 3001 (default Docker setup)
+    if (typeof window !== 'undefined') {
+        const win = window as unknown as { location: { protocol: string, hostname: string } };
+        const protocol = win.location.protocol; // http: or https:
+        const hostname = win.location.hostname; // localhost or 192.168.x.x or domain.com
+        return `${protocol}//${hostname}:3001`;
+    }
+
+    // 5. Server-Side Fallback (Local Dev)
     return 'http://localhost:3001';
 };
 

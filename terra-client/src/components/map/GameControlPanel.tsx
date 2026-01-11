@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Info, Hammer, Map, Zap, UserPlus, LucideIcon, MapPin, X } from 'lucide-react';
 import { TileProvider } from '@/components/map/TileProviderSelector';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { API_BASE_URL } from '@/lib/config';
 
 // Internal NPC Spawner Component
 function NPCSpawner({ selectedTile }: { selectedTile: any }) {
@@ -280,7 +280,7 @@ export default function GameControlPanel({
                         <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 mb-4 flex-1">
                             <div>Type: <span className="text-white">{selectedTile.type}</span></div>
                             <div>Owner: <span className={selectedTile.owner_id ? "text-green-400" : "text-slate-500"}>
-                                {selectedTile.owner_id ? `User ${selectedTile.owner_id}` : 'Create New'}
+                                {selectedTile.owner_id ? `User ${selectedTile.owner_id}` : 'None'}
                             </span></div>
                             <div className="col-span-2 bg-slate-800 p-2 rounded mt-2 border border-slate-700">
                                 <div className="text-[10px] text-slate-400 uppercase font-bold">TERRAIN SCAN</div>
@@ -291,7 +291,7 @@ export default function GameControlPanel({
                                             {terrainInfo.type}
                                         </div>
                                         <div className="text-cyan-400 font-mono text-xs">
-                                            {terrainInfo.elevation?.toFixed(1)}m
+                                            {typeof terrainInfo.elevation === 'number' ? terrainInfo.elevation.toFixed(1) : '0.0'}m
                                         </div>
                                     </div>
                                 ) : (

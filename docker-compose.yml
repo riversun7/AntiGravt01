@@ -9,6 +9,7 @@ services:
       - "3001:3001"
     volumes:
       - ./terra-data/db:/terra-data/db
+      - ./terra-data/elevation:/app/data/elevation
     environment:
       - NODE_ENV=production
       - DB_PATH=/terra-data/db

@@ -115,7 +115,7 @@ export default function TerrainMapPage() {
                 currentBuildings = data.buildings || [];
             } else {
                 tileData = {
-                    id: tileId, x, y, type: 'OCEAN', name: `Sector ${x}-${y}`, owner_id: null, faction: null
+                    id: tileId, x, y, type: 'OCEAN', name: null, owner_id: null, faction: null
                 };
             }
 
