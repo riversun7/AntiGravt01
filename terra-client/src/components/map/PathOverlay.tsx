@@ -1,3 +1,4 @@
+import React from 'react';
 import { Polyline, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -7,7 +8,7 @@ interface PathOverlayProps {
     onWaypointClick?: (index: number) => void;
 }
 
-export default function PathOverlay({ path, waypoints, onWaypointClick }: PathOverlayProps) {
+const PathOverlay = React.memo(function PathOverlay({ path, waypoints, onWaypointClick }: PathOverlayProps) {
     if (!path || path.length === 0) return null;
 
     // Convert to Leaflet LatLngExpression
@@ -51,4 +52,6 @@ export default function PathOverlay({ path, waypoints, onWaypointClick }: PathOv
             ))}
         </>
     );
-}
+});
+
+export default PathOverlay;

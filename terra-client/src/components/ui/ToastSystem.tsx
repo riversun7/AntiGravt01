@@ -83,6 +83,7 @@ function ToastItem({ toast, onClose }: { toast: Toast, onClose: () => void }) {
 
 let audioCtx: AudioContext | null = null;
 
+// Lazy init
 function getAudioContext() {
     if (typeof window === 'undefined') return null;
     if (!audioCtx) {
@@ -100,11 +101,11 @@ function playSound(type: ToastType) {
         const ctx = getAudioContext();
         if (!ctx) return;
 
-        // If context is suspended (browser policy), try to resume
+        // Auto-resume if suspended (fix for Chrome warning)
         if (ctx.state === 'suspended') {
-            ctx.resume().catch(() => {
-                // Ignore resume errors (likely blocked waiting for gesture)
-            });
+            ctx.resume().catch(() => { /* User interaction required later */ });
+            // If resume fails (no interaction yet), we verify state before playing
+            if (ctx.state === 'suspended') return;
         }
 
         const osc = ctx.createOscillator();

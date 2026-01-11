@@ -37,7 +37,7 @@ export default function MapClickHandler({
                     onTileClick(e.latlng.lat, e.latlng.lng, e.containerPoint);
                 }
                 clickTimerRef.current = null;
-            }, 300); // 300ms delay to distinguish from double click
+            }, 200); // Reduced to 200ms for faster response (was 300ms)
         },
         dblclick: (e: LeafletMouseEvent) => {
             if (clickTimerRef.current) {
