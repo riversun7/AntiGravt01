@@ -11,8 +11,7 @@ services:
       - ./terra-data/db:/terra-data/db
     environment:
       - NODE_ENV=production
-      - DB_PATH=/app/db
-      - DB_PATH=/app/db
+      - DB_PATH=/terra-data/db
       - CORS_ORIGIN=https://riversun7.synology.me
       - PORT=3001
     restart: always
