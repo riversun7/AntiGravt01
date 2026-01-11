@@ -622,14 +622,16 @@ export default function TerrainMapPage() {
         }
     };
 
-    // Animation Loop
+    // Animation Loop using requestAnimationFrame for smoothness (60fps)
     useEffect(() => {
         if (!isMoving || !moveStartTime || !moveArrivalTime || !activePath.length) return;
 
-        const interval = setInterval(() => {
+        let animationFrameId: number;
+
+        const animate = () => {
             const now = Date.now();
             if (now >= moveArrivalTime) {
-                // Arrival
+                // Arrival Logic
                 setIsMoving(false);
                 setMoveStartTime(null);
                 setMoveArrivalTime(null);
@@ -638,14 +640,9 @@ export default function TerrainMapPage() {
                 setPlannedPath([]);
                 setPathDistance(0);
 
-                // Final position snap (Server should have updated it, fetch state or just snap)
-                // loadGameState(); 
-                // Snap to end of path for smoothness
                 const end = activePath[activePath.length - 1];
                 setPlayerPosition([end.lat, end.lng]);
                 showToast("목적지 도착!", 'success');
-
-                clearInterval(interval);
                 return;
             }
 
@@ -654,46 +651,32 @@ export default function TerrainMapPage() {
             const elapsed = now - moveStartTime;
             const progress = Math.min(elapsed / totalDuration, 1.0);
 
-            // Interpolate along path
-            // Simple approach: Percentage of total path length?
-            // Or simple index based?
-            // Let's assume uniform speed.
-            // We need total length of path again or assume segments are small.
-            // Simplified: Interpolate between Start and End of the path? NO, must follow path.
-
-            // 1. Calculate target distance from start
-            // (We need total distance to do this accurately, but let's approximate by segment index)
-            // If path has N points. We are at index = floor(progress * N).
-            // Actually, precise interpolation:
-            // Let's map progress (0..1) to path segments.
-
-            const pointCount = activePath.length;
-            // Include start pos in path for smooth start? 
-            // activePath usually [point1, point2, ...]. It doesn't include current pos strictly if we didn't add it.
-            // But A* path usually starts from first step.
-
-            // Let's create a full path array: [StartPos, ...Path]
-            // But activePath might already be that? API returns path excluding start usually?
-            // Let's assume activePath is the steps.
-
             const fullPath = moveStartPos ? [{ lat: moveStartPos[0], lng: moveStartPos[1] }, ...activePath] : activePath;
-            if (fullPath.length < 2) return;
 
-            const totalSegments = fullPath.length - 1;
-            const currentSegIndex = Math.min(Math.floor(progress * totalSegments), totalSegments - 1);
-            const segProgress = (progress * totalSegments) - currentSegIndex;
+            if (fullPath.length >= 2) {
+                const totalSegments = fullPath.length - 1;
+                // Calculate current segment based on progress
+                // Improve smoothness: Map progress 0..1 to total distance if possible, but segment index is okay if segments are roughly equal or we account for distance.
+                // For now, linear index interpolation is better than nothing, but let's stick to the previous segment logic which was 'okay' but update it faster.
 
-            const p1 = fullPath[currentSegIndex];
-            const p2 = fullPath[currentSegIndex + 1];
+                const currentSegIndex = Math.min(Math.floor(progress * totalSegments), totalSegments - 1);
+                const segProgress = (progress * totalSegments) - currentSegIndex;
 
-            const lat = p1.lat + (p2.lat - p1.lat) * segProgress;
-            const lng = p1.lng + (p2.lng - p1.lng) * segProgress;
+                const p1 = fullPath[currentSegIndex];
+                const p2 = fullPath[currentSegIndex + 1];
 
-            setPlayerPosition([lat, lng]);
+                const lat = p1.lat + (p2.lat - p1.lat) * segProgress;
+                const lng = p1.lng + (p2.lng - p1.lng) * segProgress;
 
-        }, 50); // 20fps
+                setPlayerPosition([lat, lng]);
+            }
 
-        return () => clearInterval(interval);
+            animationFrameId = requestAnimationFrame(animate);
+        };
+
+        animationFrameId = requestAnimationFrame(animate);
+
+        return () => cancelAnimationFrame(animationFrameId);
     }, [isMoving, moveStartTime, moveArrivalTime, activePath, moveStartPos]);
 
 
