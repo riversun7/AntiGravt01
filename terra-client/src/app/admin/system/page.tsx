@@ -10,6 +10,7 @@ interface SystemConfig {
     market_fluctuation: boolean;
     production_active: boolean;
     npc_activity: boolean;
+    faction_active: boolean;
     client_polling_rate?: string;
 }
 
@@ -73,7 +74,7 @@ export default function AdminSystemPage() {
                 {/* Market Control */}
                 <ControlCard
                     title="Market Fluctuations"
-                    description="Controls the automated price volatility algorithm. Disabling this stops price updates."
+                    description="시장 가격 변동 알고리즘을 제어합니다. 비활성화 시 모든 아이템 가격이 현재 값으로 고정됩니다."
                     active={config?.market_fluctuation || false}
                     icon={<ShoppingBag />}
                     onToggle={() => toggleConfig('market_fluctuation')}
@@ -82,7 +83,7 @@ export default function AdminSystemPage() {
                 {/* Resource Production */}
                 <ControlCard
                     title="Resource Production"
-                    description="Controls the global mining and crafting loops. Disabling this pauses all resource generation."
+                    description="글로벌 채굴 및 제작 루프를 제어합니다. 비활성화 시 모든 자원 생성이 일시정지됩니다."
                     active={config?.production_active || false}
                     icon={<Cpu />}
                     onToggle={() => toggleConfig('production_active')}
@@ -90,14 +91,23 @@ export default function AdminSystemPage() {
 
                 {/* NPC Activity */}
                 <ControlCard
-                    title="NPC Autonomous Logic"
-                    description="Controls background processing for NPC behaviors and scheduled events."
+                    title="Minion AI Logic"
+                    description="미니언 자율 행동 처리를 제어합니다 (채굴, 휴식, 충성도 관리 등). 30초마다 모든 미니언의 상태를 확인하여 자동 행동을 결정합니다."
                     active={config?.npc_activity || false}
                     icon={<Activity />}
                     onToggle={() => toggleConfig('npc_activity')}
                 />
 
-                {/* Future: Client Polling */}
+                {/* Faction Logic */}
+                <ControlCard
+                    title="Faction War Logic"
+                    description="Absolute & Free 세력의 거시적 전략 AI를 제어합니다 (침공, 외교, 영토 확장 등). 1분마다 각 세력의 전략적 의사결정을 실행합니다."
+                    active={config?.faction_active || false}
+                    icon={<ShieldAlert />}
+                    onToggle={() => toggleConfig('faction_active')}
+                />
+
+                {/* Future: Client Polling - LOCKED */}
                 <div className="border border-green-900/50 bg-green-900/5 p-6 rounded-lg opacity-50 cursor-not-allowed">
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-3 bg-gray-900 rounded-lg text-gray-500 border border-gray-800">
@@ -106,9 +116,18 @@ export default function AdminSystemPage() {
                         <span className="px-2 py-1 bg-gray-900 text-gray-500 text-xs rounded border border-gray-800">LOCKED</span>
                     </div>
                     <h3 className="text-xl font-bold text-gray-500 mb-2">Global Polling Rate</h3>
-                    <p className="text-gray-600 text-sm mb-6 min-h-[40px]">
-                        Dynamic adjustment of client request intervals. Feature unavailable in current kernel.
+                    <p className="text-gray-600 text-sm mb-6 min-h-[60px]">
+                        클라이언트가 서버에 데이터를 요청하는 주기를 제어합니다.
+                        <br />
+                        <span className="text-xs text-gray-700">
+                            • SLOW: 5초마다 갱신 (서버 부하 감소)<br />
+                            • NORMAL: 2초마다 갱신 (기본값)<br />
+                            • FAST: 1초마다 갱신 (실시간 게임플레이)
+                        </span>
                     </p>
+                    <div className="w-full py-3 rounded font-bold tracking-wider text-center bg-gray-900/20 text-gray-600 border border-gray-800">
+                        미구현 (향후 기능)
+                    </div>
                 </div>
 
             </div>
@@ -116,10 +135,10 @@ export default function AdminSystemPage() {
             <div className="mt-12 p-6 border border-red-900/30 bg-red-900/5 rounded-lg">
                 <h3 className="text-red-500 font-bold flex items-center gap-2 mb-2">
                     <ShieldAlert size={18} />
-                    Administrator Note
+                    관리자 주의사항
                 </h3>
                 <p className="text-red-400/70 text-sm">
-                    Modifying system parameters affects all active users immediately. Disabling market fluctuations will freeze all item prices at their current values.
+                    시스템 파라미터 변경은 모든 활성 유저에게 즉시 영향을 미칩니다. Market Fluctuations를 비활성화하면 모든 아이템 가격이 현재 값으로 동결됩니다.
                 </p>
             </div>
         </div>

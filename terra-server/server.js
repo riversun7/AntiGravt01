@@ -422,6 +422,7 @@ let SYSTEM_CONFIG = {
     market_fluctuation: false, // Default OFF
     production_active: false, // Default OFF
     npc_activity: false, // Default OFF (Minion AI)
+    faction_active: false, // Default OFF (Absolute & Free Faction AI)
     client_polling_rate: 'NORMAL' // Reserved for future client-sync
 };
 
@@ -665,6 +666,9 @@ const absoluteNpcManager = require('./ai/AbsoluteNpcManager');
 const freeNpcManager = require('./ai/FreeNpcManager');
 const NPC_INTERVAL = 60000; // 1 minute
 setInterval(() => {
+    if (!SYSTEM_CONFIG.faction_active) return;
+
+    console.log('[NPC] Faction Logic ACTIVE - Running...');
     absoluteNpcManager.run();
     freeNpcManager.run();
 }, NPC_INTERVAL);
@@ -677,10 +681,11 @@ app.get('/api/admin/system/config', (req, res) => {
 });
 
 app.post('/api/admin/system/config', (req, res) => {
-    const { market_fluctuation, npc_activity, production_active } = req.body;
+    const { market_fluctuation, npc_activity, production_active, faction_active } = req.body;
     if (market_fluctuation !== undefined) SYSTEM_CONFIG.market_fluctuation = market_fluctuation;
     if (production_active !== undefined) SYSTEM_CONFIG.production_active = production_active;
     if (npc_activity !== undefined) SYSTEM_CONFIG.npc_activity = npc_activity;
+    if (faction_active !== undefined) SYSTEM_CONFIG.faction_active = faction_active;
 
     console.log('[System] Config Updated:', SYSTEM_CONFIG);
     res.json({ success: true, config: SYSTEM_CONFIG });
