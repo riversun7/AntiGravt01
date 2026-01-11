@@ -1,16 +1,13 @@
-# Base Node image
-FROM node:18-alpine
+# Base Node image (Debian based for better native module compatibility)
+FROM node:18
 
 # Create app directory
 WORKDIR /app
 
-# Install dependencies needed for sqlite3 build (if necessary)
-RUN apk add --no-cache python3 make g++
-
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies (will use prebuilt binaries for better-sqlite3)
 RUN npm install
 
 # Copy source code
