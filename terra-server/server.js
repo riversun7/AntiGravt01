@@ -1191,8 +1191,6 @@ app.post('/api/production/collect', (req, res) => {
 // app.get('/api/local-map/:id', ...); // REMOVED (Client uses TerrainMap/Leaflet tiles)
 
 // Admin APIs
-const fs = require('fs');
-const path = require('path');
 
 app.get('/api/admin/users', (req, res) => {
     try {
