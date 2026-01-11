@@ -5,21 +5,7 @@ const db = require('./database');
 const fs = require('fs');
 const path = require('path');
 
-let TerrainManager;
-try {
-    TerrainManager = require('./game/TerrainManager');
-} catch (e) {
-    console.error('[CRITICAL] Failed to load TerrainManager:', e.message);
-    console.log('Current directory:', __dirname);
-    console.log('Files in current dir:', fs.readdirSync(__dirname));
-    try {
-        console.log('Files in ./game:', fs.readdirSync(path.join(__dirname, 'game')));
-    } catch (err) {
-        console.log('Could not list ./game:', err.message);
-    }
-    process.exit(1);
-}
-
+const TerrainManager = require('./game/TerrainManager');
 const terrainManager = new TerrainManager(db);
 const PathfindingService = require('./game/PathfindingService');
 const pathfindingService = new PathfindingService(db);
