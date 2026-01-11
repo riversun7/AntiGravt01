@@ -78,9 +78,23 @@ export default function TerrainMapPage() {
     const handleTileClick = async (lat: number, lng: number, point?: { x: number; y: number }) => {
         // If in Path Planning mode, add/remove waypoint
         if (isPathPlanning) {
-            const newWaypoints = [...waypoints, { lat, lng }];
-            setWaypoints(newWaypoints);
-            calculatePath(newWaypoints);
+            // User Request: Keep the final destination fixed. Insert new clicks as intermediate waypoints.
+            // Current waypoints: [ ...intermediates, Destination ]
+            // New state: [ ...intermediates, NewPoint, Destination ]
+
+            if (waypoints.length > 0) {
+                const destination = waypoints[waypoints.length - 1];
+                const intermediaries = waypoints.slice(0, waypoints.length - 1);
+                const newWaypoints = [...intermediaries, { lat, lng }, destination];
+
+                setWaypoints(newWaypoints);
+                calculatePath(newWaypoints);
+            } else {
+                // Should not happen if initialized correctly, but fail-safe:
+                const newWaypoints = [{ lat, lng }];
+                setWaypoints(newWaypoints);
+                calculatePath(newWaypoints);
+            }
             return;
         }
 

@@ -31,6 +31,7 @@ class PathfindingService {
         let totalDistance = 0;
         let validatedPath = [points[0]]; // Start with origin
 
+        console.time("PathfindingDuration");
         // Iterate through segments
         for (let i = 0; i < points.length - 1; i++) {
             const p1 = points[i];
@@ -42,6 +43,7 @@ class PathfindingService {
 
             const valid = await this.checkSegment(p1, p2, dist);
             if (!valid) {
+                console.timeEnd("PathfindingDuration");
                 return {
                     success: false,
                     error: `Path obstructed between [${p1.lat.toFixed(4)}, ${p1.lng.toFixed(4)}] and [${p2.lat.toFixed(4)}, ${p2.lng.toFixed(4)}]`
@@ -51,6 +53,7 @@ class PathfindingService {
             // If valid, add end point (start point is already added)
             validatedPath.push(p2);
         }
+        console.timeEnd("PathfindingDuration");
 
         return {
             success: true,

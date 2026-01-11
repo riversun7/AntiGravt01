@@ -16,7 +16,20 @@ GitHub Container Registry (GHCR)를 통해 Docker 이미지를 자동으로 빌�
 - 경로: `/docker/antigravt02`
 - YAML: `docker-compose.production.yml` 내용 붙여넣기
 
-### 2. 이미지 자동 업데이트
+### 2. (Optional/Recommended) Elevation Data Setup
+To make the map **extremely fast** (instant clicks) without relying on external APIs, you can add local terrain data.
+1.  **Create Folder**: On your NAS, inside your project folder, ensure `terra-data/elevation` exists.
+    *   Path example: `/docker/projects/antigravt01/terra-data/elevation`
+2.  **Download Data**: Download SRTM HGT files for your region (e.g., `N37E126.hgt` for Seoul).
+    *   Source: [Viewfinder Panoramas](http://viewfinderpanoramas.org/Coverage%20map%20viewfinderpanoramas_org3.htm) or similar.
+3.  **Upload**: Upload the `.hgt` files into that `elevation` folder on your NAS.
+4.  **Restart**: Restart the server container. It will auto-detect the files.
+
+### 3. Troubleshooting
+- **Logs**: Always check Container Manager logs if something fails.
+- **DB Permission**: If `terra.db` is read-only, check NAS folder permissions (Subtitle: Give 'Everyone' read/write to `terra-data` if needed, or check PUID/PGID).
+
+### 4. 이미지 자동 업데이트
 
 GitHub에 코드를 푸시하면:
 1. **GitHub Actions**가 자동으로 빌드 (`.github/workflows/docker-publish.yml`)
