@@ -418,18 +418,26 @@ app.post('/api/character/:userId/minion/:minionId/feed', (req, res) => { // Orga
 
 // Economy: Market Ticker & APIs
 // Economy: Market Ticker & APIs
-const MARKET_UPDATE_INTERVAL = 60000; // 1 minute
+// Economy: Market Ticker & APIs
+const MARKET_UPDATE_INTERVAL = 60000; // 1 minute (Legacy constant, kept for reference)
 
 // Global System Configuration
 let SYSTEM_CONFIG = {
     market_fluctuation: false, // Default OFF
-    production_active: false, // Default OFF
-    npc_activity: false, // Default OFF (Minion AI)
-    faction_active: false, // Default OFF (Absolute & Free Faction AI)
-    client_polling_rate: 'NORMAL' // Reserved for future client-sync
+    market_interval: 60000,    // Default 1 min
+    production_active: false,  // Default OFF
+    production_interval: 60000,// Default 1 min
+    npc_activity: false,       // Default OFF (Minion AI)
+    npc_interval: 60000,       // Default 1 min
+    faction_active: false,     // Default OFF (Absolute & Free Faction AI)
+    faction_interval: 60000,   // Default 1 min
+    client_poll_interval: 60000 // Global setting for client UI polling (1 min)
 };
 
 function updateMarketPrices() {
+    // Schedule next run
+    setTimeout(updateMarketPrices, SYSTEM_CONFIG.market_interval);
+
     if (!SYSTEM_CONFIG.market_fluctuation) return; // Skip if disabled
 
     try {
@@ -446,24 +454,28 @@ function updateMarketPrices() {
 
             updateStmt.run(newPrice, item.current_price, item.id);
         });
-        console.log(`[Market] Prices updated at ${new Date().toLocaleTimeString()}`);
+        console.log(`[Market] Prices updated at ${new Date().toLocaleTimeString()} (Next in ${SYSTEM_CONFIG.market_interval / 1000}s)`);
     } catch (e) {
         console.error("Market Update Error:", e);
     }
 }
+// Start Market Loop
+setTimeout(updateMarketPrices, SYSTEM_CONFIG.market_interval);
 
-// Start Ticker
-setInterval(updateMarketPrices, MARKET_UPDATE_INTERVAL);
+// Old ticker removed
+
 
 // ============================================
 // MINION AI TICK SYSTEM (30 seconds interval)
 // ============================================
 
-const MINION_AI_INTERVAL = 30000; // 30 seconds
 const MinionAI = require('./ai/MinionAI');
 const minionAI = new MinionAI(db);
 
 function processMinionAI() {
+    // Schedule next run
+    setTimeout(processMinionAI, SYSTEM_CONFIG.npc_interval);
+
     if (!SYSTEM_CONFIG.npc_activity) return;
 
     try {
@@ -494,16 +506,17 @@ function processMinionAI() {
 }
 
 // Start Minion AI Ticker
-setInterval(processMinionAI, MINION_AI_INTERVAL);
-console.log(`[Minion AI] AI tick system started (${MINION_AI_INTERVAL / 1000}s interval)`);
+setTimeout(processMinionAI, SYSTEM_CONFIG.npc_interval);
+console.log(`[Minion AI] AI tick system started (Interval: ${SYSTEM_CONFIG.npc_interval / 1000}s)`);
 
 // ============================================
-// RESOURCE PRODUCTION CRON (1 minute interval)
+// RESOURCE PRODUCTION CRON
 // ============================================
-
-const PRODUCTION_INTERVAL = 60000; // 1 minute
 
 function processResourceProduction() {
+    // Schedule next run
+    setTimeout(processResourceProduction, SYSTEM_CONFIG.production_interval);
+
     if (!SYSTEM_CONFIG.production_active) return; // Skip if disabled
 
     try {
@@ -536,8 +549,10 @@ function processResourceProduction() {
             }
 
             // 2. Calculate production based on stats
+            // Adjust production based on interval ratio (assuming baseProduction is per minute)
+            const intervalRatio = SYSTEM_CONFIG.production_interval / 60000;
             const baseProduction = 10; // 10 gold per minute
-            const production = Math.floor(baseProduction * assignment.production_rate);
+            const production = Math.floor(baseProduction * assignment.production_rate * intervalRatio);
 
             // 3. Update accumulated resources
             db.prepare(`
@@ -661,21 +676,26 @@ function processRestingMinions() {
 }
 
 // Start production cron
-setInterval(processResourceProduction, PRODUCTION_INTERVAL);
-console.log('[Production] Resource production cron started (1 minute interval)');
+// Start production cron
+setTimeout(processResourceProduction, SYSTEM_CONFIG.production_interval);
+console.log('[Production] Resource production cron started');
 
 // NPC Logic Cron
 const absoluteNpcManager = require('./ai/AbsoluteNpcManager');
 const freeNpcManager = require('./ai/FreeNpcManager');
-const NPC_INTERVAL = 60000; // 1 minute
-setInterval(() => {
+
+function processFactionLogic() {
+    setTimeout(processFactionLogic, SYSTEM_CONFIG.faction_interval);
+
     if (!SYSTEM_CONFIG.faction_active) return;
 
     console.log('[NPC] Faction Logic ACTIVE - Running...');
     absoluteNpcManager.run();
     freeNpcManager.run();
-}, NPC_INTERVAL);
-console.log('[NPC] Absolute & Free Faction Logic cron started');
+}
+// Start Faction Loop
+setTimeout(processFactionLogic, SYSTEM_CONFIG.faction_interval);
+console.log('[NPC] Absolute & Free Faction Logic loop started');
 
 
 // API: System Configuration
@@ -684,11 +704,27 @@ app.get('/api/admin/system/config', (req, res) => {
 });
 
 app.post('/api/admin/system/config', (req, res) => {
-    const { market_fluctuation, npc_activity, production_active, faction_active } = req.body;
+    const {
+        market_fluctuation, market_interval,
+        npc_activity, npc_interval,
+        production_active, production_interval,
+        faction_active, faction_interval,
+        client_poll_interval
+    } = req.body;
+
     if (market_fluctuation !== undefined) SYSTEM_CONFIG.market_fluctuation = market_fluctuation;
+    if (market_interval !== undefined) SYSTEM_CONFIG.market_interval = Number(market_interval);
+
     if (production_active !== undefined) SYSTEM_CONFIG.production_active = production_active;
+    if (production_interval !== undefined) SYSTEM_CONFIG.production_interval = Number(production_interval);
+
     if (npc_activity !== undefined) SYSTEM_CONFIG.npc_activity = npc_activity;
+    if (npc_interval !== undefined) SYSTEM_CONFIG.npc_interval = Number(npc_interval);
+
     if (faction_active !== undefined) SYSTEM_CONFIG.faction_active = faction_active;
+    if (faction_interval !== undefined) SYSTEM_CONFIG.faction_interval = Number(faction_interval);
+
+    if (client_poll_interval !== undefined) SYSTEM_CONFIG.client_poll_interval = Number(client_poll_interval);
 
     console.log('[System] Config Updated:', SYSTEM_CONFIG);
     res.json({ success: true, config: SYSTEM_CONFIG });

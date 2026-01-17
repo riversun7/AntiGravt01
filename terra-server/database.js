@@ -33,7 +33,12 @@ function initSchema() {
         role TEXT DEFAULT 'user',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_login DATETIME DEFAULT CURRENT_TIMESTAMP,
-        cyborg_model TEXT DEFAULT NULL
+        cyborg_model TEXT DEFAULT NULL,
+        movement_path TEXT DEFAULT NULL,
+        start_pos TEXT DEFAULT NULL,
+        destination_pos TEXT DEFAULT NULL,
+        departure_time TEXT DEFAULT NULL,
+        arrival_time TEXT DEFAULT NULL
         -- current_pos TEXT DEFAULT '10_10' (Added via migration)
     );`;
 
@@ -465,6 +470,18 @@ function initSchema() {
             db.exec("ALTER TABLE users ADD COLUMN diplomatic_stance TEXT DEFAULT '{}'"); // JSON: { "user_id": score }
             console.log("Migrated users table: added personality, tech_focus, diplomatic_stance");
         }
+
+        // 3. Movement System Migration
+        const hasMovementPath = userCols.some(c => c.name === 'movement_path');
+        if (!hasMovementPath) {
+            db.exec("ALTER TABLE users ADD COLUMN movement_path TEXT DEFAULT NULL");
+            db.exec("ALTER TABLE users ADD COLUMN start_pos TEXT DEFAULT NULL");
+            db.exec("ALTER TABLE users ADD COLUMN destination_pos TEXT DEFAULT NULL");
+            db.exec("ALTER TABLE users ADD COLUMN departure_time TEXT DEFAULT NULL");
+            db.exec("ALTER TABLE users ADD COLUMN arrival_time TEXT DEFAULT NULL");
+            console.log("Migrated users table: added movement system columns");
+        }
+
 
         const bldgCols = db.prepare('PRAGMA table_info(user_buildings)').all();
         const hasBoundary = bldgCols.some(c => c.name === 'custom_boundary');

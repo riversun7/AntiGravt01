@@ -82,20 +82,34 @@ export default function DashboardPage() {
     }, [router]);
 
     const [production, setProduction] = useState<{ gold: number, items: ProductionItem[] }>({ gold: 0, items: [] });
+    const [isProductionActive, setIsProductionActive] = useState(true);
 
-
+    // 1. Check System Config ONCE on mount
     useEffect(() => {
-        if (!user) return;
+        fetch(`${API_BASE_URL}/api/admin/system/config`)
+            .then(res => res.json())
+            .then(config => {
+                setIsProductionActive(!!config.production_active);
+            })
+            .catch(console.error);
+    }, []);
+
+    // 2. Poll Production only if active
+    useEffect(() => {
+        if (!user || !isProductionActive) return;
+
         const fetchProduction = () => {
             fetch(`${API_BASE_URL}/api/production/pending?user_id=${user.id}`)
                 .then(res => res.json())
                 .then(data => setProduction(data))
                 .catch(console.error);
         };
+
         fetchProduction();
-        const interval = setInterval(fetchProduction, 5000); // Update every 5s
+        const interval = setInterval(fetchProduction, 5000); // Poll data every 5s
+
         return () => clearInterval(interval);
-    }, [user]);
+    }, [user, isProductionActive]);
 
     const handleCollect = async () => {
         if (!user) return;
@@ -239,25 +253,34 @@ export default function DashboardPage() {
                     >
                         <h2 className="text-lg font-bold text-yellow-400 mb-2 flex items-center gap-2">
                             <TrendingUp size={18} /> Production
+                            {!isProductionActive && <span className="text-xs bg-red-500/20 text-red-500 px-2 py-0.5 rounded ml-auto">OFFLINE</span>}
                         </h2>
-                        <div className="flex flex-col gap-4 mt-4">
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-400 text-sm">Pending Gold</span>
-                                <span className="font-mono text-xl text-yellow-400 font-bold">+{production.gold}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-400 text-sm">Pending Items</span>
-                                <span className="font-mono text-xl text-white font-bold">{production.items?.length || 0}</span>
-                            </div>
 
-                            <button
-                                onClick={handleCollect}
-                                disabled={production.gold === 0 && production.items?.length === 0}
-                                className="mt-2 w-full py-2 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold rounded flex items-center justify-center gap-2 transition-all"
-                            >
-                                COLLECT ALL
-                            </button>
-                        </div>
+                        {isProductionActive ? (
+                            <div className="flex flex-col gap-4 mt-4">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-400 text-sm">Pending Gold</span>
+                                    <span className="font-mono text-xl text-yellow-400 font-bold">+{production.gold}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-400 text-sm">Pending Items</span>
+                                    <span className="font-mono text-xl text-white font-bold">{production.items?.length || 0}</span>
+                                </div>
+
+                                <button
+                                    onClick={handleCollect}
+                                    disabled={production.gold === 0 && production.items?.length === 0}
+                                    className="mt-2 w-full py-2 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold rounded flex items-center justify-center gap-2 transition-all"
+                                >
+                                    COLLECT ALL
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="h-32 flex flex-col items-center justify-center text-gray-500 gap-2">
+                                <Shield size={32} className="opacity-20" />
+                                <span className="text-sm">Production Halted by Admin</span>
+                            </div>
+                        )}
                     </motion.div>
 
                     <motion.div
@@ -277,7 +300,7 @@ export default function DashboardPage() {
                         </div>
                     </motion.div>
                 </div>
-            </main>
+            </main >
         </div >
     );
 }

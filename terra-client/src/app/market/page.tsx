@@ -73,10 +73,28 @@ export default function MarketPage() {
             router.push('/login');
             return;
         }
-        fetchData();
-        // Auto refresh price every 30s to stay relatively synced
-        const interval = setInterval(fetchData, 30000);
-        return () => clearInterval(interval);
+
+        let intervalId: NodeJS.Timeout;
+
+        const initPolling = async () => {
+            await fetchData();
+
+            try {
+                const configRes = await fetch(`${API_BASE_URL}/api/admin/system/config`);
+                const config = await configRes.json();
+                const pollRate = config.client_poll_interval || 60000; // Default 1 min
+
+                intervalId = setInterval(fetchData, pollRate);
+            } catch (e) {
+                intervalId = setInterval(fetchData, 60000);
+            }
+        };
+
+        initPolling();
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
     }, [userId, fetchData, router]);
 
     const handleTrade = async () => {

@@ -8,10 +8,14 @@ import { API_BASE_URL } from "@/lib/config";
 
 interface SystemConfig {
     market_fluctuation: boolean;
+    market_interval: number;
     production_active: boolean;
+    production_interval: number;
     npc_activity: boolean;
+    npc_interval: number;
     faction_active: boolean;
-    client_polling_rate?: string;
+    faction_interval: number;
+    client_poll_interval: number;
 }
 
 export default function AdminSystemPage() {
@@ -34,19 +38,27 @@ export default function AdminSystemPage() {
 
         const newValue = !config[key];
         const newConfig = { ...config, [key]: newValue };
-
-        // Optimistic UI Update
         setConfig(newConfig);
 
         fetch(`${API_BASE_URL}/api/admin/system/config`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ [key]: newValue })
-        }).catch(err => {
-            console.error("Failed to update config", err);
-            // Revert on failure
-            setConfig(config);
-        });
+        }).catch(err => console.error("Failed to update config", err));
+    };
+
+    const updateInterval = (key: keyof SystemConfig, seconds: number) => {
+        if (!config) return;
+
+        const ms = seconds * 1000;
+        const newConfig = { ...config, [key]: ms };
+        setConfig(newConfig);
+
+        fetch(`${API_BASE_URL}/api/admin/system/config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [key]: ms })
+        }).catch(err => console.error("Failed to update config", err));
     };
 
     if (loading) return <div className="min-h-screen bg-black text-green-500 font-mono flex items-center justify-center">Loading System Interface...</div>;
@@ -76,8 +88,10 @@ export default function AdminSystemPage() {
                     title="Market Fluctuations"
                     description="시장 가격 변동 알고리즘을 제어합니다. 비활성화 시 모든 아이템 가격이 현재 값으로 고정됩니다."
                     active={config?.market_fluctuation || false}
+                    interval={config?.market_interval ? config.market_interval / 1000 : 60}
                     icon={<ShoppingBag />}
                     onToggle={() => toggleConfig('market_fluctuation')}
+                    onIntervalChange={(val) => updateInterval('market_interval', val)}
                 />
 
                 {/* Resource Production */}
@@ -85,48 +99,56 @@ export default function AdminSystemPage() {
                     title="Resource Production"
                     description="글로벌 채굴 및 제작 루프를 제어합니다. 비활성화 시 모든 자원 생성이 일시정지됩니다."
                     active={config?.production_active || false}
+                    interval={config?.production_interval ? config.production_interval / 1000 : 60}
                     icon={<Cpu />}
                     onToggle={() => toggleConfig('production_active')}
+                    onIntervalChange={(val) => updateInterval('production_interval', val)}
                 />
 
                 {/* NPC Activity */}
                 <ControlCard
                     title="Minion AI Logic"
-                    description="미니언 자율 행동 처리를 제어합니다 (채굴, 휴식, 충성도 관리 등). 30초마다 모든 미니언의 상태를 확인하여 자동 행동을 결정합니다."
+                    description="미니언 자율 행동 처리를 제어합니다 (채굴, 휴식, 충성도 관리 등). 매 주기마다 모든 미니언의 상태를 확인하여 자동 행동을 결정합니다."
                     active={config?.npc_activity || false}
+                    interval={config?.npc_interval ? config.npc_interval / 1000 : 60}
                     icon={<Activity />}
                     onToggle={() => toggleConfig('npc_activity')}
+                    onIntervalChange={(val) => updateInterval('npc_interval', val)}
                 />
 
                 {/* Faction Logic */}
                 <ControlCard
                     title="Faction War Logic"
-                    description="Absolute & Free 세력의 거시적 전략 AI를 제어합니다 (침공, 외교, 영토 확장 등). 1분마다 각 세력의 전략적 의사결정을 실행합니다."
+                    description="Absolute & Free 세력의 거시적 전략 AI를 제어합니다 (침공, 외교, 영토 확장 등). 매 주기마다 각 세력의 전략적 의사결정을 실행합니다."
                     active={config?.faction_active || false}
+                    interval={config?.faction_interval ? config.faction_interval / 1000 : 60}
                     icon={<ShieldAlert />}
                     onToggle={() => toggleConfig('faction_active')}
+                    onIntervalChange={(val) => updateInterval('faction_interval', val)}
                 />
 
-                {/* Future: Client Polling - LOCKED */}
-                <div className="border border-green-900/50 bg-green-900/5 p-6 rounded-lg opacity-50 cursor-not-allowed">
+                {/* Global Client Polling */}
+                <div className="border border-green-900/50 bg-green-900/5 p-6 rounded-lg">
                     <div className="flex justify-between items-start mb-4">
-                        <div className="p-3 bg-gray-900 rounded-lg text-gray-500 border border-gray-800">
+                        <div className="p-3 bg-gray-900 rounded-lg text-green-500 border border-green-800">
                             <Activity size={24} />
                         </div>
-                        <span className="px-2 py-1 bg-gray-900 text-gray-500 text-xs rounded border border-gray-800">LOCKED</span>
+                        <span className="px-2 py-1 bg-green-900/30 text-green-400 text-xs rounded border border-green-800">GLOBAL</span>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-500 mb-2">Global Polling Rate</h3>
-                    <p className="text-gray-600 text-sm mb-6 min-h-[60px]">
-                        클라이언트가 서버에 데이터를 요청하는 주기를 제어합니다.
-                        <br />
-                        <span className="text-xs text-gray-700">
-                            • SLOW: 5초마다 갱신 (서버 부하 감소)<br />
-                            • NORMAL: 2초마다 갱신 (기본값)<br />
-                            • FAST: 1초마다 갱신 (실시간 게임플레이)
-                        </span>
+                    <h3 className="text-xl font-bold text-green-100 mb-2">Global Polling Rate</h3>
+                    <p className="text-green-700/80 text-sm mb-6 min-h-[60px]">
+                        클라이언트가 서버에 데이터를 요청하는 주기를 제어합니다. (Market, Minion Panel, Mail 등)
                     </p>
-                    <div className="w-full py-3 rounded font-bold tracking-wider text-center bg-gray-900/20 text-gray-600 border border-gray-800">
-                        미구현 (향후 기능)
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className="text-sm text-gray-400">Interval (sec):</span>
+                        <BufferedInput
+                            className="bg-black border border-green-800 text-green-400 p-1 w-20 text-center rounded"
+                            value={config?.client_poll_interval ? config.client_poll_interval / 1000 : 60}
+                            onCommit={(val) => updateInterval('client_poll_interval', val)}
+                        />
+                    </div>
+                    <div className="w-full py-3 rounded font-bold tracking-wider text-center bg-gray-900/20 text-green-600 border border-green-800/50">
+                        CLIENT SYNC ACTIVE
                     </div>
                 </div>
 
@@ -138,15 +160,15 @@ export default function AdminSystemPage() {
                     관리자 주의사항
                 </h3>
                 <p className="text-red-400/70 text-sm">
-                    시스템 파라미터 변경은 모든 활성 유저에게 즉시 영향을 미칩니다. Market Fluctuations를 비활성화하면 모든 아이템 가격이 현재 값으로 동결됩니다.
+                    시스템 파라미터 변경은 모든 활성 유저에게 즉시 영향을 미칩니다. 주기를 너무 짧게 설정하면 서버 부하가 증가할 수 있습니다.
                 </p>
             </div>
         </div>
     );
 }
 
-function ControlCard({ title, description, active, icon, onToggle }: {
-    title: string, description: string, active: boolean, icon: React.ReactNode, onToggle: () => void
+function ControlCard({ title, description, active, interval, icon, onToggle, onIntervalChange }: {
+    title: string, description: string, active: boolean, interval: number, icon: React.ReactNode, onToggle: () => void, onIntervalChange: (val: number) => void
 }) {
     return (
         <motion.div
@@ -161,7 +183,17 @@ function ControlCard({ title, description, active, icon, onToggle }: {
             </div>
 
             <h3 className={`text-xl font-bold mb-2 ${active ? 'text-green-100' : 'text-red-200'}`}>{title}</h3>
-            <p className="text-green-700/80 text-sm mb-6 min-h-[40px]">{description}</p>
+            <p className="text-green-700/80 text-sm mb-4 min-h-[40px]">{description}</p>
+
+            <div className="flex items-center gap-2 mb-4 bg-black/20 p-2 rounded">
+                <span className="text-xs text-gray-400 uppercase font-bold">Cycle (Sec):</span>
+                <BufferedInput
+                    min="1"
+                    className={`bg-transparent border-b ${active ? 'border-green-800 text-green-400' : 'border-red-800 text-red-400'} p-1 w-16 text-center outline-none font-mono`}
+                    value={interval}
+                    onCommit={(val) => onIntervalChange(val)}
+                />
+            </div>
 
             <button
                 onClick={onToggle}
@@ -183,5 +215,30 @@ function StatusBadge({ active }: { active: boolean }) {
             <div className={`w-2 h-2 rounded-full ${active ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
             {active ? 'RUNNING' : 'STOPPED'}
         </div>
+    )
+}
+
+function BufferedInput({ value, onCommit, className, type = "number", min }: { value: number, onCommit: (val: number) => void, className?: string, type?: string, min?: string }) {
+    const [localVal, setLocalVal] = useState(value);
+
+    useEffect(() => {
+        setLocalVal(value);
+    }, [value]);
+
+    return (
+        <input
+            type={type}
+            min={min}
+            className={className}
+            value={localVal}
+            onChange={(e) => setLocalVal(Number(e.target.value))}
+            onBlur={() => onCommit(localVal)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                    onCommit(localVal);
+                    (e.target as HTMLInputElement).blur();
+                }
+            }}
+        />
     )
 }

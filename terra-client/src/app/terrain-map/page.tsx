@@ -375,12 +375,19 @@ export default function TerrainMapPage() {
                 const now = Date.now();
                 const arrival = new Date(data.arrivalTime).getTime();
 
+                console.log(`[Move] Path received:`, data.path); // Debug log
+
                 // Update Local State for Animation
                 setIsMoving(true);
                 setMoveStartTime(now);
                 setMoveArrivalTime(arrival);
                 setMoveStartPos(playerPosition);
                 setActivePath(data.path); // Path from server
+
+                // Clear any previous planned path/waypoints to prevent visual confusion
+                setWaypoints([]);
+                setPlannedPath([]);
+                setPathDistance(0);
 
                 // Set final position immediately? No, animate.
                 // But we can update the 'target' visuals if needed.
@@ -395,29 +402,39 @@ export default function TerrainMapPage() {
     };
 
     // --- Movement Synchronization (Polling) ---
+    // --- Movement Synchronization (Polling) ---
     useEffect(() => {
         if (!isMoving) return;
 
         const userId = localStorage.getItem('terra_user_id');
         if (!userId) return;
 
+        // Use a flag to prevent state updates if the effect has been cleaned up (component unmounted or isMoving changed)
+        let isActive = true;
+
         const syncInterval = setInterval(async () => {
+            if (!isActive) return;
+
             try {
                 const res = await fetch(`${API_BASE_URL}/api/game/position/${userId}`);
                 if (res.ok) {
                     const data = await res.json();
+
+                    // Double check if we are still active before updating state
+                    if (!isActive) return;
+
                     if (data.isMoving === false) {
                         // Movement finished on server
+                        // Only act if we haven't already finished locally (which sets isMoving=false)
+                        // But wait, if isMoving=false, this effect unmounts.
+                        // So if we are here, isMoving IS true.
+
                         setIsMoving(false);
                         setPlayerPosition(data.position);
                         setActivePath([]);
                         setMoveStartTime(null);
                         setMoveArrivalTime(null);
                         showToast('목적지에 도착했습니다.', 'success');
-                    } else {
-                        // Optional: Sync intermediate position if drift occurs?
-                        // For now, let the client animation handle smoothness.
-                        // We just check for completion.
                     }
                 }
             } catch (e) {
@@ -425,7 +442,10 @@ export default function TerrainMapPage() {
             }
         }, 2000); // Check every 2 seconds
 
-        return () => clearInterval(syncInterval);
+        return () => {
+            isActive = false;
+            clearInterval(syncInterval);
+        };
     }, [isMoving]);
 
     const handleBuildingConstruct = async (buildingId: string) => {
@@ -703,6 +723,14 @@ export default function TerrainMapPage() {
                 const end = activePath[activePath.length - 1];
                 setPlayerPosition([end.lat, end.lng]);
                 showToast("목적지 도착!", 'success');
+
+                // FORCE SYNC: Notify server of arrival to update DB `current_pos`
+                // This prevents "detours" on next move caused by stale DB position.
+                const userId = localStorage.getItem('terra_user_id');
+                if (userId) {
+                    fetch(`${API_BASE_URL}/api/game/position/${userId}`).catch(console.error);
+                }
+
                 return;
             }
 
@@ -711,7 +739,27 @@ export default function TerrainMapPage() {
             const elapsed = now - moveStartTime;
             const progress = Math.min(elapsed / totalDuration, 1.0);
 
-            const fullPath = moveStartPos ? [{ lat: moveStartPos[0], lng: moveStartPos[1] }, ...activePath] : activePath;
+            // Create full path for interpolation
+            let pathForAnim = activePath;
+
+            // Smooth start: If moveStartPos is very close to the first point of activePath, skip the first point of activePath
+            // to avoid a tiny "zig-zag" segment if there is slight drift.
+            if (moveStartPos && activePath.length > 0) {
+                const firstPoint = activePath[0];
+                const dist = calculateDistance(moveStartPos[0], moveStartPos[1], firstPoint.lat, firstPoint.lng);
+
+                // If distance is small (< 100m) but not zero, and we include BOTH, we get a stutter.
+                // If distance is large, we NEED both to show the travel.
+                // But typically activePath[0] IS the start position according to server.
+                // So we usually want to animate from moveStartPos -> activePath[0] -> ...
+                // UNLESS they are practically the same.
+
+                if (dist < 0.1) { // less than 100m
+                    pathForAnim = activePath.slice(1);
+                }
+            }
+
+            const fullPath = moveStartPos ? [{ lat: moveStartPos[0], lng: moveStartPos[1] }, ...pathForAnim] : pathForAnim;
 
             if (fullPath.length >= 2) {
                 const totalSegments = fullPath.length - 1;

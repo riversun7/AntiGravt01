@@ -287,9 +287,31 @@ function SentHistory() {
     };
 
     useEffect(() => {
-        fetchHistory();
-        const interval = setInterval(fetchHistory, 5000);
-        return () => clearInterval(interval);
+        let intervalId: NodeJS.Timeout;
+
+        const initPolling = async () => {
+            // 1. Initial Fetch
+            fetchHistory();
+
+            // 2. Get Config Interval
+            try {
+                const configRes = await fetch(`${API_BASE_URL}/api/admin/system/config`);
+                const config = await configRes.json();
+                const pollRate = config.client_poll_interval || 60000; // Default 1 min
+
+                // 3. Start Interval
+                intervalId = setInterval(fetchHistory, pollRate);
+            } catch (e) {
+                // Fallback
+                intervalId = setInterval(fetchHistory, 60000);
+            }
+        };
+
+        initPolling();
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
     }, []);
 
     return (

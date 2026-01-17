@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Users, Battery, Heart, Zap, Brain } from 'lucide-react';
+import { API_BASE_URL } from "@/lib/config";
 
 interface Minion {
     id: number;
@@ -33,9 +34,31 @@ export default function MinionStatusPanel({ userId }: { userId: number }) {
     }, [userId]);
 
     useEffect(() => {
-        fetchMinions();
-        const interval = setInterval(fetchMinions, 10000); // Refresh every 10s
-        return () => clearInterval(interval);
+        let intervalId: NodeJS.Timeout;
+
+        const initPolling = async () => {
+            // 1. Initial Fetch
+            fetchMinions();
+
+            // 2. Get Config Interval
+            try {
+                const configRes = await fetch(`${API_BASE_URL}/api/admin/system/config`);
+                const config = await configRes.json();
+                const pollRate = config.client_poll_interval || 60000; // Default 1 min
+
+                // 3. Start Interval
+                intervalId = setInterval(fetchMinions, pollRate);
+            } catch (e) {
+                // Fallback
+                intervalId = setInterval(fetchMinions, 60000);
+            }
+        };
+
+        initPolling();
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
     }, [fetchMinions]);
 
     if (loading) {
