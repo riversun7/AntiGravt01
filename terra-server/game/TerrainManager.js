@@ -13,33 +13,34 @@ class TerrainManager {
      * @returns {Promise<Object>} { type: 'PLAIN'|'MOUNTAIN'|'WATER', elevation: number }
      */
     async getTerrainInfo(lat, lng) {
-        // 1. Grid Override Logic REMOVED (User requested No Grid)
-        // const x = Math.floor((lng + 180) / 360 * 160);
-        // const y = Math.floor((90 - lat) / 180 * 80);
+        return (await this.getTerrainInfos([{ lat, lng }]))[0];
+    }
 
-        // const override = this.db.prepare('SELECT terrain_type FROM tile_overrides WHERE x = ? AND y = ?').get(x, y);
-        // if (override && override.terrain_type) { ... }
+    /**
+     * Get Terrain Info for multiple coordinates in batch.
+     * @param {Array<{lat: number, lng: number}>} locations 
+     * @returns {Promise<Array<{type: string, elevation: number, isOverride: boolean}>>}
+     */
+    async getTerrainInfos(locations) {
+        // 1. Grid Override Logic (Skipped as requested)
 
-        // 2. Automated Check via Elevation
-        const elevation = await this.elevationService.getElevation(lat, lng);
+        // 2. Automated Check via Elevation (Batch)
+        const elevations = await this.elevationService.getElevations(locations);
 
-        // Logic:
-        // <= 0 : WATER
-        // > 1000 : MOUNTAIN
-        // Else : PLAIN (or FOREST based on Lat/Noise in future Phase 2)
+        return elevations.map(elevation => {
+            let type = 'PLAIN';
+            if (elevation <= 0) {
+                type = 'WATER';
+            } else if (elevation >= 1000) {
+                type = 'MOUNTAIN';
+            }
 
-        let type = 'PLAIN';
-        if (elevation <= 0) {
-            type = 'WATER';
-        } else if (elevation >= 1000) {
-            type = 'MOUNTAIN';
-        }
-
-        return {
-            type: type,
-            elevation: elevation,
-            isOverride: false
-        };
+            return {
+                type: type,
+                elevation: elevation,
+                isOverride: false
+            };
+        });
     }
 }
 

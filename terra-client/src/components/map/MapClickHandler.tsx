@@ -56,7 +56,19 @@ export default function MapClickHandler({
             const distance = calculateDistance(centerLat, centerLng, lat, lng);
 
             if (distance <= maxMovementRange) {
-                onMove([lat, lng]);
+                // OLD: onMove([lat, lng]); -> NEW: Call Server API
+                if (onMove) {
+                    // Pass to parent to handle API call or call here?
+                    // Let's call API here to keep logic clean, OR delegate.
+                    // The Plan said "MapClickHandler calls API".
+                    onMove([lat, lng]); // This just updates local state? No.
+                    // Let's check props. onMove is (position: [number, number]) => void;
+                    // We should probably change onMove to trigger the API call in TerrainMapContent 
+                    // OR handle it here if we have userId. 
+                    // MapClickHandler doesn't have userId currently.
+                    // Let's defer to onMove logic which will be updated in TerrainMapContent.
+                    onMove([lat, lng]);
+                }
             } else {
                 onError(`이동 불가: 작전 반경(${maxMovementRange}km)을 벗어날 수 없습니다.\n현재 거리: ${distance.toFixed(2)}km`);
             }

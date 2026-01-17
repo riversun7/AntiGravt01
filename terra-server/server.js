@@ -822,43 +822,162 @@ app.post('/api/admin/tile', (req, res) => {
 
 // app.get('/api/world-map', (req, res) => { ... }); // REMOVED (Client uses TerrainMap/Leaflet tiles)
 
-// Update User Position (Move)
-app.post('/api/map/move', (req, res) => {
-    const { userId, targetId } = req.body;
+// Update User Position (Move) - Pathfinding Version
+app.post('/api/game/move', async (req, res) => {
+    let { userId, targetLat, targetLng, x, y } = req.body;
+    // Support both naming conventions
+    if (targetLat === undefined) targetLat = x;
+    if (targetLng === undefined) targetLng = y;
+
     try {
-        // Validate targetId format "x_y"
-        if (!/^\d+_\d+$/.test(targetId)) throw new Error("Invalid Format");
+        console.log(`[Move Request] User ${userId} -> ${targetLat}, ${targetLng}`);
 
-        const user = db.prepare('SELECT current_pos, destination_pos FROM users WHERE id = ?').get(userId);
-        if (user.destination_pos) throw new Error("Already moving");
+        // 1. Get current position
+        const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
 
-        // Calculate Distance
-        const [x1, y1] = (user.current_pos || "10_10").split('_').map(Number);
-        const [x2, y2] = targetId.split('_').map(Number);
+        // Parse current position (stored as "lat,lng" or fallback to Seoul)
+        const [startLat, startLng] = user.current_pos
+            ? (user.current_pos.includes(',') ? user.current_pos.split(',') : user.current_pos.split('_')).map(Number)
+            : [37.5665, 126.9780];
 
-        // Euclidean distance
-        const dist = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        // 2. Check if already moving (Simple validation)
+        if (user.destination_pos && user.arrival_time) {
+            const arrival = new Date(user.arrival_time);
+            if (new Date() < arrival) {
+                return res.status(400).json({
+                    error: 'Already moving',
+                    arrivalTime: user.arrival_time
+                });
+            }
+        }
 
-        // Speed: 2 seconds per unit distance, minimum 3 seconds
-        // Adjust this factor to tune gameplay speed
-        const travelTimeMs = Math.max(3000, Math.floor(dist * 200));
+        // 3. Calculate distance for range check
+        const distance = calculateDistance(startLat, startLng, targetLat, targetLng);
+        const maxRange = user.role === 'admin' ? 999 : 50; // 50km for normal users
+
+        if (distance > maxRange) {
+            return res.status(400).json({
+                error: `Out of range: ${distance.toFixed(1)}km > ${maxRange}km`
+            });
+        }
+
+        // 4. PATHFINDING - Find obstacle-avoiding path
+        const pathResult = await pathfindingService.findPath(
+            startLat, startLng,
+            targetLat, targetLng
+        );
+
+        if (!pathResult.success) {
+            return res.status(400).json({
+                error: pathResult.error || 'No valid path found (Water or Obstacle)'
+            });
+        }
+
+        // 5. Calculate movement duration based on Path Cost (Distance + Terrain Penalty)
+        // Adjust speed: 0.5 km/s baseline (Increased from 0.1 for better UX)
+        const speed = user.role === 'admin' ? 2.0 : 0.5;
+        // pathResult.cost is roughly equivalent to distance steps with terrain penalties
+        // But for duration, we should use physical distance of path * terrain factor
+        // For simplicity, we use the direct distance for duration but allow the path.
+        // Actually, let's use the path length.
+
+        let pathDistance = 0;
+        for (let i = 0; i < pathResult.path.length - 1; i++) {
+            pathDistance += calculateDistance(
+                pathResult.path[i].lat, pathResult.path[i].lng,
+                pathResult.path[i + 1].lat, pathResult.path[i + 1].lng
+            );
+        }
+        if (pathDistance === 0) pathDistance = distance; // Fallback
+
+        const durationSeconds = pathDistance / speed;
+
+        // 6. Save to database
         const now = new Date();
-        const arrival = new Date(now.getTime() + travelTimeMs);
+        const arrivalTime = new Date(now.getTime() + durationSeconds * 1000);
+        const targetPosStr = `${targetLat},${targetLng}`;
 
         db.prepare(`
             UPDATE users 
-            SET start_pos = current_pos, 
-                destination_pos = ?, 
-                departure_time = ?, 
-                arrival_time = ? 
+            SET start_pos = ?,
+                destination_pos = ?,
+                departure_time = ?,
+                arrival_time = ?,
+                movement_path = ?
             WHERE id = ?
-        `).run(targetId, now.toISOString(), arrival.toISOString(), userId);
+        `).run(
+            user.current_pos,
+            targetPosStr,
+            now.toISOString(),
+            arrivalTime.toISOString(),
+            JSON.stringify(pathResult.path),
+            userId
+        );
 
-        res.json({ success: true, arrival_time: arrival.toISOString(), duration: travelTimeMs, start_pos: user.current_pos, target_pos: targetId });
+        // 7. Return to client
+        res.json({
+            success: true,
+            path: pathResult.path,
+            distanceKm: pathDistance,
+            durationSeconds: durationSeconds,
+            arrivalTime: arrivalTime.toISOString(),
+            startPos: [startLat, startLng],
+            targetPos: [targetLat, targetLng]
+        });
+
+    } catch (err) {
+        console.error('Movement error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Position Sync Endpoint
+app.get('/api/game/position/:userId', (req, res) => {
+    try {
+        const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        // Check if movement complete
+        if (user.arrival_time && new Date() >= new Date(user.arrival_time)) {
+            // Movement complete - update position
+            db.prepare(`
+                UPDATE users 
+                SET current_pos = destination_pos,
+                    destination_pos = NULL,
+                    arrival_time = NULL,
+                    movement_path = NULL
+                WHERE id = ?
+            `).run(req.params.userId);
+
+            const [lat, lng] = user.destination_pos.split(',').map(Number);
+            return res.json({
+                position: [lat, lng],
+                isMoving: false,
+                path: []
+            });
+        }
+
+        // Still moving or Idle
+        const currentPos = user.current_pos
+            ? (user.current_pos.includes(',') ? user.current_pos.split(',') : user.current_pos.split('_')).map(Number)
+            : [37.5665, 126.9780]; // Lat, Lng
+
+        res.json({
+            position: currentPos,
+            isMoving: !!user.destination_pos,
+            path: user.movement_path ? JSON.parse(user.movement_path) : [],
+            arrivalTime: user.arrival_time,
+            startPos: user.start_pos ? user.start_pos.split(',').map(Number) : currentPos,
+            targetPos: user.destination_pos ? user.destination_pos.split(',').map(Number) : null
+        });
+
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
+
+// app.post('/api/map/move', ...); REMOVED
 
 // Build API
 app.post('/api/build', (req, res) => {

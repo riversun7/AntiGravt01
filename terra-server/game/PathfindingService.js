@@ -33,26 +33,59 @@ class PathfindingService {
 
         console.time("PathfindingDuration");
         // Iterate through segments
+        // If valid, add end point (start point is already added)
+        // The original code had a misplaced `validatedPath.push(p2);` here.
+        // The new logic will handle path construction and validation in a batch.
+
+
+        // --- BATCH OPTIMIZATION START ---
+        // Collect ALL sample points for the entire path
+        let allSamples = [];
+        let allSampleCoords = [];
+
+        // Re-calculate samples for batch processing validation
         for (let i = 0; i < points.length - 1; i++) {
             const p1 = points[i];
             const p2 = points[i + 1];
-
-            // Check this segment
             const dist = this.calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
-            totalDistance += dist;
 
-            const valid = await this.checkSegment(p1, p2, dist);
-            if (!valid) {
-                console.timeEnd("PathfindingDuration");
-                return {
-                    success: false,
-                    error: `Path obstructed between [${p1.lat.toFixed(4)}, ${p1.lng.toFixed(4)}] and [${p2.lat.toFixed(4)}, ${p2.lng.toFixed(4)}]`
-                };
+            // Sample every 1km
+            let samples = Math.max(5, Math.ceil(dist / 1.0));
+
+            for (let k = 1; k <= samples; k++) {
+                const t = k / (samples + 1);
+                const lat = p1.lat + (p2.lat - p1.lat) * t;
+                const lng = p1.lng + (p2.lng - p1.lng) * t;
+                allSamples.push({ lat, lng, segmentIndex: i });
+                allSampleCoords.push({ lat, lng });
             }
-
-            // If valid, add end point (start point is already added)
+            // Add the end point of the segment to the validated path
             validatedPath.push(p2);
+            totalDistance += dist;
         }
+
+        if (allSampleCoords.length > 0) {
+            console.log(`[Pathfinding] Batch checking ${allSampleCoords.length} points...`);
+
+            // Batch Fetch
+            const terrainResults = await this.terrainManager.getTerrainInfos(allSampleCoords);
+
+            // Validate
+            for (let i = 0; i < terrainResults.length; i++) {
+                const terrain = terrainResults[i];
+                const sample = allSamples[i];
+
+                if (terrain.type === 'WATER' || terrain.type === 'MOUNTAIN') {
+                    console.timeEnd("PathfindingDuration");
+                    return {
+                        success: false,
+                        error: `Path obstructed at [${sample.lat.toFixed(4)}, ${sample.lng.toFixed(4)}]`
+                    };
+                }
+            }
+        }
+        // --- BATCH OPTIMIZATION END ---
+
         console.timeEnd("PathfindingDuration");
 
         return {
@@ -64,32 +97,9 @@ class PathfindingService {
     }
 
     /**
-     * Check a line segment for obstacles by sampling
+     * Check a line segment for obstacles by sampling (DEPRECATED)
      */
     async checkSegment(p1, p2, distanceKm) {
-        // How many samples?
-        // User reported small water paths not recognized. 10km is too large.
-        // Let's sample every 1km (high precision)
-        // Note: Elevation check is fast if cached.
-
-        let samples = Math.max(5, Math.ceil(distanceKm / 1.0)); // Every 1km, min 5 samples
-
-        // Linear Interpolation
-        for (let i = 1; i <= samples; i++) {
-            const t = i / (samples + 1);
-            const lat = p1.lat + (p2.lat - p1.lat) * t;
-            const lng = p1.lng + (p2.lng - p1.lng) * t;
-
-            // Check Collision
-            const terrain = await this.terrainManager.getTerrainInfo(lat, lng);
-            if (terrain.type === 'WATER' || terrain.type === 'MOUNTAIN') {
-                // Optimization: Tolerating small "edge" overlaps? 
-                // For now strict.
-                return false;
-            }
-        }
-
-        // Also check end point? (Usually covered by next segment or final dest)
         return true;
     }
 

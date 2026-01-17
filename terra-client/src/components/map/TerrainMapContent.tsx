@@ -109,6 +109,7 @@ export default function TerrainMapContent({
             zoom={currentZoom}
             style={{ height: '100%', width: '100%', background: '#242f3e' }}
             zoomControl={false}
+            attributionControl={false}
             minZoom={2}
             maxZoom={tileProvider.maxZoom || 19}
             doubleClickZoom={false}

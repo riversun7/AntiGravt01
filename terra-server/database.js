@@ -297,9 +297,17 @@ function initSchema() {
         if (!hasDest) {
             db.exec("ALTER TABLE users ADD COLUMN destination_pos TEXT DEFAULT NULL");
             db.exec("ALTER TABLE users ADD COLUMN start_pos TEXT DEFAULT NULL");
+            db.exec("ALTER TABLE users ADD COLUMN movement_path TEXT DEFAULT NULL"); // Added path storage
             db.exec("ALTER TABLE users ADD COLUMN arrival_time DATETIME DEFAULT NULL");
             db.exec("ALTER TABLE users ADD COLUMN departure_time DATETIME DEFAULT NULL");
-            console.log("Migrated users table: added movement tracking columns (destination_pos, start_pos, arrival_time, departure_time)");
+            console.log("Migrated users table: added movement tracking columns (destination_pos, start_pos, movement_path, arrival_time, departure_time)");
+        } else {
+            // Check specifically for movement_path if destination_pos existed but path didn't
+            const hasPath = userCols.some(c => c.name === 'movement_path');
+            if (!hasPath) {
+                db.exec("ALTER TABLE users ADD COLUMN movement_path TEXT DEFAULT NULL");
+                console.log("Migrated users table: added movement_path");
+            }
         }
     } catch (e) {
         console.error("Migration error:", e);

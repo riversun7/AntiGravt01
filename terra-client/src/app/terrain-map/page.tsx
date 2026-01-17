@@ -351,22 +351,82 @@ export default function TerrainMapPage() {
         }
     }, [geolocation.position, playerPosition, defaultPosition]);
 
+    // --- Movement Logic ---
     const handlePlayerMove = async (position: [number, number]) => {
+        // This is called from GameControlPanel or MapClickHandler
+        // But for pathfinding, we need to call the API and get the path.
+        // We will assume 'position' is the target.
+
         try {
             const userId = localStorage.getItem('terra_user_id');
+            const targetLat = position[0];
+            const targetLng = position[1];
+
             const response = await fetch(`${API_BASE_URL}/api/game/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, x: position[0], y: position[1] }),
+                body: JSON.stringify({ userId, targetLat, targetLng }),
             });
 
-            if (response.ok) {
-                setPlayerPosition(position);
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                // Determine Start/End Times
+                const now = Date.now();
+                const arrival = new Date(data.arrivalTime).getTime();
+
+                // Update Local State for Animation
+                setIsMoving(true);
+                setMoveStartTime(now);
+                setMoveArrivalTime(arrival);
+                setMoveStartPos(playerPosition);
+                setActivePath(data.path); // Path from server
+
+                // Set final position immediately? No, animate.
+                // But we can update the 'target' visuals if needed.
+                showToast(`이동 시작! (예상 시간: ${data.durationSeconds.toFixed(1)}초)`, 'success');
+            } else {
+                showToast(`이동 실패: ${data.error}`, 'error');
             }
         } catch (error) {
-            console.error('Failed to save player position:', error);
+            console.error('Failed to move:', error);
+            showToast('이동 요청 중 오류가 발생했습니다.', 'error');
         }
     };
+
+    // --- Movement Synchronization (Polling) ---
+    useEffect(() => {
+        if (!isMoving) return;
+
+        const userId = localStorage.getItem('terra_user_id');
+        if (!userId) return;
+
+        const syncInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/game/position/${userId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.isMoving === false) {
+                        // Movement finished on server
+                        setIsMoving(false);
+                        setPlayerPosition(data.position);
+                        setActivePath([]);
+                        setMoveStartTime(null);
+                        setMoveArrivalTime(null);
+                        showToast('목적지에 도착했습니다.', 'success');
+                    } else {
+                        // Optional: Sync intermediate position if drift occurs?
+                        // For now, let the client animation handle smoothness.
+                        // We just check for completion.
+                    }
+                }
+            } catch (e) {
+                console.error("Sync error", e);
+            }
+        }, 2000); // Check every 2 seconds
+
+        return () => clearInterval(syncInterval);
+    }, [isMoving]);
 
     const handleBuildingConstruct = async (buildingId: string) => {
         if (isConstructing) return;
@@ -599,7 +659,7 @@ export default function TerrainMapPage() {
 
                 // Start Animation on Client
                 const now = Date.now();
-                const arrival = new Date(data.arrival_time).getTime();
+                const arrival = new Date(data.arrivalTime).getTime();
 
                 setIsPathPlanning(false); // Hide planning UI
                 setIsMoving(true);
@@ -608,7 +668,7 @@ export default function TerrainMapPage() {
                 setMoveStartPos(playerPosition);
                 setActivePath([...plannedPath]); // Copy path for animation
 
-                showToast(`이동 시작! (소요시간: ${data.duration_seconds.toFixed(1)}초)`, 'success');
+                showToast(`이동 시작! (소요시간: ${data.durationSeconds.toFixed(1)}초)`, 'success');
 
                 // Note: We do NOT clear waypoints/path here immediately so they can be used for animation
                 // But we hide the planning UI.
