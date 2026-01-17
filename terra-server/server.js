@@ -3278,12 +3278,19 @@ app.post('/api/game/move', (req, res) => {
             WHERE id = ?
         `).run(targetPosStr, now.toISOString(), arrival.toISOString(), userId);
 
+        // Construct path if missing for animation
+        const returnPath = (path && Array.isArray(path)) ? path : [
+            { lat: startLat, lng: startLng },
+            { lat: x, lng: y }
+        ];
+
         res.json({
             success: true,
             message: `Moving to (${x}, ${y}). Arriving in ${durationSeconds.toFixed(1)}s`,
-            arrival_time: arrival.toISOString(),
-            start_pos: [startLat, startLng],
-            duration_seconds: durationSeconds
+            arrivalTime: arrival.toISOString(), // Client expects arrivalTime (camelCase)
+            startPos: [startLat, startLng],
+            durationSeconds: durationSeconds,   // Client expects durationSeconds (camelCase)
+            path: returnPath                    // Client expects path
         });
 
     } catch (err) {
