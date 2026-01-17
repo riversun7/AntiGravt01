@@ -2630,6 +2630,7 @@ app.get('/api/buildings/types', (req, res) => {
 
 app.post('/api/buildings/construct', (req, res) => {
     const { userId, type, x, y, tileId } = req.body; // x, y are Lat/Lng or generic coords
+    console.log(`[Construction] Request: User=${userId}, Type=${type}, Pos=(${x}, ${y})`);
 
     if (!userId || !type) {
         return res.status(400).json({ error: 'userId and type are required' });
@@ -3187,13 +3188,21 @@ app.post('/api/game/path', async (req, res) => {
 
 // Execute Move (with path validation and timing)
 app.post('/api/game/move', (req, res) => {
-    const { userId, x, y, path } = req.body; // x, y are target Lat/Lng
+    let { userId, x, y, path, targetLat, targetLng } = req.body;
+
+    // Support alias
+    if (x === undefined && targetLat !== undefined) x = targetLat;
+    if (y === undefined && targetLng !== undefined) y = targetLng;
 
     console.log(`[MOVE_REQ] User: ${userId} -> Target: ${x}, ${y} | Path Nodes: ${path ? path.length : 'None'}`);
 
-    if (!userId || x === undefined || y === undefined) {
-        return res.status(400).json({ error: 'Invalid move request' });
-    }
+    if (!userId) return res.status(400).json({ error: 'Missing userId' });
+    if (x === undefined) return res.status(400).json({ error: 'Missing x (targetLat)' });
+    if (y === undefined) return res.status(400).json({ error: 'Missing y (targetLng)' });
+
+    // if (!userId || x === undefined || y === undefined) {
+    //    return res.status(400).json({ error: 'Invalid move request' });
+    // }
 
     try {
         const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
