@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Info, Hammer, Map, Zap, Minimize2, Maximize2, GripVertical, UserPlus, LucideIcon } from 'lucide-react';
 import { TileProvider } from '@/components/map/TileProviderSelector';
+import { API_BASE_URL } from '@/lib/config';
 
 interface FloatingGamePanelProps {
     // Info tab
@@ -118,36 +119,46 @@ export default function FloatingGamePanel({
         { id: 'settings', label: '설정', icon: Map },
     ];
 
-    const buildingCategories = [
-        {
-            id: 'territory',
-            label: '👑 영토',
-            buildings: [
-                { id: 'COMMAND_CENTER', name: '사령부', cost: { gold: 500, gem: 5 }, buildTime: 60 },
-            ],
-        },
-        {
-            id: 'resource',
-            label: '🔨 자원',
-            buildings: [
-                { id: 'mine', name: '자원 채굴장', cost: { gold: 100, gem: 0 }, buildTime: 30 },
-            ],
-        },
-        {
-            id: 'storage',
-            label: '📦 저장',
-            buildings: [
-                { id: 'warehouse', name: '창고', cost: { gold: 50, gem: 0 }, buildTime: 20 },
-            ],
-        },
-        {
-            id: 'living',
-            label: '🏡 생활',
-            buildings: [
-                { id: 'barracks', name: '숙소', cost: { gold: 75, gem: 0 }, buildTime: 25 },
-            ],
-        },
-    ];
+    const [buildingTypes, setBuildingTypes] = useState<any[]>([]);
+
+    useEffect(() => {
+        fetch(`${API_BASE_URL}/api/buildings/types`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.types) setBuildingTypes(data.types);
+            })
+            .catch(err => console.error("Failed to load building types:", err));
+    }, []);
+
+    // Dynamic Categories Generation
+    const categoriesMap: Record<string, { id: string, label: string, order: number }> = {
+        'TERRITORY': { id: 'territory', label: '👑 영토', order: 1 },
+        'ADMIN': { id: 'territory', label: '👑 영토', order: 1 },
+        'RESOURCE': { id: 'resource', label: '🔨 자원', order: 2 },
+        'STORAGE': { id: 'storage', label: '📦 저장', order: 3 },
+        'HOUSING': { id: 'living', label: '🏡 생활', order: 4 },
+        'MILITARY': { id: 'military', label: '⚔️ 군사', order: 5 },
+        'INDUSTRIAL': { id: 'industrial', label: '🏭 산업', order: 6 },
+        'RESEARCH': { id: 'research', label: '🧪 연구', order: 7 },
+    };
+
+    const buildingCategories = Object.values(categoriesMap)
+        .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+        .sort((a, b) => a.order - b.order)
+        .map(cat => ({
+            ...cat,
+            buildings: buildingTypes.filter(b => {
+                const mapped = categoriesMap[b.category] || { id: 'other' };
+                return mapped.id === cat.id;
+            }).map(b => ({
+                id: b.code,
+                name: b.name,
+                cost: b.construction_cost,
+                buildTime: b.tier * 30,
+                desc: b.description
+            }))
+        }))
+        .filter(cat => cat.buildings.length > 0);
 
     return (
         <div
@@ -246,8 +257,8 @@ export default function FloatingGamePanel({
                                         <div className="space-y-2">
                                             {category.buildings.map((building) => {
                                                 const canAfford =
-                                                    playerResources.gold >= building.cost.gold &&
-                                                    playerResources.gem >= building.cost.gem;
+                                                    playerResources.gold >= (building.cost.gold || 0) &&
+                                                    playerResources.gem >= (building.cost.gem || 0);
 
                                                 return (
                                                     <button
@@ -381,16 +392,30 @@ export default function FloatingGamePanel({
                                             {buildings.map((building, index) => {
                                                 const getBuildingIcon = (type: string) => {
                                                     const icons: Record<string, string> = {
-                                                        mine: '⛏️', warehouse: '📦', barracks: '🏡',
-                                                        MINE: '⛏️', WAREHOUSE: '📦', BARRACKS: '🏡',
+                                                        'AREA_BEACON': '📡',
+                                                        'COMMAND_CENTER': '🏰',
+                                                        'CENTRAL_CONTROL_HUB': '🏢',
+                                                        'BASIC_QUARTERS': '🏠',
+                                                        'BASIC_WAREHOUSE': '📦',
+                                                        'ADVANCED_WAREHOUSE': '🏭',
+                                                        'LUMBERYARD': '🪓',
+                                                        'MINE': '⛏️',
+                                                        'FARM': '🌾',
+                                                        'RESEARCH_LAB': '🧪',
+                                                        'BARRACKS': '⚔️',
+                                                        'FACTORY': '🏭',
+                                                        // Legacy
+                                                        'mine': '⛏️', 'warehouse': '📦', 'barracks': '🏡'
                                                     };
-                                                    return icons[type] || '🏗️';
+                                                    return icons[type] || icons[type.toUpperCase()] || '🏗️';
                                                 };
 
                                                 const getBuildingName = (type: string) => {
+                                                    const loaded = buildingTypes.find(b => b.code === type || b.code === type.toUpperCase());
+                                                    if (loaded) return loaded.name;
+
                                                     const names: Record<string, string> = {
-                                                        mine: '자원 채굴장', warehouse: '창고', barracks: '숙소',
-                                                        MINE: '자원 채굴장', WAREHOUSE: '창고', BARRACKS: '숙소',
+                                                        'mine': '자원 채굴장', 'warehouse': '창고', 'barracks': '숙소'
                                                     };
                                                     return names[type] || type;
                                                 };

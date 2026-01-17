@@ -858,115 +858,7 @@ app.post('/api/admin/tile', (req, res) => {
 
 // app.get('/api/world-map', (req, res) => { ... }); // REMOVED (Client uses TerrainMap/Leaflet tiles)
 
-// Update User Position (Move) - Pathfinding Version
-app.post('/api/game/move', async (req, res) => {
-    let { userId, targetLat, targetLng, x, y } = req.body;
-    // Support both naming conventions
-    if (targetLat === undefined) targetLat = x;
-    if (targetLng === undefined) targetLng = y;
 
-    try {
-        console.log(`[Move Request] User ${userId} -> ${targetLat}, ${targetLng}`);
-
-        // 1. Get current position
-        const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
-        // Parse current position (stored as "lat,lng" or fallback to Seoul)
-        const [startLat, startLng] = user.current_pos
-            ? (user.current_pos.includes(',') ? user.current_pos.split(',') : user.current_pos.split('_')).map(Number)
-            : [37.5665, 126.9780];
-
-        // 2. Check if already moving (Simple validation)
-        if (user.destination_pos && user.arrival_time) {
-            const arrival = new Date(user.arrival_time);
-            if (new Date() < arrival) {
-                return res.status(400).json({
-                    error: 'Already moving',
-                    arrivalTime: user.arrival_time
-                });
-            }
-        }
-
-        // 3. Calculate distance for range check
-        const distance = calculateDistance(startLat, startLng, targetLat, targetLng);
-        const maxRange = user.role === 'admin' ? 999 : 50; // 50km for normal users
-
-        if (distance > maxRange) {
-            return res.status(400).json({
-                error: `Out of range: ${distance.toFixed(1)}km > ${maxRange}km`
-            });
-        }
-
-        // 4. PATHFINDING - Find obstacle-avoiding path
-        const pathResult = await pathfindingService.findPath(
-            startLat, startLng,
-            targetLat, targetLng
-        );
-
-        if (!pathResult.success) {
-            return res.status(400).json({
-                error: pathResult.error || 'No valid path found (Water or Obstacle)'
-            });
-        }
-
-        // 5. Calculate movement duration based on Path Cost (Distance + Terrain Penalty)
-        // Adjust speed: 0.5 km/s baseline (Increased from 0.1 for better UX)
-        const speed = user.role === 'admin' ? 2.0 : 0.5;
-        // pathResult.cost is roughly equivalent to distance steps with terrain penalties
-        // But for duration, we should use physical distance of path * terrain factor
-        // For simplicity, we use the direct distance for duration but allow the path.
-        // Actually, let's use the path length.
-
-        let pathDistance = 0;
-        for (let i = 0; i < pathResult.path.length - 1; i++) {
-            pathDistance += calculateDistance(
-                pathResult.path[i].lat, pathResult.path[i].lng,
-                pathResult.path[i + 1].lat, pathResult.path[i + 1].lng
-            );
-        }
-        if (pathDistance === 0) pathDistance = distance; // Fallback
-
-        const durationSeconds = pathDistance / speed;
-
-        // 6. Save to database
-        const now = new Date();
-        const arrivalTime = new Date(now.getTime() + durationSeconds * 1000);
-        const targetPosStr = `${targetLat},${targetLng}`;
-
-        db.prepare(`
-            UPDATE users 
-            SET start_pos = ?,
-                destination_pos = ?,
-                departure_time = ?,
-                arrival_time = ?,
-                movement_path = ?
-            WHERE id = ?
-        `).run(
-            user.current_pos,
-            targetPosStr,
-            now.toISOString(),
-            arrivalTime.toISOString(),
-            JSON.stringify(pathResult.path),
-            userId
-        );
-
-        // 7. Return to client
-        res.json({
-            success: true,
-            path: pathResult.path,
-            distanceKm: pathDistance,
-            durationSeconds: durationSeconds,
-            arrivalTime: arrivalTime.toISOString(),
-            startPos: [startLat, startLng],
-            targetPos: [targetLat, targetLng]
-        });
-
-    } catch (err) {
-        console.error('Movement error:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
 
 // Position Sync Endpoint
 app.get('/api/game/position/:userId', (req, res) => {
@@ -2716,6 +2608,26 @@ app.post('/api/admin/spawn-free-npc', (req, res) => {
 });
 
 // Build (Construct Building)
+// Get all building types (Public for construction menu)
+app.get('/api/buildings/types', (req, res) => {
+    try {
+        const types = db.prepare('SELECT * FROM building_types ORDER BY tier ASC, construction_cost ASC').all();
+
+        // Parse JSON fields
+        const parsedTypes = types.map(t => ({
+            ...t,
+            construction_cost: JSON.parse(t.construction_cost || '{}'),
+            maintenance_cost: JSON.parse(t.maintenance_cost || '{}'),
+            prerequisites: JSON.parse(t.prerequisites || '[]')
+        }));
+
+        res.json({ types: parsedTypes });
+    } catch (err) {
+        console.error('Get building types error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/buildings/construct', (req, res) => {
     const { userId, type, x, y, tileId } = req.body; // x, y are Lat/Lng or generic coords
 
@@ -2831,9 +2743,9 @@ app.post('/api/buildings/construct', (req, res) => {
         const result = db.prepare(`
             INSERT INTO user_buildings (
                 user_id, type, building_type_code, x, y, world_x, world_y, 
-                is_territory_center, territory_radius, last_maintenance_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `).run(userId, type, buildingType.code, x, y, gridX, gridY, isTerritoryCenter, radius);
+                is_territory_center, territory_radius, last_maintenance_at, hp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+        `).run(userId, type, buildingType.code, x, y, gridX, gridY, isTerritoryCenter, radius, buildingType.max_hp || 100);
 
         const newBuilding = db.prepare('SELECT * FROM user_buildings WHERE id = ?').get(result.lastInsertRowid);
 

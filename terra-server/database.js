@@ -691,180 +691,311 @@ function initSchema() {
         console.log("Market seed error:", e);
     }
 
-    // Seed Building Types
+    // Migration: Building Types System (Updated for Territory V2)
     try {
-        const buildingTypeCount = db.prepare('SELECT COUNT(*) as count FROM building_types').get();
-        if (buildingTypeCount.count === 0) {
-            console.log('Seeding building types...');
+        const buildTypeCols = db.prepare('PRAGMA table_info(building_types)').all();
 
-            const buildingTypes = [
-                // TIER 1 - Basic Buildings
-                {
-                    code: 'COMMAND_CENTER',
-                    name: '사령부',
-                    description: '영토의 중심. 모든 건설의 시작점.',
-                    tier: 1,
-                    category: 'ADMIN',
-                    construction_cost: JSON.stringify({ gold: 500, gem: 5 }),
-                    maintenance_cost: JSON.stringify({ gold: 20 }),
-                    min_units: 1,
-                    max_units: 5,
-                    storage_volume: 100.0,
-                    is_territory_center: 1,
-                    territory_radius: 5.0,
-                    prerequisites: JSON.stringify([])
-                },
-                {
-                    code: 'BASIC_QUARTERS',
-                    name: '기본 숙소',
-                    description: '유닛이 휴식하고 회복하는 곳. 소량의 물품 보관 가능.',
-                    tier: 1,
-                    category: 'HOUSING',
-                    construction_cost: JSON.stringify({ gold: 100, wood: 50 }),
-                    maintenance_cost: JSON.stringify({ gold: 5 }),
-                    min_units: 0,
-                    max_units: 3,
-                    storage_volume: 20.0,
-                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
-                },
-                {
-                    code: 'BASIC_WAREHOUSE',
-                    name: '기본 창고',
-                    description: '자원을 보관하는 창고.',
-                    tier: 1,
-                    category: 'STORAGE',
-                    construction_cost: JSON.stringify({ gold: 50, wood: 100 }),
-                    maintenance_cost: JSON.stringify({ gold: 3 }),
-                    min_units: 0,
-                    max_units: 2,
-                    storage_volume: 500.0,
-                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
-                },
-                {
-                    code: 'LUMBERYARD',
-                    name: '목재소',
-                    description: '나무를 채집하는 건물. 유닛 배치 시 목재 생산.',
-                    tier: 1,
-                    category: 'RESOURCE',
-                    construction_cost: JSON.stringify({ gold: 75, wood: 30 }),
-                    maintenance_cost: JSON.stringify({ gold: 5 }),
-                    min_units: 1,
-                    max_units: 5,
-                    storage_volume: 50.0,
-                    production_type: 'WOOD',
-                    production_rate: 10.0,
-                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
-                },
-                {
-                    code: 'MINE',
-                    name: '광산',
-                    description: '광물을 채굴하는 건물.',
-                    tier: 1,
-                    category: 'RESOURCE',
-                    construction_cost: JSON.stringify({ gold: 100, wood: 50 }),
-                    maintenance_cost: JSON.stringify({ gold: 8 }),
-                    min_units: 1,
-                    max_units: 5,
-                    storage_volume: 50.0,
-                    production_type: 'ORE',
-                    production_rate: 8.0,
-                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
-                },
-                {
-                    code: 'FARM',
-                    name: '농장',
-                    description: '식량을 생산하는 건물.',
-                    tier: 1,
-                    category: 'RESOURCE',
-                    construction_cost: JSON.stringify({ gold: 75, wood: 40 }),
-                    maintenance_cost: JSON.stringify({ gold: 6 }),
-                    min_units: 1,
-                    max_units: 5,
-                    storage_volume: 50.0,
-                    production_type: 'FOOD',
-                    production_rate: 12.0,
-                    prerequisites: JSON.stringify(['COMMAND_CENTER'])
-                },
+        // Add new columns if they don't exist
+        const newCols = [
+            { name: 'max_hp', type: 'INTEGER DEFAULT 100' },
+            { name: 'housing_capacity', type: 'INTEGER DEFAULT 0' },
+            { name: 'housing_efficiency', type: 'REAL DEFAULT 1.0' },
+            { name: 'internal_map_size', type: 'INTEGER DEFAULT 0' },
+            { name: 'upgrade_to', type: 'TEXT DEFAULT NULL' },
+            { name: 'max_rank_depth', type: 'INTEGER DEFAULT 0' },
+            { name: 'rank_slots', type: 'INTEGER DEFAULT 0' }
+        ];
 
-                // TIER 2 - Advanced Buildings
-                {
-                    code: 'RESEARCH_LAB',
-                    name: '연구소',
-                    description: '기술을 연구하고 고급 건물을 해금.',
-                    tier: 2,
-                    category: 'RESEARCH',
-                    construction_cost: JSON.stringify({ gold: 300, wood: 100, ore: 50 }),
-                    maintenance_cost: JSON.stringify({ gold: 15, energy: 5 }),
-                    min_units: 2,
-                    max_units: 8,
-                    storage_volume: 30.0,
-                    prerequisites: JSON.stringify(['COMMAND_CENTER', 'BASIC_WAREHOUSE'])
-                },
-                {
-                    code: 'ADVANCED_WAREHOUSE',
-                    name: '고급 창고',
-                    description: '대용량 자원 보관 시설.',
-                    tier: 2,
-                    category: 'STORAGE',
-                    construction_cost: JSON.stringify({ gold: 200, wood: 150, ore: 100 }),
-                    maintenance_cost: JSON.stringify({ gold: 10 }),
-                    min_units: 0,
-                    max_units: 3,
-                    storage_volume: 2000.0,
-                    prerequisites: JSON.stringify(['BASIC_WAREHOUSE', 'RESEARCH_LAB'])
-                },
-                {
-                    code: 'BARRACKS',
-                    name: '병영',
-                    description: '유닛을 훈련하고 전투 준비.',
-                    tier: 2,
-                    category: 'MILITARY',
-                    construction_cost: JSON.stringify({ gold: 150, wood: 80, ore: 60 }),
-                    maintenance_cost: JSON.stringify({ gold: 12 }),
-                    min_units: 1,
-                    max_units: 10,
-                    storage_volume: 100.0,
-                    prerequisites: JSON.stringify(['COMMAND_CENTER', 'RESEARCH_LAB'])
-                },
-                {
-                    code: 'FACTORY',
-                    name: '공장',
-                    description: '고급 아이템과 장비 제작.',
-                    tier: 2,
-                    category: 'INDUSTRIAL',
-                    construction_cost: JSON.stringify({ gold: 200, wood: 100, ore: 150 }),
-                    maintenance_cost: JSON.stringify({ gold: 18, energy: 10 }),
-                    min_units: 2,
-                    max_units: 8,
-                    storage_volume: 200.0,
-                    prerequisites: JSON.stringify(['RESEARCH_LAB', 'BASIC_WAREHOUSE'])
-                }
-            ];
+        newCols.forEach(col => {
+            if (!buildTypeCols.some(c => c.name === col.name)) {
+                db.exec(`ALTER TABLE building_types ADD COLUMN ${col.name} ${col.type}`);
+                console.log(`Migrated building_types table: added ${col.name}`);
+            }
+        });
 
-            const insertBuildingType = db.prepare(`
-                INSERT INTO building_types (
-                    code, name, description, tier, category,
-                    construction_cost, maintenance_cost,
-                    min_units, max_units, storage_volume,
-                    production_type, production_rate,
-                    is_territory_center, territory_radius,
-                    prerequisites
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `);
-
-            buildingTypes.forEach(bt => {
-                insertBuildingType.run(
-                    bt.code, bt.name, bt.description, bt.tier, bt.category,
-                    bt.construction_cost, bt.maintenance_cost,
-                    bt.min_units, bt.max_units, bt.storage_volume,
-                    bt.production_type || null, bt.production_rate || 0.0,
-                    bt.is_territory_center || 0, bt.territory_radius || 0.0,
-                    bt.prerequisites
-                );
-            });
-
-            console.log(`Seeded ${buildingTypes.length} building types`);
+        // Add hp to user_buildings
+        const userBuildCols = db.prepare('PRAGMA table_info(user_buildings)').all();
+        if (!userBuildCols.some(c => c.name === 'hp')) {
+            db.exec("ALTER TABLE user_buildings ADD COLUMN hp INTEGER DEFAULT 100");
+            console.log("Migrated user_buildings table: added hp");
         }
+
+    } catch (e) {
+        console.log("Migration error (Assessment Territory V2):", e);
+    }
+
+    // Seed/Update Building Types
+    try {
+        console.log('Seeding/Updating building types...');
+
+        const buildingTypes = [
+            // TIER 1 - Territory
+            {
+                code: 'AREA_BEACON',
+                name: '영토 신호기',
+                description: '단순 영토 주장용 구조물. 지휘 기능 없음.',
+                tier: 1,
+                category: 'TERRITORY',
+                construction_cost: JSON.stringify({ gold: 100 }),
+                maintenance_cost: JSON.stringify({ gold: 2 }),
+                min_units: 0,
+                max_units: 0,
+                storage_volume: 0.0,
+                is_territory_center: 1,
+                territory_radius: 1.0,
+                max_hp: 10,
+                max_rank_depth: 0,
+                rank_slots: 0,
+                prerequisites: JSON.stringify([])
+            },
+            {
+                code: 'COMMAND_CENTER',
+                name: '사령부',
+                description: '영토의 중심. 사령관 및 부관 배치 가능.',
+                tier: 1,
+                category: 'ADMIN',
+                construction_cost: JSON.stringify({ gold: 500, gem: 5 }),
+                maintenance_cost: JSON.stringify({ gold: 20 }),
+                min_units: 1,
+                max_units: 5,
+                storage_volume: 100.0,
+                is_territory_center: 1,
+                territory_radius: 3.0,
+                max_hp: 30,
+                housing_capacity: 5,
+                housing_efficiency: 0.5,
+                max_rank_depth: 2, // Commander + Officers
+                rank_slots: 5,
+                upgrade_to: 'CENTRAL_CONTROL_HUB',
+                prerequisites: JSON.stringify([])
+            },
+            // TIER 2 - Advanced Territory
+            {
+                code: 'CENTRAL_CONTROL_HUB',
+                name: '중앙 통제소',
+                description: '고도화된 지휘 통제 시설. 내부 맵 및 대규모 조직 운용 가능.',
+                tier: 2,
+                category: 'ADMIN',
+                construction_cost: JSON.stringify({ gold: 2000, gem: 50, wood: 100, ore: 100 }),
+                maintenance_cost: JSON.stringify({ gold: 50, energy: 20 }),
+                min_units: 5,
+                max_units: 20,
+                storage_volume: 500.0,
+                is_territory_center: 1,
+                territory_radius: 5.0,
+                max_hp: 100,
+                housing_capacity: 10,
+                housing_efficiency: 0.8,
+                internal_map_size: 100,
+                max_rank_depth: 3, // Multi-level hierarchy
+                rank_slots: 20,
+                prerequisites: JSON.stringify(['COMMAND_CENTER', 'RESEARCH_LAB'])
+            },
+            // Existing types (keeping basic definitions, but new columns will update via INSERT OR REPLACE)
+            {
+                code: 'BASIC_QUARTERS',
+                name: '기본 숙소',
+                description: '유닛이 휴식하고 회복하는 곳.',
+                tier: 1,
+                category: 'HOUSING',
+                construction_cost: JSON.stringify({ gold: 100, wood: 50 }),
+                maintenance_cost: JSON.stringify({ gold: 5 }),
+                min_units: 0,
+                max_units: 3,
+                storage_volume: 20.0,
+                max_hp: 50,
+                housing_capacity: 3,
+                housing_efficiency: 1.0,
+                prerequisites: JSON.stringify(['COMMAND_CENTER'])
+            },
+            {
+                code: 'BASIC_WAREHOUSE',
+                name: '기본 창고',
+                description: '자원을 보관하는 창고.',
+                tier: 1,
+                category: 'STORAGE',
+                construction_cost: JSON.stringify({ gold: 50, wood: 100 }),
+                maintenance_cost: JSON.stringify({ gold: 3 }),
+                min_units: 0,
+                max_units: 2,
+                storage_volume: 500.0,
+                max_hp: 50,
+                prerequisites: JSON.stringify(['COMMAND_CENTER'])
+            },
+            {
+                code: 'LUMBERYARD',
+                name: '목재소',
+                description: '나무를 채집하는 건물.',
+                tier: 1,
+                category: 'RESOURCE',
+                construction_cost: JSON.stringify({ gold: 75, wood: 30 }),
+                maintenance_cost: JSON.stringify({ gold: 5 }),
+                min_units: 1,
+                max_units: 5,
+                storage_volume: 50.0,
+                production_type: 'WOOD',
+                production_rate: 10.0,
+                max_hp: 40,
+                prerequisites: JSON.stringify(['COMMAND_CENTER'])
+            },
+            {
+                code: 'MINE',
+                name: '광산',
+                description: '광물을 채굴하는 건물.',
+                tier: 1,
+                category: 'RESOURCE',
+                construction_cost: JSON.stringify({ gold: 100, wood: 50 }),
+                maintenance_cost: JSON.stringify({ gold: 8 }),
+                min_units: 1,
+                max_units: 5,
+                storage_volume: 50.0,
+                production_type: 'ORE',
+                production_rate: 8.0,
+                max_hp: 40,
+                prerequisites: JSON.stringify(['COMMAND_CENTER'])
+            },
+            {
+                code: 'FARM',
+                name: '농장',
+                description: '식량을 생산하는 건물.',
+                tier: 1,
+                category: 'RESOURCE',
+                construction_cost: JSON.stringify({ gold: 75, wood: 40 }),
+                maintenance_cost: JSON.stringify({ gold: 6 }),
+                min_units: 1,
+                max_units: 5,
+                storage_volume: 50.0,
+                production_type: 'FOOD',
+                production_rate: 12.0,
+                max_hp: 30,
+                prerequisites: JSON.stringify(['COMMAND_CENTER'])
+            },
+            {
+                code: 'RESEARCH_LAB',
+                name: '연구소',
+                description: '기술을 연구하고 고급 건물을 해금.',
+                tier: 2,
+                category: 'RESEARCH',
+                construction_cost: JSON.stringify({ gold: 300, wood: 100, ore: 50 }),
+                maintenance_cost: JSON.stringify({ gold: 15, energy: 5 }),
+                min_units: 2,
+                max_units: 8,
+                storage_volume: 30.0,
+                max_hp: 80,
+                prerequisites: JSON.stringify(['COMMAND_CENTER', 'BASIC_WAREHOUSE'])
+            },
+            {
+                code: 'ADVANCED_WAREHOUSE',
+                name: '고급 창고',
+                description: '대용량 자원 보관 시설.',
+                tier: 2,
+                category: 'STORAGE',
+                construction_cost: JSON.stringify({ gold: 200, wood: 150, ore: 100 }),
+                maintenance_cost: JSON.stringify({ gold: 10 }),
+                min_units: 0,
+                max_units: 3,
+                storage_volume: 2000.0,
+                max_hp: 150,
+                prerequisites: JSON.stringify(['BASIC_WAREHOUSE', 'RESEARCH_LAB'])
+            },
+            {
+                code: 'BARRACKS',
+                name: '병영',
+                description: '유닛을 훈련하고 전투 준비.',
+                tier: 2,
+                category: 'MILITARY',
+                construction_cost: JSON.stringify({ gold: 150, wood: 80, ore: 60 }),
+                maintenance_cost: JSON.stringify({ gold: 12 }),
+                min_units: 1,
+                max_units: 10,
+                storage_volume: 100.0,
+                max_hp: 120,
+                prerequisites: JSON.stringify(['COMMAND_CENTER', 'RESEARCH_LAB'])
+            },
+            {
+                code: 'FACTORY',
+                name: '공장',
+                description: '고급 아이템과 장비 제작.',
+                tier: 2,
+                category: 'INDUSTRIAL',
+                construction_cost: JSON.stringify({ gold: 200, wood: 100, ore: 150 }),
+                maintenance_cost: JSON.stringify({ gold: 18, energy: 10 }),
+                min_units: 2,
+                max_units: 8,
+                storage_volume: 200.0,
+                max_hp: 120,
+                prerequisites: JSON.stringify(['RESEARCH_LAB', 'BASIC_WAREHOUSE'])
+            }
+        ];
+
+        const insertOrReplace = db.prepare(`
+            INSERT INTO building_types (
+                code, name, description, tier, category,
+                construction_cost, maintenance_cost,
+                min_units, max_units, storage_volume,
+                production_type, production_rate,
+                is_territory_center, territory_radius, prerequisites,
+                max_hp, housing_capacity, housing_efficiency, 
+                internal_map_size, upgrade_to, max_rank_depth, rank_slots
+            ) VALUES (
+                @code, @name, @description, @tier, @category,
+                @construction_cost, @maintenance_cost,
+                @min_units, @max_units, @storage_volume,
+                @production_type, @production_rate,
+                @is_territory_center, @territory_radius, @prerequisites,
+                @max_hp, @housing_capacity, @housing_efficiency,
+                @internal_map_size, @upgrade_to, @max_rank_depth, @rank_slots
+            )
+            ON CONFLICT(code) DO UPDATE SET
+                name=excluded.name,
+                description=excluded.description,
+                construction_cost=excluded.construction_cost,
+                maintenance_cost=excluded.maintenance_cost,
+                is_territory_center=excluded.is_territory_center,
+                territory_radius=excluded.territory_radius,
+                max_hp=excluded.max_hp,
+                housing_capacity=excluded.housing_capacity,
+                housing_efficiency=excluded.housing_efficiency,
+                internal_map_size=excluded.internal_map_size,
+                max_rank_depth=excluded.max_rank_depth,
+                rank_slots=excluded.rank_slots,
+                upgrade_to=excluded.upgrade_to,
+                production_type=excluded.production_type,
+                production_rate=excluded.production_rate
+        `);
+
+        // Helper to fill defaults for optional fields if I miss any in existing types
+        const bindParams = (bt) => ({
+            code: bt.code,
+            name: bt.name,
+            description: bt.description,
+            tier: bt.tier,
+            category: bt.category,
+            construction_cost: bt.construction_cost,
+            maintenance_cost: bt.maintenance_cost,
+            min_units: bt.min_units,
+            max_units: bt.max_units,
+            storage_volume: bt.storage_volume,
+            production_type: bt.production_type || null,
+            production_rate: bt.production_rate || 0.0,
+            is_territory_center: bt.is_territory_center || 0,
+            territory_radius: bt.territory_radius || 0,
+            prerequisites: bt.prerequisites,
+            max_hp: bt.max_hp || 50,
+            housing_capacity: bt.housing_capacity || 0,
+            housing_efficiency: bt.housing_efficiency || 1.0,
+            internal_map_size: bt.internal_map_size || 0,
+            upgrade_to: bt.upgrade_to || null,
+            max_rank_depth: bt.max_rank_depth || 0,
+            rank_slots: bt.rank_slots || 0
+        });
+
+        buildingTypes.forEach(bt => {
+            insertOrReplace.run(bindParams(bt));
+        });
+
+        console.log(`Seeded/Updated ${buildingTypes.length} building types.`);
+
     } catch (e) {
         console.log("Building types seed error:", e);
     }

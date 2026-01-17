@@ -110,6 +110,8 @@ interface GameControlPanelProps {
     currentTileProvider: string;
     onTileProviderChange: (provider: TileProvider) => void;
     tileProviders: TileProvider[];
+
+    geolocation: any; // Add geolocation prop
 }
 
 type TabType = 'info' | 'units' | 'build' | 'buildings' | 'settings';
@@ -138,6 +140,7 @@ export default function GameControlPanel({
     currentTileProvider,
     onTileProviderChange,
     tileProviders,
+    geolocation,
 }: GameControlPanelProps) {
     const [activeTab, setActiveTab] = useState<TabType>('info');
     const [terrainInfo, setTerrainInfo] = useState<any>(null);
@@ -194,49 +197,72 @@ export default function GameControlPanel({
 
 
 
-    const buildingCategories = [
-        {
-            id: 'territory',
-            label: '👑 영토',
-            buildings: [
-                { id: 'COMMAND_CENTER', name: '사령부', cost: { gold: 500, gem: 5 }, buildTime: 60 },
-            ],
-        },
-        {
-            id: 'resource',
-            label: '🔨 자원',
-            buildings: [
-                { id: 'mine', name: '자원 채굴장', cost: { gold: 100, gem: 0 }, buildTime: 30 },
-                { id: 'FACTORY', name: '공장', cost: { gold: 500, gem: 5 }, buildTime: 120 },
-            ],
-        },
-        {
-            id: 'storage',
-            label: '📦 저장',
-            buildings: [
-                { id: 'warehouse', name: '창고', cost: { gold: 50, gem: 0 }, buildTime: 20 },
-            ],
-        },
-        {
-            id: 'living',
-            label: '🏡 생활',
-            buildings: [
-                { id: 'barracks', name: '숙소', cost: { gold: 75, gem: 0 }, buildTime: 25 },
-            ],
-        },
-    ];
+    const [buildingTypes, setBuildingTypes] = useState<any[]>([]);
+
+    useEffect(() => {
+        fetch(`${API_BASE_URL}/api/buildings/types`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.types) setBuildingTypes(data.types);
+            })
+            .catch(err => console.error("Failed to load building types:", err));
+    }, []);
+
+    // Dynamic Categories Generation
+    const categoriesMap: Record<string, { id: string, label: string, order: number }> = {
+        'TERRITORY': { id: 'territory', label: '👑 영토', order: 1 },
+        'ADMIN': { id: 'territory', label: '👑 영토', order: 1 }, // Merge Admin into Territory
+        'RESOURCE': { id: 'resource', label: '🔨 자원', order: 2 },
+        'STORAGE': { id: 'storage', label: '📦 저장', order: 3 },
+        'HOUSING': { id: 'living', label: '🏡 생활', order: 4 },
+        'MILITARY': { id: 'military', label: '⚔️ 군사', order: 5 },
+        'INDUSTRIAL': { id: 'industrial', label: '🏭 산업', order: 6 },
+        'RESEARCH': { id: 'research', label: '🧪 연구', order: 7 },
+    };
+
+    const buildingCategories = Object.values(categoriesMap)
+        .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i) // Unique by id
+        .sort((a, b) => a.order - b.order)
+        .map(cat => ({
+            ...cat,
+            buildings: buildingTypes.filter(b => {
+                const mapped = categoriesMap[b.category] || { id: 'other' };
+                return mapped.id === cat.id;
+            }).map(b => ({
+                id: b.code,
+                name: b.name,
+                cost: b.construction_cost,
+                buildTime: b.tier * 30, // Estimate build time based on tier
+                desc: b.description
+            }))
+        }))
+        .filter(cat => cat.buildings.length > 0);
 
     // Helper to render building name/icon
     const getBuildingInfo = (type: string) => {
-        const map: Record<string, { icon: string, name: string, desc: string }> = {
-            'COMMAND_CENTER': { icon: '🏰', name: '사령부', desc: '영토를 지배하고 유닛을 지휘하는 핵심 건물입니다.' },
-            'mine': { icon: '⛏️', name: '자원 채굴장', desc: '지하 자원을 채굴하여 골드를 생산합니다.' },
-            'FACTORY': { icon: '🏭', name: '공장', desc: '고급 자재를 생산하기 위한 필수 시설입니다. (필요: 사령부 Lv.2)' },
-            'warehouse': { icon: '📦', name: '창고', desc: '채굴한 자원을 안전하게 보관합니다.' },
-            'barracks': { icon: '🏡', name: '숙소', desc: '시민과 하수인이 휴식을 취하는 공간입니다.' },
+        const iconMap: Record<string, string> = {
+            'AREA_BEACON': '📡',
+            'COMMAND_CENTER': '🏰',
+            'CENTRAL_CONTROL_HUB': '🏢',
+            'BASIC_QUARTERS': '🏠',
+            'BASIC_WAREHOUSE': '📦',
+            'ADVANCED_WAREHOUSE': '🏭',
+            'LUMBERYARD': '🪓',
+            'MINE': '⛏️',
+            'FARM': '🌾',
+            'RESEARCH_LAB': '🧪',
+            'BARRACKS': '⚔️',
+            'FACTORY': '🏭'
         };
-        const key = type;
-        return map[key] || map[key.toUpperCase()] || { icon: '🏗️', name: type, desc: '알 수 없는 건물' };
+
+        // Find in loaded types for dynamic fallback
+        const loaded = buildingTypes.find(b => b.code === type);
+
+        return {
+            icon: iconMap[type] || iconMap[type.toUpperCase()] || '🏗️',
+            name: loaded ? loaded.name : type,
+            desc: loaded ? loaded.description : '알 수 없는 건물'
+        };
     };
 
     return (
@@ -441,22 +467,15 @@ export default function GameControlPanel({
                 )}
 
                 {/* Scenario 3: Default (Player Info) */}
+                {/* Scenario 3: Default (Player Info) - REMOVED from top, moved to Info Tab */}
                 {!selectedTile && !selectedBuilding && !selectedTerritory && (
-                    <div className="w-full h-full flex flex-col justify-center">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-xl shadow-lg shadow-purple-900/50 border-2 border-white/20">
-                                👾
-                            </div>
-                            <div>
-                                <div className="text-white font-bold text-sm">Commander</div>
-                                <div className="text-slate-400 text-xs flex items-center gap-1">
-                                    <span className={`w-2 h-2 rounded-full ${isConstructing ? 'bg-orange-500 animate-pulse' : 'bg-green-500'}`}></span>
-                                    {isConstructing ? 'Constructing...' : 'Online'}
-                                </div>
-                            </div>
+                    <div className="w-full h-full flex flex-col justify-center items-center">
+                        <div className="text-slate-500 text-sm font-bold flex items-center gap-2">
+                            <Info size={18} />
+                            <span>상세 정보</span>
                         </div>
-                        <div className="text-xs text-slate-500 bg-slate-900/50 p-2 rounded text-center">
-                            맵의 타일이나 건물을 선택하여<br />상세 정보를 확인하세요.
+                        <div className="text-[10px] text-slate-600 mt-1">
+                            맵의 요소를 선택하세요
                         </div>
                     </div>
                 )}
@@ -467,34 +486,88 @@ export default function GameControlPanel({
                 {/* Info Tab */}
                 {activeTab === 'info' && (
                     <div className="space-y-4">
-                        {!selectedTile && !selectedBuilding && (
-                            <div className="text-center text-slate-500 text-xs py-10">
-                                상단 요약 정보 창입니다.
-                            </div>
-                        )}
-
-                        {/* Show expanded details if active */}
-                        {(selectedTile || selectedBuilding) && (
-                            <div className="space-y-4">
-                                <div className="bg-slate-800/50 rounded-lg p-3">
-                                    <h3 className="text-sm font-semibold text-purple-300 mb-2">내 캐릭터 Status</h3>
-                                    <div className="space-y-1 text-xs">
-                                        <div className="flex justify-between">
-                                            <span className="text-slate-400">위치</span>
-                                            <span className="text-white font-mono">
-                                                ({playerPosition[0].toFixed(4)}, {playerPosition[1].toFixed(4)})
-                                            </span>
-                                        </div>
-                                        {isConstructing && (
-                                            <div className="flex justify-between text-orange-400 animate-pulse">
-                                                <span>건설 중...</span>
-                                                <span>{constructionTimeLeft}s</span>
-                                            </div>
+                        {/* Unified Commander Dashboard - ALWAYS VISIBLE */}
+                        <div className="bg-slate-800/50 rounded-lg p-4 transition-all hover:bg-slate-800/70 border border-slate-700/50">
+                            {/* Header: Identity & Status */}
+                            <div className="flex items-center gap-3 mb-4 border-b border-white/10 pb-3">
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-lg border-2 border-white/20
+                                    ${isAdmin
+                                        ? 'bg-gradient-to-br from-red-600 to-orange-600 shadow-red-900/50'
+                                        : 'bg-gradient-to-br from-purple-500 to-indigo-600 shadow-purple-900/50'
+                                    }`}>
+                                    {isAdmin ? '🦁' : '👾'}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-white font-bold text-sm flex items-center gap-2">
+                                        {isAdmin ? 'Administrator' : 'Commander'}
+                                        {isAdmin && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded font-mono">OP</span>}
+                                    </div>
+                                    <div className="text-slate-400 text-xs flex items-center gap-1.5 mt-0.5">
+                                        <div className={`w-2 h-2 rounded-full ${isConstructing ? 'bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]'}`}></div>
+                                        {isConstructing ? (
+                                            <span className="text-orange-300 font-semibold">Constructing...</span>
+                                        ) : (
+                                            <span className="text-emerald-400 font-semibold">Online</span>
                                         )}
                                     </div>
                                 </div>
                             </div>
-                        )}
+
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                {/* Speed */}
+                                <div className="bg-slate-900/50 p-2.5 rounded border border-slate-700/50 flex flex-col justify-between">
+                                    <div className="text-slate-500 mb-0.5 font-medium">Top Speed</div>
+                                    <div>
+                                        <div className={`font-mono font-bold text-sm ${isAdmin ? 'text-red-400' : 'text-cyan-400'}`}>
+                                            {isAdmin ? '1,000 m/s' : '100 m/s'}
+                                        </div>
+                                        <div className="text-[10px] text-slate-600">{isAdmin ? '(3600 km/h)' : '(360 km/h)'}</div>
+                                    </div>
+                                </div>
+
+                                {/* Radius */}
+                                <div className="bg-slate-900/50 p-2.5 rounded border border-slate-700/50 flex flex-col justify-between">
+                                    <div className="text-slate-500 mb-0.5 font-medium">Ops Radius</div>
+                                    <div>
+                                        <div className={`font-mono font-bold text-sm ${isAdmin ? 'text-red-400' : 'text-green-400'}`}>
+                                            {isAdmin ? '100 km' : '10 km'}
+                                        </div>
+                                        <div className="text-[10px] text-slate-600">Max Range</div>
+                                    </div>
+                                </div>
+
+                                {/* Location & GPS */}
+                                <div className="bg-slate-900/50 p-2.5 rounded border border-slate-700/50 col-span-2">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <div className="text-slate-500 font-medium mb-0.5">Current Location</div>
+                                            <div className="font-mono text-white text-sm tracking-wide">
+                                                {playerPosition[0].toFixed(4)}, {playerPosition[1].toFixed(4)}
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-slate-500 font-medium mb-0.5">GPS Accuracy</div>
+                                            <div className="font-mono font-bold text-yellow-400">
+                                                {geolocation?.accuracy ? `±${Math.round(geolocation.accuracy)}m` : 'N/A'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Construction Status Bar (if active) */}
+                                    {isConstructing && (
+                                        <div className="mt-2 pt-2 border-t border-slate-700/50 flex justify-between items-center animate-pulse">
+                                            <span className="text-orange-400 font-bold">🚧 Construction in progress</span>
+                                            <span className="text-white font-mono bg-orange-900/50 px-2 py-0.5 rounded text-[10px] border border-orange-700/50">
+                                                {constructionTimeLeft}s remaining
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+
 
 
                         {/* Active Operations Section */}
@@ -552,8 +625,8 @@ export default function GameControlPanel({
                                     {category.buildings.map((building) => {
                                         // Resource Check
                                         const canAfford =
-                                            playerResources.gold >= building.cost.gold &&
-                                            playerResources.gem >= building.cost.gem;
+                                            playerResources.gold >= (building.cost.gold || 0) &&
+                                            playerResources.gem >= (building.cost.gem || 0);
 
                                         // Tech Tree / Logic Checks
                                         let isLocked = false;

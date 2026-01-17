@@ -198,6 +198,16 @@ export default function TerrainMapPage() {
     const [waypoints, setWaypoints] = useState<Array<{ lat: number; lng: number }>>([]);
     const [pathDistance, setPathDistance] = useState(0);
 
+    // Server Building Types
+    const [serverBuildingTypes, setServerBuildingTypes] = useState<any[]>([]);
+
+    useEffect(() => {
+        fetch(`${API_BASE_URL}/api/buildings/types`)
+            .then(res => res.json())
+            .then(data => setServerBuildingTypes(data.types || []))
+            .catch(console.error);
+    }, []);
+
     // Movement Animation State
     const [isMoving, setIsMoving] = useState(false);
     const [moveStartTime, setMoveStartTime] = useState<number | null>(null);
@@ -455,6 +465,7 @@ export default function TerrainMapPage() {
         const userId = localStorage.getItem('terra_user_id');
         const isAdmin = userId === '1'; // User ID 1 is admin
 
+        // Legacy Fallback
         const buildingDefs: Record<string, { name: string; buildTime: number; adminBuildTime: number; cost: { gold: number; gem: number } }> = {
             COMMAND_CENTER: { name: '사령부', buildTime: 60, adminBuildTime: 5, cost: { gold: 500, gem: 5 } },
             mine: { name: '자원 채굴장', buildTime: 30, adminBuildTime: 3, cost: { gold: 100, gem: 0 } },
@@ -464,9 +475,25 @@ export default function TerrainMapPage() {
             FACTORY: { name: '공장', buildTime: 120, adminBuildTime: 5, cost: { gold: 500, gem: 5 } },
         };
 
-        const building = buildingDefs[buildingId] || buildingDefs[buildingId.toUpperCase()] || buildingDefs[buildingId.toLowerCase()];
+        // Try to find in server types first
+        let building: any = serverBuildingTypes.find(b => b.code === buildingId || b.code === buildingId.toUpperCase());
+
+        if (building) {
+            // Adapt server data to client structure
+            building = {
+                name: building.name,
+                buildTime: building.tier * 30,
+                adminBuildTime: 3,
+                cost: building.construction_cost
+            };
+        } else {
+            // Fallback
+            building = buildingDefs[buildingId] || buildingDefs[buildingId.toUpperCase()] || buildingDefs[buildingId.toLowerCase()];
+        }
+
         if (!building) {
             console.error('Unknown building type:', buildingId);
+            showToast(`건물 정보를 찾을 수 없습니다: ${buildingId}`, 'error');
             return;
         }
 
@@ -489,8 +516,8 @@ export default function TerrainMapPage() {
 
             if (response.ok) {
                 setPlayerResources(prev => ({
-                    gold: prev.gold - building.cost.gold,
-                    gem: prev.gem - building.cost.gem
+                    gold: prev.gold - (building.cost.gold || 0),
+                    gem: prev.gem - (building.cost.gem || 0)
                 }));
 
                 setIsConstructing(true);
@@ -946,7 +973,7 @@ export default function TerrainMapPage() {
             </div>
 
             {/* Side Panel (Fixed right on Desktop, Fixed Bottom on Mobile) */}
-            <div className="fixed bottom-0 left-0 w-full h-[45vh] md:static md:w-[400px] md:h-full shrink-0 z-[5000] border-t md:border-t-0 md:border-l border-slate-700 shadow-xl bg-slate-900">
+            <div className="fixed bottom-0 left-0 w-full h-[45vh] md:static md:w-[400px] md:h-full shrink-0 z-[1000] border-t md:border-t-0 md:border-l border-slate-700 shadow-xl bg-slate-900">
                 <GameControlPanel
                     playerPosition={playerPosition}
                     playerResources={playerResources}
@@ -999,6 +1026,8 @@ export default function TerrainMapPage() {
                     currentTileProvider={tileProvider.id}
                     onTileProviderChange={setTileProvider}
                     tileProviders={TILE_PROVIDERS}
+
+                    geolocation={geolocation}
                 />
             </div>
 
