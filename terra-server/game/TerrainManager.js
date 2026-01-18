@@ -29,7 +29,7 @@ class TerrainManager {
 
         return elevations.map(elevation => {
             let type = 'PLAIN';
-            if (elevation <= 0) {
+            if (elevation < 0) {
                 type = 'WATER';
             } else if (elevation >= 1000) {
                 type = 'MOUNTAIN';

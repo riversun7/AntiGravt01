@@ -123,13 +123,13 @@ class ElevationService {
                 console.error(`[ElevationService] Batch API Error:`, error.message);
                 // Fallback for failed fetches: remain null or 0? 0 is safe/water.
                 missingIndices.forEach(idx => {
-                    if (results[idx] === null) results[idx] = 0;
+                    if (results[idx] === null) results[idx] = 10;
                 });
             }
         }
 
-        // Fill any remaining nulls with 0
-        return results.map(r => r === null ? 0 : r);
+        // Fill any remaining nulls with 10 (Safe Plain fallback instead of Water)
+        return results.map(r => r === null ? 10 : r);
     }
 
     /**
