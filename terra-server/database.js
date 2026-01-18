@@ -640,8 +640,13 @@ function initSchema() {
         const hasBuildingTypeCode = buildCols.some(c => c.name === 'building_type_code');
         if (!hasBuildingTypeCode && buildCols.length > 0) {
             db.exec("ALTER TABLE user_buildings ADD COLUMN building_type_code TEXT DEFAULT NULL");
+            console.log("Migrated user_buildings table: added building_type_code");
+        }
+
+        const hasLastMaintenance = buildCols.some(c => c.name === 'last_maintenance_at');
+        if (!hasLastMaintenance && buildCols.length > 0) {
             db.exec("ALTER TABLE user_buildings ADD COLUMN last_maintenance_at DATETIME DEFAULT CURRENT_TIMESTAMP");
-            console.log("Migrated user_buildings table: added building_type_code, last_maintenance_at");
+            console.log("Migrated user_buildings table: added last_maintenance_at");
         }
     } catch (e) { console.log("Migration error (user_buildings building_types):", e); }
 
