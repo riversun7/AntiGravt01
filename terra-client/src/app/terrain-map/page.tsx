@@ -291,6 +291,7 @@ export default function TerrainMapPage() {
             }
 
             console.log(`[GameState] Loading for user ${userId}...`);
+            let fetchedPos: { x: number, y: number } | null = null;
             const response = await fetch(`${API_BASE_URL}/api/game/state?userId=${userId}`);
 
             if (response.ok) {
@@ -316,6 +317,7 @@ export default function TerrainMapPage() {
                     const { x, y } = data.playerPosition;
                     if (x && y) {
                         setPlayerPosition([x, y]);
+                        fetchedPos = { x, y };
                     }
                 }
             } else {
@@ -341,8 +343,8 @@ export default function TerrainMapPage() {
 
             // Load territories (Spatial Query)
             let territoryUrl = `${API_BASE_URL}/api/territories`;
-            // Use fetched position if available (data.playerPosition), else current state
-            const targetPos = (data?.playerPosition) ? data.playerPosition : { x: playerPosition[0], y: playerPosition[1] };
+            // Use fetched position if available (fetchedPos), else current state
+            const targetPos = fetchedPos || { x: playerPosition[0], y: playerPosition[1] };
 
             if (targetPos && targetPos.x) {
                 territoryUrl += `?lat=${targetPos.x}&lng=${targetPos.y}&radius=100`; // 100km radius
