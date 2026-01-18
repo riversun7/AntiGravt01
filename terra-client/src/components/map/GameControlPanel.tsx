@@ -70,7 +70,7 @@ interface GameControlPanelProps {
     // Info tab
     playerPosition: [number, number];
     playerResources: { gold: number; gem: number };
-    buildings: Array<{ id: number; type: string; lat: number; lng: number; level?: number }>;
+    buildings: Array<{ id: number; type: string; lat: number; lng: number; level?: number; user_id?: number | string; owner_name?: string; }>;
     isConstructing: boolean;
     constructingBuildingName?: string | null;
     constructionTimeLeft: number;
@@ -83,7 +83,7 @@ interface GameControlPanelProps {
 
     // Build & Interaction
     onBuild: (buildingId: string) => void;
-    onBuildingClick?: (building: { id: number; type: string; lat: number; lng: number; level?: number }) => void;
+    onBuildingClick?: (building: { id: number; type: string; lat: number; lng: number; level?: number; user_id?: number | string; owner_name?: string; }) => void;
 
     // Map Interaction
     selectedTile: any | null;
@@ -102,7 +102,7 @@ interface GameControlPanelProps {
     onCloseTerritoryInfo?: () => void;
 
     // Building Interaction
-    selectedBuilding?: { id: number; type: string; lat: number; lng: number; level?: number } | null;
+    selectedBuilding?: { id: number; type: string; lat: number; lng: number; level?: number; user_id?: number | string; owner_name?: string; } | null;
     onCloseBuildingInfo?: () => void;
     demolitionStates?: Record<number, number>; // buildingId -> finishTimestamp
     onBuildingAction?: (action: 'assign' | 'collect' | 'destroy' | 'cancel_destroy', buildingId: number) => void;
@@ -620,9 +620,9 @@ export default function GameControlPanel({
                                     <div className="text-slate-500 mb-0.5 font-medium">Top Speed</div>
                                     <div>
                                         <div className={`font-mono font-bold text-sm ${isAdmin ? 'text-red-400' : 'text-cyan-400'}`}>
-                                            {isAdmin ? '1,000 m/s' : '100 m/s'}
+                                            {isAdmin ? '10,000 m/s' : '100 m/s'}
                                         </div>
-                                        <div className="text-[10px] text-slate-600">{isAdmin ? '(3600 km/h)' : '(360 km/h)'}</div>
+                                        <div className="text-[10px] text-slate-600">{isAdmin ? '(36,000 km/h)' : '(360 km/h)'}</div>
                                     </div>
                                 </div>
 
@@ -631,7 +631,7 @@ export default function GameControlPanel({
                                     <div className="text-slate-500 mb-0.5 font-medium">View Range</div>
                                     <div>
                                         <div className={`font-mono font-bold text-sm ${isAdmin ? 'text-red-400' : 'text-green-400'}`}>
-                                            {isAdmin ? '50 km' : '10 km'}
+                                            {isAdmin ? 'Unlimited' : '10 km'}
                                         </div>
                                         <div className="text-[10px] text-slate-600">Foreign Buildings</div>
                                     </div>
