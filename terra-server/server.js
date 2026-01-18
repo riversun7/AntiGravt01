@@ -2497,7 +2497,7 @@ app.get('/api/tiles/user/:userId', (req, res) => {
 // Get all territories (Command Centers)
 app.get('/api/territories', (req, res) => {
     try {
-        const territories = db.prepare(`
+        let sql = `
             SELECT ub.id, ub.user_id, ub.x, ub.y, ub.territory_radius, ub.is_territory_center, ub.custom_boundary, ub.level, ub.type, ub.building_type_code,
                    u.username as owner_name, f.name as faction_name, f.type as npc_type, f.color, f.id as faction_id
             FROM user_buildings ub
