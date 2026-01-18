@@ -246,99 +246,85 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
             }
         });
 
-        // Loop through borders and apply subtraction (Foreign Territory Exclusion)
-        // We do this here to access the full scope of territories if needed, 
-        // but actually we can do it inside the loop above if we have access to 'territories' array (we do).
-        // Refactoring the loop above to include subtraction:
 
-        // ... Wait, I will edit the code inside the loop directly in this ReplacementChunk ...
-        // Re-implementing the beacon hull part with subtraction logic:
 
-    } catch (e) {
-        // console.error...
-    }
-});
-
-// Retrying with correct placement inside the loop logic
-// I will replace the "if (points.length >= 3)" block entirely.
-
-return { commandCenters: centers, beaconBorders: borders };
+        return { commandCenters: centers, beaconBorders: borders };
     }, [territories, currentUserId]);
 
-return (
-    <>
-        {/* Layer 1: 비콘 국경선 (하위 레이어, z-index 399) */}
-        <Pane name="beacon-borders" style={{ zIndex: 399 }}>
-            {beaconBorders.map((border) => (
-                <Polygon
-                    key={border.key}
-                    positions={border.positions}
-                    pathOptions={{
-                        color: border.color,
-                        fillColor: border.color,
-                        fillOpacity: border.isMine ? 0.1 : 0.15,
-                        weight: 2,
-                        opacity: 0.7,
-                        dashArray: border.isMine ? undefined : '8, 4'
-                    }}
-                    interactive={true}
-                >
-                    <Tooltip sticky direction="top">
-                        <div className="text-center">
-                            <strong>{border.ownerName}</strong>
-                            {border.factionName && <div className="text-xs text-blue-300">{border.factionName}</div>}
-                            <div className="text-[10px] mt-1 opacity-75">
-                                {border.npcType ? `[${border.npcType}]` : '[PLAYER]'}
-                                <br />
-                                {border.borderType === 'command_center'
-                                    ? `🏛️ 영토 국경 (${border.beaconCount} 사령부)`
-                                    : `📡 확장 국경 (${border.beaconCount} 비콘)`
-                                }
+    return (
+        <>
+            {/* Layer 1: 비콘 국경선 (하위 레이어, z-index 399) */}
+            <Pane name="beacon-borders" style={{ zIndex: 399 }}>
+                {beaconBorders.map((border) => (
+                    <Polygon
+                        key={border.key}
+                        positions={border.positions}
+                        pathOptions={{
+                            color: border.color,
+                            fillColor: border.color,
+                            fillOpacity: border.isMine ? 0.1 : 0.15,
+                            weight: 2,
+                            opacity: 0.7,
+                            dashArray: border.isMine ? undefined : '8, 4'
+                        }}
+                        interactive={true}
+                    >
+                        <Tooltip sticky direction="top">
+                            <div className="text-center">
+                                <strong>{border.ownerName}</strong>
+                                {border.factionName && <div className="text-xs text-blue-300">{border.factionName}</div>}
+                                <div className="text-[10px] mt-1 opacity-75">
+                                    {border.npcType ? `[${border.npcType}]` : '[PLAYER]'}
+                                    <br />
+                                    {border.borderType === 'command_center'
+                                        ? `🏛️ 영토 국경 (${border.beaconCount} 사령부)`
+                                        : `📡 확장 국경 (${border.beaconCount} 비콘)`
+                                    }
+                                </div>
                             </div>
-                        </div>
-                    </Tooltip>
-                </Polygon>
-            ))}
-        </Pane>
+                        </Tooltip>
+                    </Polygon>
+                ))}
+            </Pane>
 
-        {/* Layer 2: 사령부 절대 영역 (상위 레이어, z-index 400) */}
-        <Pane name="command-centers" style={{ zIndex: 400 }}>
-            {commandCenters.map((cc) => (
-                <Circle
-                    key={`cc-${cc.id}`}
-                    center={cc.center}
-                    radius={cc.radius * 1000} // km to meters
-                    pathOptions={{
-                        color: cc.color,
-                        fillColor: cc.color,
-                        fillOpacity: cc.isMine ? 0.35 : 0.4,
-                        weight: cc.isMine ? 3 : 2,
-                        opacity: 1,
-                        dashArray: undefined
-                    }}
-                    interactive={true}
-                    eventHandlers={{
-                        click: (e) => {
-                            L.DomEvent.stopPropagation(e.originalEvent);
-                            const orig = territories.find(t => t.id === cc.id);
-                            if (onTerritoryClick && orig) onTerritoryClick(orig, e);
-                        }
-                    }}
-                >
-                    <Tooltip sticky direction="top">
-                        <div className="text-center">
-                            <strong>{cc.ownerName}</strong>
-                            {cc.factionName && <div className="text-xs text-blue-300">{cc.factionName}</div>}
-                            <div className="text-[10px] mt-1 opacity-75">
-                                {cc.npcType ? `[${cc.npcType}]` : '[PLAYER]'}
-                                <br />
-                                🏛️ 사령부 ({cc.radius}km 절대 영역)
+            {/* Layer 2: 사령부 절대 영역 (상위 레이어, z-index 400) */}
+            <Pane name="command-centers" style={{ zIndex: 400 }}>
+                {commandCenters.map((cc) => (
+                    <Circle
+                        key={`cc-${cc.id}`}
+                        center={cc.center}
+                        radius={cc.radius * 1000} // km to meters
+                        pathOptions={{
+                            color: cc.color,
+                            fillColor: cc.color,
+                            fillOpacity: cc.isMine ? 0.35 : 0.4,
+                            weight: cc.isMine ? 3 : 2,
+                            opacity: 1,
+                            dashArray: undefined
+                        }}
+                        interactive={true}
+                        eventHandlers={{
+                            click: (e) => {
+                                L.DomEvent.stopPropagation(e.originalEvent);
+                                const orig = territories.find(t => t.id === cc.id);
+                                if (onTerritoryClick && orig) onTerritoryClick(orig, e);
+                            }
+                        }}
+                    >
+                        <Tooltip sticky direction="top">
+                            <div className="text-center">
+                                <strong>{cc.ownerName}</strong>
+                                {cc.factionName && <div className="text-xs text-blue-300">{cc.factionName}</div>}
+                                <div className="text-[10px] mt-1 opacity-75">
+                                    {cc.npcType ? `[${cc.npcType}]` : '[PLAYER]'}
+                                    <br />
+                                    🏛️ 사령부 ({cc.radius}km 절대 영역)
+                                </div>
                             </div>
-                        </div>
-                    </Tooltip>
-                </Circle>
-            ))}
-        </Pane>
-    </>
-);
+                        </Tooltip>
+                    </Circle>
+                ))}
+            </Pane>
+        </>
+    );
 }
