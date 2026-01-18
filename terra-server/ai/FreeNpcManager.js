@@ -51,7 +51,7 @@ class FreeNpcManager {
     }
 
     developTerritory(npc) {
-        // 1. Find all territory centers (Outposts/Command Centers)
+        // 1. Find all territory centers (Area Beacons/Command Centers)
         const territories = db.prepare('SELECT * FROM user_buildings WHERE user_id = ? AND is_territory_center = 1').all(npc.id);
         if (territories.length === 0) return;
 
@@ -139,10 +139,10 @@ class FreeNpcManager {
                     const realX = 36.0 + (pos.x * 0.1);
                     const realY = 127.0 + (pos.y * 0.1);
 
-                    // Expansion always builds OUTPOST (Territory Center)
+                    // Expansion always builds AREA_BEACON (Territory Center)
                     db.prepare(`
                         INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius) 
-                        VALUES (?, 'OUTPOST', ?, ?, ?, ?, 1, 5)
+                        VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, 5)
                     `).run(npc.id, realX, realY, pos.x, pos.y);
                 })();
 

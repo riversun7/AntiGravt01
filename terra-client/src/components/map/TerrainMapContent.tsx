@@ -200,11 +200,14 @@ function ForeignBuildingMarkers({ territories, userId, playerPosition, calculate
     const foreignBuildings = useMemo(() => {
         if (!territories || territories.length === 0) return [];
 
+        // Admin gets extended view range
+        const viewRange = String(userId) === '1' ? 50.0 : 10.0;
+
         return territories
             .filter(t => String(t.user_id) !== String(userId))
             .filter(t => {
                 const dist = calculateDistance(t.x, t.y, playerPosition[0], playerPosition[1]);
-                return dist <= 10.0; // Show foreign bases within 10km
+                return dist <= viewRange;
             })
             .map(t => ({
                 id: t.id,

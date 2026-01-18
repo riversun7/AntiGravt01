@@ -528,14 +528,14 @@ export default function GameControlPanel({
                                     </div>
                                 </div>
 
-                                {/* Radius */}
+                                {/* View Range (Foreign Buildings) */}
                                 <div className="bg-slate-900/50 p-2.5 rounded border border-slate-700/50 flex flex-col justify-between">
-                                    <div className="text-slate-500 mb-0.5 font-medium">Ops Radius</div>
+                                    <div className="text-slate-500 mb-0.5 font-medium">View Range</div>
                                     <div>
                                         <div className={`font-mono font-bold text-sm ${isAdmin ? 'text-red-400' : 'text-green-400'}`}>
-                                            {isAdmin ? '100 km' : '10 km'}
+                                            {isAdmin ? '50 km' : '10 km'}
                                         </div>
-                                        <div className="text-[10px] text-slate-600">Max Range</div>
+                                        <div className="text-[10px] text-slate-600">Foreign Buildings</div>
                                     </div>
                                 </div>
 

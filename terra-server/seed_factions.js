@@ -22,7 +22,7 @@ const capitals = [
     { faction: 'japan_npc', name: 'Tokyo Fortress', x: 35.6762, y: 139.6503, radius: 25.0 },
     { faction: 'china_npc', name: 'Beijing Citadel', x: 39.9042, y: 116.4074, radius: 30.0 },
     { faction: 'usa_npc', name: 'Washington HQ', x: 38.9072, y: -77.0369, radius: 30.0 },
-    { faction: 'eu_npc', name: 'London Outpost', x: 51.5074, y: -0.1278, radius: 15.0 },
+    { faction: 'eu_npc', name: 'London Beacon', x: 51.5074, y: -0.1278, radius: 15.0 },
     { faction: 'eu_npc', name: 'Paris Bastion', x: 48.8566, y: 2.3522, radius: 15.0 },
     { faction: 'eu_npc', name: 'Berlin Bunker', x: 52.5200, y: 13.4050, radius: 15.0 },
     { faction: 'ru_npc', name: 'Moscow Kremlin', x: 55.7558, y: 37.6173, radius: 30.0 },
@@ -97,9 +97,9 @@ db.transaction(() => {
 
             db.prepare(`
                  INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level)
-                 VALUES (?, 'OUTPOST', ?, ?, ?, ?, 1, 2.0, 1)
+                 VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, 2.0, 1)
              `).run(user.id, realX, realY, wx, wy);
-            console.log(`- Established Outpost for ${f.name}`);
+            console.log(`- Established Area Beacon for ${f.name}`);
 
         } else {
             db.prepare('UPDATE users SET faction_id = ?, faction_rank = 2, npc_type = \'FREE\' WHERE id = ?').run(faction.id, user.id);

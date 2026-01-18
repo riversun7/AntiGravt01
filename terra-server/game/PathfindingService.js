@@ -91,25 +91,35 @@ class PathfindingService {
                     };
                 }
 
-                // 2. Territory Access Check
+                // 2. Territory Access Check (Power Diagram Logic)
+                // 겹치는 영역에서는 "가장 가까운 사령부"가 누구 것인지 확인
                 if (userId) {
-                    for (const t of territories) {
-                        // Skip own territories
-                        if (String(t.user_id) === String(userId)) continue;
+                    // 현재 위치에서 모든 영토 센터까지의 거리 계산
+                    const territoriesWithDistance = territories.map(t => ({
+                        ...t,
+                        distance: this.calculateDistance(sample.lat, sample.lng, t.x, t.y)
+                    }));
 
-                        const dist = this.calculateDistance(sample.lat, sample.lng, t.x, t.y);
-                        if (dist <= t.territory_radius) {
-                            // Inside someone else's territory
-                            // TODO: Add Diplomacy Check here (e.g., Alliance allow)
+                    // 영역 내에 있는 것들만 필터링 (territory_radius 이내)
+                    const withinRange = territoriesWithDistance.filter(t => t.distance <= t.territory_radius);
 
-                            // For now, strict block
+                    if (withinRange.length > 0) {
+                        // 가장 가까운 사령부 찾기
+                        const closest = withinRange.reduce((prev, curr) =>
+                            prev.distance < curr.distance ? prev : curr
+                        );
+
+                        // 가장 가까운 사령부가 자신의 것이 아니면 차단
+                        if (String(closest.user_id) !== String(userId)) {
                             console.timeEnd("PathfindingDuration");
                             return {
                                 success: false,
-                                error: `Path blocked by Player #${t.user_id}'s territory`
+                                error: `Path blocked by Player #${closest.user_id}'s territory (${closest.distance.toFixed(2)}km from their center)`
                             };
                         }
+                        // 가장 가까운 사령부가 자신의 것이면 통과
                     }
+                    // withinRange가 비어있으면 (아무 영토에도 속하지 않음) 통과
                 }
             }
         }

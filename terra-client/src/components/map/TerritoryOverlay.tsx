@@ -1,6 +1,7 @@
-import { Circle, Tooltip, useMap, Pane } from 'react-leaflet';
-import { useMemo, useState, useEffect } from 'react';
+import { Circle, Polygon, Tooltip, Pane } from 'react-leaflet';
+import { useMemo } from 'react';
 import * as L from 'leaflet';
+import * as turf from '@turf/turf';
 
 export interface Territory {
     id: number;
@@ -15,6 +16,7 @@ export interface Territory {
     npc_type?: string;
     faction_name?: string;
     type?: string;
+    building_type_code?: string;
     level?: number;
 }
 
@@ -25,99 +27,257 @@ interface TerritoryOverlayProps {
 }
 
 export default function TerritoryOverlay({ territories, currentUserId, onTerritoryClick }: TerritoryOverlayProps) {
-    // Gooey Effect를 위한 CSS 스타일 주입
-    // Pane의 z-index와 filter 설정
-    useEffect(() => {
-        const style = document.createElement('style');
-        style.innerHTML = `
-            .leaflet-pane.leaflet-gooey-pane {
-                z-index: 399; /* 오버레이보다 아래, 타일보다 위 */
-                filter: url('#goo');
-                opacity: 0.9;
-            }
-        `;
-        document.head.appendChild(style);
-        return () => {
-            document.head.removeChild(style);
-        };
-    }, []);
 
-    // 가장 기본적인 Circle 렌더링으로 복구하여 안정성 확보
-    const renderData = useMemo(() => {
-        if (!territories || territories.length === 0) return [];
+    const { commandCenters, beaconBorders } = useMemo(() => {
+        if (!territories || territories.length === 0) {
+            return { commandCenters: [], beaconBorders: [] };
+        }
 
-        return territories.map(t => {
+        // 사용자별로 그룹화
+        const userGroups = new Map<string, Territory[]>();
+
+        territories.forEach(t => {
+            const key = String(t.user_id);
+            if (!userGroups.has(key)) userGroups.set(key, []);
+            userGroups.get(key)!.push(t);
+        });
+
+        const centers: any[] = [];
+        const borders: any[] = [];
+
+        // 각 사용자별 처리
+        userGroups.forEach((userTerritories, userId) => {
             try {
-                const lat = Number(t.x);
-                const lng = Number(t.y);
-                const radiusKm = t.territory_radius || 5.0;
+                const first = userTerritories[0];
+                const isMine = String(userId) === String(currentUserId);
+                const isNpc = first.npc_type === 'ABSOLUTE' || first.npc_type === 'FREE';
+                const color = first.color || (isMine ? '#00FFFF' : (isNpc ? '#FFA500' : '#FF4444'));
 
-                if (isNaN(lat) || isNaN(lng)) return null;
+                // is_territory_center = 1인 모든 건물 찾기
+                const territoryCenters = userTerritories.filter(t => t.is_territory_center === 1);
 
-                const userId = String(t.user_id);
-                const isMine = userId === String(currentUserId);
-                const isNpc = t.npc_type === 'ABSOLUTE' || t.npc_type === 'FREE';
+                // 사령부: COMMAND_CENTER 타입만
+                const commandCenters = territoryCenters.filter(t =>
+                    t.type === 'COMMAND_CENTER' ||
+                    t.building_type_code === 'COMMAND_CENTER'
+                );
 
-                return {
-                    id: t.id,
-                    center: [lat, lng] as [number, number],
-                    radius: radiusKm,
-                    color: t.color || (isMine ? '#00FFFF' : (isNpc ? '#FFA500' : '#FF4444')),
-                    isMine,
-                    ownerName: t.owner_name || `User ${t.user_id}`,
-                    npcType: t.npc_type,
-                    factionName: t.faction_name
-                };
+                // 비콘: AREA_BEACON 타입만
+                const beacons = territoryCenters.filter(t =>
+                    t.type === 'AREA_BEACON' ||
+                    t.building_type_code === 'AREA_BEACON'
+                );
+
+                // 기타 영토 건물 (사령부도 비콘도 아닌 것들)
+                const otherTerritories = territoryCenters.filter(t =>
+                    t.type !== 'COMMAND_CENTER' &&
+                    t.building_type_code !== 'COMMAND_CENTER' &&
+                    t.type !== 'AREA_BEACON' &&
+                    t.building_type_code !== 'AREA_BEACON'
+                );
+
+                // 사령부 국경선 (2개 이상 있을 때 Concave Hull)
+                if (commandCenters.length >= 2) {
+                    const ccPoints = commandCenters
+                        .map(cc => {
+                            const lat = Number(cc.x);
+                            const lng = Number(cc.y);
+                            if (isNaN(lat) || isNaN(lng)) return null;
+                            return turf.point([lng, lat]);
+                        })
+                        .filter(p => p !== null) as any[];
+
+                    if (ccPoints.length >= 2) {
+                        try {
+                            const ccCollection = turf.featureCollection(ccPoints);
+                            const ccHull = turf.concave(ccCollection, { maxEdge: 20, units: 'kilometers' }) ||
+                                turf.convex(ccCollection); // Fallback to convex if concave fails
+
+                            if (ccHull && ccHull.geometry.type === 'Polygon') {
+                                const coords = ccHull.geometry.coordinates[0];
+                                const positions = coords.map(c => [c[1], c[0]] as [number, number]);
+
+                                borders.push({
+                                    key: `cc-border-${userId}`,
+                                    positions: [positions],
+                                    color,
+                                    isMine,
+                                    isNpc,
+                                    ownerName: first.owner_name || `User ${userId}`,
+                                    factionName: first.faction_name,
+                                    npcType: first.npc_type,
+                                    beaconCount: commandCenters.length,
+                                    borderType: 'command_center'
+                                });
+                            }
+                        } catch (err) {
+                            console.warn('Concave/Convex hull calculation failed for CCs', userId, err);
+                        }
+                    }
+                }
+
+                // 사령부 원형 렌더링 (국경선이 있어도 중심점 표시용)
+                commandCenters.forEach(cc => {
+                    const lat = Number(cc.x);
+                    const lng = Number(cc.y);
+                    const radius = cc.territory_radius || 5.0;
+
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        centers.push({
+                            id: cc.id,
+                            center: [lat, lng] as [number, number],
+                            radius,
+                            color,
+                            isMine,
+                            isNpc,
+                            ownerName: cc.owner_name || `User ${userId}`,
+                            factionName: cc.faction_name,
+                            npcType: cc.npc_type,
+                            buildingType: 'command_center'
+                        });
+                    }
+                });
+
+                // 기타 영토 건물도 원형으로 표시
+                otherTerritories.forEach(ot => {
+                    const lat = Number(ot.x);
+                    const lng = Number(ot.y);
+                    const radius = ot.territory_radius || 5.0;
+
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        centers.push({
+                            id: ot.id,
+                            center: [lat, lng] as [number, number],
+                            radius,
+                            color,
+                            isMine,
+                            isNpc,
+                            ownerName: ot.owner_name || `User ${userId}`,
+                            factionName: ot.faction_name,
+                            npcType: ot.npc_type,
+                            buildingType: ot.type || 'territory'
+                        });
+                    }
+                });
+
+                // 비콘 국경 렌더링 (3개 이상일 때만)
+                if (beacons.length >= 3) {
+                    // Concave Hull 계산
+                    const points = beacons
+                        .map(b => {
+                            const lat = Number(b.x);
+                            const lng = Number(b.y);
+                            if (isNaN(lat) || isNaN(lng)) return null;
+                            return turf.point([lng, lat]);
+                        })
+                        .filter(p => p !== null) as any[];
+
+                    if (points.length >= 3) {
+                        try {
+                            const featureCollection = turf.featureCollection(points);
+                            const hull = turf.concave(featureCollection, { maxEdge: 30, units: 'kilometers' }) ||
+                                turf.convex(featureCollection); // Fallback
+
+                            if (hull && hull.geometry.type === 'Polygon') {
+                                // 좌표 변환 (GeoJSON [lng, lat] -> Leaflet [lat, lng])
+                                const coords = hull.geometry.coordinates[0];
+                                const positions = coords.map(c => [c[1], c[0]] as [number, number]);
+
+                                borders.push({
+                                    key: `beacon-border-${userId}`,
+                                    positions: [positions], // Polygon 포맷
+                                    color,
+                                    isMine,
+                                    isNpc,
+                                    ownerName: first.owner_name || `User ${userId}`,
+                                    factionName: first.faction_name,
+                                    npcType: first.npc_type,
+                                    beaconCount: beacons.length,
+                                    borderType: 'beacon'
+                                });
+                            }
+                        } catch (err) {
+                            console.warn('Concave/Convex hull calculation failed for beacons', userId, err);
+                        }
+                    }
+                }
+
             } catch (e) {
-                return null;
+                console.error('Error processing territory for user', userId, e);
             }
-        }).filter(item => item !== null) as any[];
+        });
+
+        return { commandCenters: centers, beaconBorders: borders };
     }, [territories, currentUserId]);
 
     return (
         <>
-            {/* SVG Filter Definition (Invisible) */}
-            <svg style={{ position: 'absolute', width: 0, height: 0, pointerEvents: 'none' }}>
-                <defs>
-                    <filter id="goo">
-                        {/* Blur the shapes */}
-                        <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
-                        {/* Contrast to sharpen edges */}
-                        <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
-                        {/* Original colors interaction */}
-                        <feBlend in="SourceGraphic" in2="goo" />
-                    </filter>
-                </defs>
-            </svg>
-
-            <Pane name="gooey" style={{ zIndex: 399 }}>
-                {renderData.map((item) => (
-                    <Circle
-                        key={`terr-circle-${item.id}`}
-                        center={item.center}
-                        radius={item.radius * 1000} // km to meters
+            {/* Layer 1: 비콘 국경선 (하위 레이어, z-index 399) */}
+            <Pane name="beacon-borders" style={{ zIndex: 399 }}>
+                {beaconBorders.map((border) => (
+                    <Polygon
+                        key={border.key}
+                        positions={border.positions}
                         pathOptions={{
-                            color: 'transparent', // 테두리 없음
-                            fillColor: item.color,
-                            fillOpacity: 1.0, // 필터를 위해 불투명하게 시작 (나중에 흐려짐)
+                            color: border.color,
+                            fillColor: border.color,
+                            fillOpacity: border.isMine ? 0.1 : 0.15,
+                            weight: 2,
+                            opacity: 0.7,
+                            dashArray: border.isMine ? undefined : '8, 4'
+                        }}
+                        interactive={true}
+                    >
+                        <Tooltip sticky direction="top">
+                            <div className="text-center">
+                                <strong>{border.ownerName}</strong>
+                                {border.factionName && <div className="text-xs text-blue-300">{border.factionName}</div>}
+                                <div className="text-[10px] mt-1 opacity-75">
+                                    {border.npcType ? `[${border.npcType}]` : '[PLAYER]'}
+                                    <br />
+                                    {border.borderType === 'command_center'
+                                        ? `🏛️ 영토 국경 (${border.beaconCount} 사령부)`
+                                        : `📡 확장 국경 (${border.beaconCount} 비콘)`
+                                    }
+                                </div>
+                            </div>
+                        </Tooltip>
+                    </Polygon>
+                ))}
+            </Pane>
+
+            {/* Layer 2: 사령부 절대 영역 (상위 레이어, z-index 400) */}
+            <Pane name="command-centers" style={{ zIndex: 400 }}>
+                {commandCenters.map((cc) => (
+                    <Circle
+                        key={`cc-${cc.id}`}
+                        center={cc.center}
+                        radius={cc.radius * 1000} // km to meters
+                        pathOptions={{
+                            color: cc.color,
+                            fillColor: cc.color,
+                            fillOpacity: cc.isMine ? 0.35 : 0.4,
+                            weight: cc.isMine ? 3 : 2,
+                            opacity: 1,
+                            dashArray: undefined
                         }}
                         interactive={true}
                         eventHandlers={{
                             click: (e) => {
                                 L.DomEvent.stopPropagation(e.originalEvent);
-                                const orig = territories.find(t => t.id === item.id);
+                                const orig = territories.find(t => t.id === cc.id);
                                 if (onTerritoryClick && orig) onTerritoryClick(orig, e);
                             }
                         }}
                     >
                         <Tooltip sticky direction="top">
                             <div className="text-center">
-                                <strong>{item.ownerName}</strong>
-                                {item.factionName && <div className="text-xs text-blue-300">{item.factionName}</div>}
+                                <strong>{cc.ownerName}</strong>
+                                {cc.factionName && <div className="text-xs text-blue-300">{cc.factionName}</div>}
                                 <div className="text-[10px] mt-1 opacity-75">
-                                    {item.npcType ? `[${item.npcType}]` : '[PLAYER]'}
+                                    {cc.npcType ? `[${cc.npcType}]` : '[PLAYER]'}
                                     <br />
-                                    {item.radius}km 영토
+                                    🏛️ 사령부 ({cc.radius}km 절대 영역)
                                 </div>
                             </div>
                         </Tooltip>

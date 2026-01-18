@@ -2609,10 +2609,10 @@ app.post('/api/admin/spawn-free-npc', (req, res) => {
             // For now, allow arbitrary.
         }
 
-        // 4. Create Outpost
+        // 4. Create Area Beacon
         db.prepare(`
             INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level)
-            VALUES (?, 'OUTPOST', ?, ?, ?, ?, 1, 2.0, 1)
+            VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, 2.0, 1)
         `).run(userId, spawnX, spawnY, worldX, worldY);
 
         console.log(`[Admin] Spawned Free NPC: ${name} at ${spawnX}, ${spawnY}`);
@@ -2719,12 +2719,30 @@ app.post('/api/buildings/construct', (req, res) => {
         let radius = buildingType.territory_radius;
 
         if (isTerritoryCenter) {
-            // Check distance to ALL other territory centers
-            const existingCenters = db.prepare('SELECT x, y FROM user_buildings WHERE is_territory_center = 1').all();
-            for (const center of existingCenters) {
-                const dist = getDistanceFromLatLonInKm(x, y, center.x, center.y);
-                if (dist < 3.0) {
-                    return res.status(400).json({ error: `Too close to another territory! Minimum distance is 3km. Current: ${dist.toFixed(2)}km` });
+            // 사령부(COMMAND_CENTER)는 절대 영역 - 다른 사령부로부터 5km 이내 건설 불가
+            if (type.toUpperCase() === 'COMMAND_CENTER') {
+                const existingCommandCenters = db.prepare(`
+                    SELECT x, y, user_id FROM user_buildings 
+                    WHERE (type = 'COMMAND_CENTER' OR building_type_code = 'COMMAND_CENTER')
+                    AND user_id != ?
+                `).all(userId);
+
+                for (const center of existingCommandCenters) {
+                    const dist = getDistanceFromLatLonInKm(x, y, center.x, center.y);
+                    if (dist < 5.0) {
+                        return res.status(400).json({
+                            error: `다른 사용자의 사령부로부터 5km 이내에는 사령부를 건설할 수 없습니다. 현재 거리: ${dist.toFixed(2)}km`
+                        });
+                    }
+                }
+            } else {
+                // 비콘(AREA_BEACON) 등 기타 영토 건물 - 기존 3km 제한
+                const existingCenters = db.prepare('SELECT x, y FROM user_buildings WHERE is_territory_center = 1').all();
+                for (const center of existingCenters) {
+                    const dist = getDistanceFromLatLonInKm(x, y, center.x, center.y);
+                    if (dist < 3.0) {
+                        return res.status(400).json({ error: `Too close to another territory! Minimum distance is 3km. Current: ${dist.toFixed(2)}km` });
+                    }
                 }
             }
         } else {
@@ -3113,7 +3131,7 @@ app.post('/api/admin/seed-factions', (req, res) => {
             { faction: 'japan_npc', name: 'Tokyo Fortress', x: 35.6762, y: 139.6503, radius: 25.0 },
             { faction: 'china_npc', name: 'Beijing Citadel', x: 39.9042, y: 116.4074, radius: 30.0 },
             { faction: 'usa_npc', name: 'Washington HQ', x: 38.9072, y: -77.0369, radius: 30.0 },
-            { faction: 'eu_npc', name: 'London Outpost', x: 51.5074, y: -0.1278, radius: 15.0 },
+            { faction: 'eu_npc', name: 'London Beacon', x: 51.5074, y: -0.1278, radius: 15.0 },
             { faction: 'eu_npc', name: 'Paris Bastion', x: 48.8566, y: 2.3522, radius: 15.0 },
             { faction: 'eu_npc', name: 'Berlin Bunker', x: 52.5200, y: 13.4050, radius: 15.0 },
             { faction: 'ru_npc', name: 'Moscow Kremlin', x: 55.7558, y: 37.6173, radius: 30.0 },
@@ -3349,6 +3367,225 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
 }
+
+// ========================================
+// Admin: Building Management
+// ========================================
+
+// GET /api/admin/buildings - List all buildings with filters
+app.get('/api/admin/buildings', (req, res) => {
+    const { userId } = req.query;
+
+    // Admin check
+    if (String(userId) !== '1') {
+        return res.status(403).json({ error: 'Admin only' });
+    }
+
+    try {
+        const {
+            ownerId,
+            type,
+            isTerritoryCenter,
+            limit = 100,
+            offset = 0
+        } = req.query;
+
+        let query = `
+            SELECT ub.*, u.username as owner_name
+            FROM user_buildings ub
+            LEFT JOIN users u ON ub.user_id = u.id
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (ownerId) {
+            query += ` AND ub.user_id = ?`;
+            params.push(ownerId);
+        }
+
+        if (type) {
+            query += ` AND (ub.type = ? OR ub.building_type_code = ?)`;
+            params.push(type.toUpperCase(), type.toUpperCase());
+        }
+
+        if (isTerritoryCenter !== undefined) {
+            query += ` AND ub.is_territory_center = ?`;
+            params.push(isTerritoryCenter === 'true' ? 1 : 0);
+        }
+
+        query += ` ORDER BY ub.id DESC LIMIT ? OFFSET ?`;
+        params.push(parseInt(limit), parseInt(offset));
+
+        const buildings = db.prepare(query).all(...params);
+
+        // Get total count
+        let countQuery = `
+            SELECT COUNT(*) as total
+            FROM user_buildings ub
+            WHERE 1=1
+        `;
+        const countParams = [];
+
+        if (ownerId) {
+            countQuery += ` AND ub.user_id = ?`;
+            countParams.push(ownerId);
+        }
+
+        if (type) {
+            countQuery += ` AND (ub.type = ? OR ub.building_type_code = ?)`;
+            countParams.push(type.toUpperCase(), type.toUpperCase());
+        }
+
+        if (isTerritoryCenter !== undefined) {
+            countQuery += ` AND ub.is_territory_center = ?`;
+            countParams.push(isTerritoryCenter === 'true' ? 1 : 0);
+        }
+
+        const { total } = db.prepare(countQuery).get(...countParams);
+
+        res.json({
+            buildings,
+            total,
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            hasMore: parseInt(offset) + buildings.length < total
+        });
+    } catch (error) {
+        console.error('Error fetching buildings:', error);
+        res.status(500).json({ error: 'Failed to fetch buildings' });
+    }
+});
+
+// PUT /api/admin/buildings/:buildingId - Update building
+app.put('/api/admin/buildings/:buildingId', (req, res) => {
+    const { userId } = req.query;
+    const { buildingId } = req.params;
+
+    // Admin check
+    if (String(userId) !== '1') {
+        return res.status(403).json({ error: 'Admin only' });
+    }
+
+    try {
+        const { ownerId, x, y, territoryRadius, isTerritoryCenter } = req.body;
+
+        // Build update query dynamically
+        const updates = [];
+        const params = [];
+
+        if (ownerId !== undefined) {
+            updates.push('user_id = ?');
+            params.push(ownerId);
+        }
+
+        if (x !== undefined) {
+            updates.push('x = ?');
+            params.push(x);
+        }
+
+        if (y !== undefined) {
+            updates.push('y = ?');
+            params.push(y);
+        }
+
+        if (territoryRadius !== undefined) {
+            updates.push('territory_radius = ?');
+            params.push(territoryRadius);
+        }
+
+        if (isTerritoryCenter !== undefined) {
+            updates.push('is_territory_center = ?');
+            params.push(isTerritoryCenter ? 1 : 0);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No fields to update' });
+        }
+
+        params.push(buildingId);
+
+        const query = `UPDATE user_buildings SET ${updates.join(', ')} WHERE id = ?`;
+        const result = db.prepare(query).run(...params);
+
+        if (result.changes === 0) {
+            return res.status(404).json({ error: 'Building not found' });
+        }
+
+        // Fetch updated building
+        const building = db.prepare(`
+            SELECT ub.*, u.username as owner_name
+            FROM user_buildings ub
+            LEFT JOIN users u ON ub.user_id = u.id
+            WHERE ub.id = ?
+        `).get(buildingId);
+
+        console.log(`[Admin] Building ${buildingId} updated by admin`);
+
+        res.json({
+            success: true,
+            building
+        });
+    } catch (error) {
+        console.error('Error updating building:', error);
+        res.status(500).json({ error: 'Failed to update building' });
+    }
+});
+
+// DELETE /api/admin/buildings/:buildingId - Delete building
+app.delete('/api/admin/buildings/:buildingId', (req, res) => {
+    const { userId } = req.query;
+    const { buildingId } = req.params;
+
+    // Admin check
+    if (String(userId) !== '1') {
+        return res.status(403).json({ error: 'Admin only' });
+    }
+
+    try {
+        const building = db.prepare('SELECT * FROM user_buildings WHERE id = ?').get(buildingId);
+
+        if (!building) {
+            return res.status(404).json({ error: 'Building not found' });
+        }
+
+        const result = db.prepare('DELETE FROM user_buildings WHERE id = ?').run(buildingId);
+
+        console.log(`[Admin] Building ${buildingId} (${building.type}) deleted by admin`);
+
+        res.json({
+            success: true,
+            deletedId: buildingId,
+            building: building
+        });
+    } catch (error) {
+        console.error('Error deleting building:', error);
+        res.status(500).json({ error: 'Failed to delete building' });
+    }
+});
+
+// GET /api/admin/users/list - Simple user list for dropdowns
+app.get('/api/admin/users/list', (req, res) => {
+    const { userId } = req.query;
+
+    // Admin check
+    if (String(userId) !== '1') {
+        return res.status(403).json({ error: 'Admin only' });
+    }
+
+    try {
+        const users = db.prepare(`
+            SELECT id, username, faction_id
+            FROM users
+            ORDER BY id ASC
+        `).all();
+
+        res.json({ users });
+    } catch (error) {
+        console.error('Error fetching users list:', error);
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
 
 // Start Server
 app.listen(PORT, '0.0.0.0', () => {
