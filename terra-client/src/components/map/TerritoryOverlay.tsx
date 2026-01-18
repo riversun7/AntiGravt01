@@ -182,8 +182,14 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                                 // Foreign Territory Exclusion Logic
                                 // 내 영토가 아닌 모든 영토(사령부/비콘)를 순회하며 겹치는 부분을 빼냄
                                 territories.forEach(ft => {
-                                    // 내 영토이거나, 영토 센터가 아니면 패스
-                                    if (String(ft.user_id) === String(userId) || ft.is_territory_center !== 1) return;
+                                    // 내 영토이면 제외
+                                    if (String(ft.user_id) === String(userId)) return;
+
+                                    // 비콘이나 커맨드 센터 등 '영역'을 가진 건물만 대상
+                                    // is_territory_center 가 1인 것 (기존 로직)
+                                    // 또는 type이 COMMAND_CENTER, AREA_BEACON 인 것
+                                    const hasTerritory = ft.is_territory_center === 1 || ft.type === 'COMMAND_CENTER' || ft.type === 'AREA_BEACON';
+                                    if (!hasTerritory) return;
 
                                     try {
                                         const fLat = Number(ft.x);
@@ -193,16 +199,21 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                                         // 상대방 영토 Polygon 생성 (Circle)
                                         const fPoly = turf.circle([fLng, fLat], fRadius, { steps: 24, units: 'kilometers' });
 
-                                        // 겹치지 않으면 연산 불필요 (성능 최적화)
-                                        if (turf.booleanDisjoint(hull, fPoly)) return;
+                                        // 겹치지 않으면 연산 불필요
+                                        const isDisjoint = turf.booleanDisjoint(hull, fPoly);
+                                        if (isDisjoint) return;
+
+                                        // console.log(`[Hull] Subtracting foreign territory ${ft.id} from user ${userId}'s hull`);
 
                                         // 차집합 연산 (Hull - Foreign)
-                                        const diff = turf.difference(hull, fPoly);
+                                        // Turf v7: difference(featureCollection)
+                                        const diff = turf.difference(turf.featureCollection([hull as any, fPoly as any]));
                                         if (diff) {
                                             hull = diff;
+                                            console.log(`[Hull] Subtracted foreign territory ${ft.id}`);
                                         }
                                     } catch (err) {
-                                        // 연산 실패 시 무시 (원본 유지)
+                                        // console.warn('Subtraction failed', err);
                                     }
                                 });
 
