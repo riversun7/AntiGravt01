@@ -7,7 +7,6 @@ import {
     Users,
     Database,
     ClipboardList,
-    PenTool,
     ArrowLeft,
     Send,
     Server,
@@ -20,7 +19,6 @@ const menuItems = [
     { name: "NPC Factions", href: "/admin/npc", icon: Shield },
     { name: "Mail Console", href: "/admin/mail", icon: Send },
     { name: "DB Inspector", href: "/admin/db-inspector", icon: Database },
-    { name: "DB Designer", href: "/admin/db-designer", icon: PenTool },
     { name: "System Node", href: "/admin/system", icon: Server },
     { name: "Planning", href: "/admin/planning", icon: ClipboardList },
 ];

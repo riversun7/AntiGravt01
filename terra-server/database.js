@@ -109,17 +109,6 @@ function initSchema() {
         FOREIGN KEY(user_id) REFERENCES users(id)
     );`;
 
-    const createWorldMapTable = `
-    CREATE TABLE IF NOT EXISTS world_map (
-        id TEXT PRIMARY KEY, -- Format "x_y" e.g "0_0"
-        x INTEGER NOT NULL,
-        y INTEGER NOT NULL,
-        type TEXT NOT NULL, -- ICE, TUNDRA, OCEAN, PLAIN, FOREST, JUNGLE, DESERT, MOUNTAIN, CITY
-        name TEXT,
-        owner_id INTEGER DEFAULT NULL,
-        faction TEXT DEFAULT NULL -- 'TERRAN', 'CYBER', 'IRON', 'NEUTRAL'
-    );`;
-
     const createMailTable = `
     CREATE TABLE IF NOT EXISTS mail (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -711,7 +700,11 @@ function initSchema() {
             { name: 'internal_map_size', type: 'INTEGER DEFAULT 0' },
             { name: 'upgrade_to', type: 'TEXT DEFAULT NULL' },
             { name: 'max_rank_depth', type: 'INTEGER DEFAULT 0' },
-            { name: 'rank_slots', type: 'INTEGER DEFAULT 0' }
+            { name: 'rank_slots', type: 'INTEGER DEFAULT 0' },
+            { name: 'max_beacons', type: 'INTEGER DEFAULT 0' },
+            { name: 'beacon_range_km', type: 'REAL DEFAULT 0.0' },
+            { name: 'patrol_radius_km', type: 'REAL DEFAULT 0.0' },
+            { name: 'vision_range_km', type: 'REAL DEFAULT 0.0' }
         ];
 
         newCols.forEach(col => {
@@ -791,9 +784,13 @@ function initSchema() {
                 max_hp: 30,
                 housing_capacity: 5,
                 housing_efficiency: 0.5,
-                max_rank_depth: 2, // Commander + Officers
+                max_rank_depth: 2,
                 rank_slots: 5,
                 upgrade_to: 'CENTRAL_CONTROL_HUB',
+                max_beacons: 6,
+                beacon_range_km: 15.0,
+                patrol_radius_km: 20.0,
+                vision_range_km: 10.0,
                 prerequisites: JSON.stringify([])
             },
             // TIER 2 - Advanced Territory
@@ -814,8 +811,12 @@ function initSchema() {
                 housing_capacity: 10,
                 housing_efficiency: 0.8,
                 internal_map_size: 100,
-                max_rank_depth: 3, // Multi-level hierarchy
+                max_rank_depth: 3,
                 rank_slots: 20,
+                max_beacons: 8,
+                beacon_range_km: 20.0,
+                patrol_radius_km: 30.0,
+                vision_range_km: 15.0,
                 prerequisites: JSON.stringify(['COMMAND_CENTER', 'RESEARCH_LAB'])
             },
             // Existing types (keeping basic definitions, but new columns will update via INSERT OR REPLACE)
@@ -962,8 +963,10 @@ function initSchema() {
                 min_units, max_units, storage_volume,
                 production_type, production_rate,
                 is_territory_center, territory_radius, prerequisites,
-                max_hp, housing_capacity, housing_efficiency, 
-                internal_map_size, upgrade_to, max_rank_depth, rank_slots
+                max_hp, housing_capacity, housing_efficiency,
+                internal_map_size, upgrade_to, max_rank_depth, rank_slots,
+                max_beacons, beacon_range_km,
+                patrol_radius_km, vision_range_km
             ) VALUES (
                 @code, @name, @description, @tier, @category,
                 @construction_cost, @maintenance_cost,
@@ -971,7 +974,9 @@ function initSchema() {
                 @production_type, @production_rate,
                 @is_territory_center, @territory_radius, @prerequisites,
                 @max_hp, @housing_capacity, @housing_efficiency,
-                @internal_map_size, @upgrade_to, @max_rank_depth, @rank_slots
+                @internal_map_size, @upgrade_to, @max_rank_depth, @rank_slots,
+                @max_beacons, @beacon_range_km,
+                @patrol_radius_km, @vision_range_km
             )
             ON CONFLICT(code) DO UPDATE SET
                 name=excluded.name,
@@ -988,7 +993,11 @@ function initSchema() {
                 rank_slots=excluded.rank_slots,
                 upgrade_to=excluded.upgrade_to,
                 production_type=excluded.production_type,
-                production_rate=excluded.production_rate
+                production_rate=excluded.production_rate,
+                max_beacons=excluded.max_beacons,
+                beacon_range_km=excluded.beacon_range_km,
+                patrol_radius_km=excluded.patrol_radius_km,
+                vision_range_km=excluded.vision_range_km
         `);
 
         // Helper to fill defaults for optional fields if I miss any in existing types
@@ -1014,7 +1023,11 @@ function initSchema() {
             internal_map_size: bt.internal_map_size || 0,
             upgrade_to: bt.upgrade_to || null,
             max_rank_depth: bt.max_rank_depth || 0,
-            rank_slots: bt.rank_slots || 0
+            rank_slots: bt.rank_slots || 0,
+            max_beacons: bt.max_beacons || 0,
+            beacon_range_km: bt.beacon_range_km || 0.0,
+            patrol_radius_km: bt.patrol_radius_km || 0.0,
+            vision_range_km: bt.vision_range_km || 0.0
         });
 
         buildingTypes.forEach(bt => {

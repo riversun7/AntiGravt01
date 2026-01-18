@@ -184,6 +184,11 @@ export default function TerrainMapContent({
                 playerPosition={playerPosition}
                 viewRangeKm={isAdmin ? 99999 : 10}
                 calculateDistance={calculateDistance}
+                onNpcClick={(npc) => {
+                    setSelectedNpc(npc);
+                    setSelectedBuilding(null);
+                    setSelectedTile(null);
+                }}
             />
 
             {/* Foreign Territory Markers */}

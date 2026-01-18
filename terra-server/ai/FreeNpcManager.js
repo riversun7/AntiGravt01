@@ -15,7 +15,11 @@ class FreeNpcManager {
             this.collectResources(npc);
             this.developTerritory(npc);
             this.checkArrivalAndBuild(npc); // Check if arrived and build beacon
-            this.attemptExpansion(npc);     // Plan next expansion movement
+
+            // AI 의사결정: 이동 중이 아닐 때만 다음 행동 결정
+            if (!npc.destination_pos) {
+                this.decideNextAction(npc);
+            }
         });
     }
 
@@ -116,6 +120,19 @@ class FreeNpcManager {
         const destWorldX = Math.round((destLat - 36.0) / 0.1);
         const destWorldY = Math.round((destLng - 127.0) / 0.1);
 
+        // Check beacon limits BEFORE building
+        const canBuild = this.canBuildBeaconAt(npc.id, destLat, destLng);
+        if (!canBuild.allowed) {
+            console.log(`[FreeNPC] ${npc.faction_name} cannot build beacon: ${canBuild.reason}`);
+            // Clear movement and try again later
+            db.prepare(`
+                UPDATE users 
+                SET destination_pos = NULL, start_pos = NULL, arrival_time = NULL, departure_time = NULL
+                WHERE id = ?
+            `).run(npc.id);
+            return;
+        }
+
         // Build AREA_BEACON at destination
         const cost = 500;
         const resources = db.prepare('SELECT gold FROM user_resources WHERE user_id = ?').get(npc.id);
@@ -143,6 +160,73 @@ class FreeNpcManager {
                 console.log(`[FreeNPC] ${npc.faction_name} arrived and built AREA_BEACON at ${destLat.toFixed(4)}, ${destLng.toFixed(4)}`);
             })();
         }
+    }
+
+    // Helper function to check if a beacon can be built at the target location
+    canBuildBeaconAt(userId, targetLat, targetLng) {
+        // Get all parent buildings (COMMAND_CENTER or CENTRAL_CONTROL_HUB) for this user
+        const parents = db.prepare(`
+            SELECT ub.id, ub.type, ub.x, ub.y, bt.max_beacons, bt.beacon_range_km
+            FROM user_buildings ub
+            JOIN building_types bt ON ub.type = bt.code
+            WHERE ub.user_id = ? 
+            AND bt.max_beacons > 0
+            AND ub.is_territory_center = 1
+        `).all(userId);
+
+        if (parents.length === 0) {
+            return { allowed: false, reason: 'No parent building (COMMAND_CENTER) found' };
+        }
+
+        // Find a suitable parent within range and below beacon limit
+        for (const parent of parents) {
+            // Calculate distance from parent to target
+            const distanceKm = this.getDistanceFromLatLonInKm(parent.x, parent.y, targetLat, targetLng);
+
+            // Check if within range
+            if (distanceKm > parent.beacon_range_km) {
+                continue; // Try next parent
+            }
+
+            // Count existing beacons for this parent
+            const beaconCount = db.prepare(`
+                SELECT COUNT(*) as count
+                FROM user_buildings
+                WHERE user_id = ?
+                AND type = 'AREA_BEACON'
+            `).get(userId);
+
+            // For now, count ALL beacons for the user
+            // TODO: In the future, track which beacon belongs to which parent
+            if (beaconCount.count >= parent.max_beacons) {
+                continue; // Try next parent
+            }
+
+            // Found a valid parent
+            return { allowed: true, parent: parent };
+        }
+
+        return {
+            allowed: false,
+            reason: `No parent building within range (max ${parents[0].beacon_range_km}km) or beacon limit reached (max ${parents[0].max_beacons})`
+        };
+    }
+
+    getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Radius of the earth in km
+        const dLat = this.deg2rad(lat2 - lat1);
+        const dLon = this.deg2rad(lon2 - lon1);
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const d = R * c; // Distance in km
+        return d;
+    }
+
+    deg2rad(deg) {
+        return deg * (Math.PI / 180);
     }
 
     attemptExpansion(npc) {
@@ -238,6 +322,14 @@ class FreeNpcManager {
 
         console.log(`[FreeNPC] ${npc.faction_name} cyborg moving to ${targetLat.toFixed(4)}, ${targetLng.toFixed(4)} (${distanceKm.toFixed(2)}km, ETA: ${travelTimeSec.toFixed(0)}s)`);
     }
+
+    // ========== AI 의사결정 시스템 ==========
+    decideNextAction(npc) { const nearbyResource = this.findNearbyResource(npc); if (nearbyResource) { console.log(`[FreeNPC] ${npc.faction_name} 자원 발견`); this.setDestination(npc, nearbyResource.x, nearbyResource.y); return; } if (this.shouldExpandTerritory(npc)) { this.attemptExpansion(npc); return; } this.patrolAroundBase(npc); }
+    findNearbyResource(npc) { const cc = this.getCommandCenter(npc.id); if (!cc) return null; const visionRange = cc.vision_range_km || 10.0; const resources = db.prepare('SELECT * FROM resource_nodes WHERE current_amount > 0').all(); if (!resources || !resources.length) return null; const currentPos = npc.current_pos ? npc.current_pos.split('_').map(Number) : null; if (!currentPos) return null; const [currentLat, currentLng] = currentPos; for (const r of resources) { if (this.getDistanceFromLatLonInKm(currentLat, currentLng, r.x, r.y) <= visionRange) return r; } return null; }
+    shouldExpandTerritory(npc) { const beaconType = db.prepare('SELECT * FROM building_types WHERE code = ?').get('AREA_BEACON'); if (!beaconType) return false; const cost = JSON.parse(beaconType.construction_cost || '{}'); const resources = db.prepare('SELECT * FROM user_resources WHERE user_id = ?').get(npc.id); if (!resources || resources.gold < (cost.gold || 0)) return false; const cc = this.getCommandCenter(npc.id); if (!cc) return false; const beaconCount = db.prepare('SELECT COUNT(*) as count FROM user_buildings WHERE user_id = ? AND type = ?').get(npc.id, 'AREA_BEACON'); return beaconCount.count < cc.max_beacons; }
+    patrolAroundBase(npc) { const cc = this.getCommandCenter(npc.id); if (!cc) return; const r = cc.patrol_radius_km || 20.0; const angle = Math.random() * 2 * Math.PI; const dist = Math.random() * r; const latO = (dist * Math.cos(angle)) / 111; const lngO = (dist * Math.sin(angle)) / (111 * Math.cos(cc.x * Math.PI / 180)); this.setDestination(npc, cc.x + latO, cc.y + lngO); console.log(`[FreeNPC] ${npc.faction_name} 순찰 중 (반경 ${r}km)`); }
+    getCommandCenter(userId) { return db.prepare('SELECT ub.*, bt.patrol_radius_km, bt.vision_range_km, bt.max_beacons, bt.beacon_range_km FROM user_buildings ub JOIN building_types bt ON ub.type = bt.code WHERE ub.user_id = ? AND ub.type IN (?, ?) ORDER BY ub.type DESC LIMIT 1').get(userId, 'COMMAND_CENTER', 'CENTRAL_CONTROL_HUB'); }
+    setDestination(npc, destLat, destLng) { const currentPos = npc.current_pos ? npc.current_pos.split('_').map(Number) : null; if (!currentPos) return; const [currentLat, currentLng] = currentPos; const distanceKm = this.getDistanceFromLatLonInKm(currentLat, currentLng, destLat, destLng); const travelTimeSec = distanceKm / 0.05; const arrivalTime = new Date(Date.now() + travelTimeSec * 1000); db.prepare('UPDATE users SET start_pos = ?, destination_pos = ?, departure_time = ?, arrival_time = ? WHERE id = ?').run(`${currentLat}_${currentLng}`, `${destLat}_${destLng}`, new Date().toISOString(), arrivalTime.toISOString(), npc.id); }
 }
 
 module.exports = new FreeNpcManager();

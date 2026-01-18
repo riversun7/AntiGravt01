@@ -239,6 +239,7 @@ export default function TerrainMapPage() {
 
     // Building interaction states
     const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
+    const [selectedNpc, setSelectedNpc] = useState<any>(null); // NPC Cyborg selection
     const [showAssignModal, setShowAssignModal] = useState(false);
 
     // Toast state

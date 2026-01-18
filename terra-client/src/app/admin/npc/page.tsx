@@ -88,12 +88,34 @@ export default function NPCAdminPage() {
                 <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Shield className="text-purple-500" /> NPC Faction Manager
                 </h1>
-                <button
-                    onClick={fetchNPCs}
-                    className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-white flex items-center gap-1"
-                >
-                    <RefreshCw size={16} /> Refresh
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={async () => {
+                            if (!confirm("Seeding will create random NPC factions and modify the database. Continue?")) return;
+                            try {
+                                const res = await fetch('/api/admin/seed-factions', { method: 'POST' });
+                                const data = await res.json();
+                                if (data.success) {
+                                    alert("NPC Factions Seeded Successfully!");
+                                    fetchNPCs(); // Refresh list
+                                } else {
+                                    alert("Failed: " + data.error);
+                                }
+                            } catch (e) {
+                                alert("Error calling seed API");
+                            }
+                        }}
+                        className="px-4 py-2 bg-red-500/10 border border-red-500 hover:bg-red-500/20 text-red-500 rounded font-bold text-sm transition-colors"
+                    >
+                        INIT NPC FACTIONS
+                    </button>
+                    <button
+                        onClick={fetchNPCs}
+                        className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-white flex items-center gap-1"
+                    >
+                        <RefreshCw size={16} /> Refresh
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-auto bg-[#161b22] border border-slate-800 rounded-xl shadow-xl">
@@ -121,8 +143,8 @@ export default function NPCAdminPage() {
                                     </td>
                                     <td className="p-4">
                                         <span className={`px-2 py-0.5 rounded textxs font-bold ${npc.npc_type === 'ABSOLUTE' ? 'bg-purple-900/50 text-purple-300 border border-purple-800' :
-                                                npc.npc_type === 'FREE' ? 'bg-green-900/50 text-green-300 border border-green-800' :
-                                                    'bg-slate-800 text-slate-400'
+                                            npc.npc_type === 'FREE' ? 'bg-green-900/50 text-green-300 border border-green-800' :
+                                                'bg-slate-800 text-slate-400'
                                             }`}>
                                             {npc.npc_type}
                                         </span>

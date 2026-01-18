@@ -23,12 +23,14 @@ interface NpcCyborgMarkersProps {
     playerPosition: [number, number];
     viewRangeKm: number;
     calculateDistance: (lat1: number, lon1: number, lat2: number, lon2: number) => number;
+    onNpcClick?: (npc: Npc) => void;
 }
 
 export default function NpcCyborgMarkers({
     playerPosition,
     viewRangeKm,
-    calculateDistance
+    calculateDistance,
+    onNpcClick
 }: NpcCyborgMarkersProps) {
     const [npcs, setNpcs] = useState<Npc[]>([]);
     const [loading, setLoading] = useState(true);
@@ -110,6 +112,13 @@ export default function NpcCyborgMarkers({
                     key={`npc-${npc.cyborg_id}`}
                     position={[npc.lat, npc.lng]}
                     icon={createNpcIcon(npc.faction_color, npc.npc_type)}
+                    eventHandlers={{
+                        click: () => {
+                            if (onNpcClick) {
+                                onNpcClick(npc);
+                            }
+                        }
+                    }}
                 >
                     <Popup>
                         <div className="text-sm">

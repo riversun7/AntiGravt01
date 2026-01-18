@@ -1250,8 +1250,10 @@ app.get('/api/admin/users', (req, res) => {
 });
 
 app.get('/api/admin/files', (req, res) => {
-    // Correct Path: terra-data/db (same as database.js)
-    const dbDir = path.join(__dirname, '..', 'terra-data', 'db');
+    // Use the same DB path logic as database.js (supports Docker via DB_PATH env var)
+    const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, '..', 'terra-data', 'db');
+
+    console.log(`[DB Inspector] Looking for DB files in: ${dbDir}`);
 
     try {
         const files = [];
@@ -1266,9 +1268,12 @@ app.get('/api/admin/files', (req, res) => {
                     });
                 }
             });
+        } else {
+            console.warn(`[DB Inspector] DB directory not found: ${dbDir}`);
         }
         res.json(files);
     } catch (err) {
+        console.error('[DB Inspector] Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -1306,6 +1311,47 @@ app.get('/api/admin/db/:filename/:table', (req, res) => {
         tempDb.close();
         res.json(data);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update a specific row in a table (Admin DB Editor)
+app.put('/api/admin/db/:filename/:table/:id', (req, res) => {
+    const dbPath = path.join(__dirname, '..', 'terra-data', 'db', req.params.filename);
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
+
+    try {
+        const tempDb = new db.constructor(dbPath);
+
+        // Validate table name
+        const tables = tempDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(t => t.name);
+        if (!tables.includes(req.params.table)) {
+            tempDb.close();
+            return res.status(404).json({ error: 'Table not found' });
+        }
+
+        // Build UPDATE query dynamically
+        const updates = Object.keys(req.body);
+        if (updates.length === 0) {
+            tempDb.close();
+            return res.status(400).json({ error: 'No fields to update' });
+        }
+
+        const setClause = updates.map(key => `${key} = ?`).join(', ');
+        const values = updates.map(key => req.body[key]);
+
+        const sql = `UPDATE ${req.params.table} SET ${setClause} WHERE id = ?`;
+        const result = tempDb.prepare(sql).run(...values, req.params.id);
+
+        tempDb.close();
+
+        if (result.changes > 0) {
+            res.json({ success: true, changes: result.changes });
+        } else {
+            res.status(404).json({ error: 'Row not found or no changes made' });
+        }
+    } catch (err) {
+        console.error('DB Update Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
