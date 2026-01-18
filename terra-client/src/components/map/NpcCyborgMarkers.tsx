@@ -111,6 +111,9 @@ export default function NpcCyborgMarkers({
 
     if (loading || visibleNpcs.length === 0) return null;
 
+    console.log('[NPC MARKERS] Rendering', visibleNpcs.length, 'NPCs:',
+        visibleNpcs.map(n => ({ type: n.npc_type, name: n.cyborg_name })));
+
     return (
         <>
             {visibleNpcs.map(npc => (
@@ -164,13 +167,13 @@ function InterpolatedNpcMarker({ npc, createIcon, onClick }: { npc: Npc, createI
         <Marker
             position={position}
             icon={createIcon(npc.faction_color, npc.npc_type)}
-            zIndexOffset={1000000} // Ensure NPCs are always on top of buildings (very high z-index)
-            riseOnHover={true}
-            bubblingMouseEvents={false}
+            zIndexOffset={1000000}
             eventHandlers={{
-                click: (e) => {
-                    L.DomEvent.stopPropagation(e as any);
-                    onClick?.(npc);
+                click: () => {
+                    console.log('[MARKER CLICK]', npc.npc_type, npc.cyborg_name);
+                    if (onClick) {
+                        onClick(npc);
+                    }
                 }
             }}
         >

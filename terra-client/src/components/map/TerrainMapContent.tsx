@@ -189,6 +189,7 @@ export default function TerrainMapContent({
                 viewRangeKm={isAdmin ? 99999 : 10}
                 calculateDistance={calculateDistance}
                 onNpcClick={(npc) => {
+                    console.log('[NPC CLICK]', npc.npc_type, npc.cyborg_name, npc);
                     setSelectedNpc?.(npc);
                     setSelectedBuilding(null);
                     setSelectedTile(null);
