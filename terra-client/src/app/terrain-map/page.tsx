@@ -339,8 +339,16 @@ export default function TerrainMapPage() {
                 setOwnedTiles(tilesData.tiles || []);
             }
 
-            // Load all territories (Radius system)
-            const territoriesResponse = await fetch(`${API_BASE_URL}/api/territories`);
+            // Load territories (Spatial Query)
+            let territoryUrl = `${API_BASE_URL}/api/territories`;
+            // Use fetched position if available (data.playerPosition), else current state
+            const targetPos = (data?.playerPosition) ? data.playerPosition : { x: playerPosition[0], y: playerPosition[1] };
+
+            if (targetPos && targetPos.x) {
+                territoryUrl += `?lat=${targetPos.x}&lng=${targetPos.y}&radius=100`; // 100km radius
+            }
+
+            const territoriesResponse = await fetch(territoryUrl);
             if (territoriesResponse.ok) {
                 const tData = await territoriesResponse.json();
                 setTerritories(tData.territories || []);

@@ -2504,7 +2504,25 @@ app.get('/api/territories', (req, res) => {
             LEFT JOIN users u ON ub.user_id = u.id
             LEFT JOIN factions f ON u.faction_id = f.id
             WHERE ub.is_territory_center = 1
-        `).all();
+        `;
+
+        const { lat, lng, radius } = req.query;
+        let params = [];
+
+        // Spatial Optimization (Simple Bounding Box)
+        if (lat && lng) {
+            const range = parseFloat(radius) || 50; // Default 50km
+            // 1 degree lat ~= 111km
+            const dLat = range / 111;
+            // 1 degree lng ~= 111km * cos(lat)
+            const dLng = range / (111 * Math.cos(parseFloat(lat) * Math.PI / 180));
+
+            sql += ` AND ub.x BETWEEN ? AND ? AND ub.y BETWEEN ? AND ?`;
+            params.push(parseFloat(lat) - dLat, parseFloat(lat) + dLat, parseFloat(lng) - Math.abs(dLng), parseFloat(lng) + Math.abs(dLng));
+            // console.log(`[Territory] Spatial Query: Lat ${lat} Lng ${lng} Range ${range}km`);
+        }
+
+        const territories = db.prepare(sql).all(...params);
 
         // Color fallback if no faction (Player without faction)
         const enriched = territories.map(t => {
