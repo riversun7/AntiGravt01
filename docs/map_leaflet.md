@@ -228,5 +228,119 @@ for (let i = 0; i <= steps; i++) {
 
 ---
 
+## ✅ 최근 개선 사항 (2026-01-18)
+
+### 🎯 **영토 Hull 차집합 로직 구현**
+
+게임 맵에서 비콘과 사령부로 연결된 영토(Hull)를 정확하게 표현하고, 다른 유저의 영토가 겹치지 않도록 개선했습니다.
+
+#### 문제점
+- 기존: 개별 비콘의 **반경(Circle) 단위**로만 영토를 인식하여 차집합 연산
+- 결과: 비콘이 연결된 내부 영역(Hull)을 적군 영토가 침범하는 문제 발생
+
+#### 해결 방법: **2-Pass Hull Subtraction**
+
+**Pass 1 - Raw Hull 생성**:
+```typescript
+// 모든 유저의 사령부/비콘 그룹을 Hull로 먼저 계산
+userGroups.forEach((userTerritories, userId) => {
+    // 비콘 3개 이상 → Concave/Convex Hull 생성
+    if (beacons.length >= 3) {
+        const beaconPoints = beacons.map(b => turf.point([lng, lat]));
+        const fc = turf.featureCollection(beaconPoints);
+        beaconHull = turf.concave(fc, { maxEdge: 30 }) || turf.convex(fc);
+    }
+    // 사령부도 동일하게 Hull 생성
+});
+```
+
+**Pass 2 - 적군 Hull 전체 차집합**:
+```typescript
+// 나의 비콘 Hull에서 모든 적군의 Hull을 빼기
+userHulls.forEach((myData) => {
+    userHulls.forEach((otherData) => {
+        if (otherData.beaconHull) {
+            // Circle이 아닌 Hull 전체를 차집합
+            const diff = turf.difference(
+                turf.featureCollection([myHull, otherData.beaconHull])
+            );
+            if (diff) myHull = diff;
+        }
+    });
+});
+```
+
+#### 결과
+- ✅ 연결된 적군 영토(Hull) 전체가 내 영토에서 **통째로 제외**됨
+- ✅ MultiPolygon 지원으로 복잡한 영토 경계도 정확히 렌더링
+- ✅ Console 로그로 차집합 연산 확인 가능
+
+---
+
+### 🖱️ **영토 Circle 클릭 비활성화**
+
+**문제**: 영토 원(Circle)을 클릭하면 선택 박스가 생성되어 UI가 복잡해짐
+
+**해결**:
+```typescript
+<Circle
+    interactive={false}  // 클릭 막기
+    pathOptions={{ ... }}
+>
+    <Tooltip>...</Tooltip>  // 툴팁만 표시
+</Circle>
+```
+
+---
+
+### 🗺️ **Hull 영역 소유자 감지 (Point-in-Polygon)**
+
+**문제**: Hull 내부를 클릭해도 "Territory Owner: None"으로 표시
+
+**해결**: turf.booleanPointInPolygon으로 클릭 지점이 Hull 내부인지 체크
+
+```typescript
+import * as turf from '@turf/turf';
+
+// 비콘 Hull 생성
+const hull = turf.concave(featureCollection, { maxEdge: 30 });
+
+// 클릭 지점이 Hull 내부인지 확인
+const clickPoint = turf.point([lng, lat]);
+const isInside = turf.booleanPointInPolygon(clickPoint, hull);
+
+if (isInside) {
+    overlappingTerritories.push({
+        user_id: userId,
+        type: 'BEACON_HULL',
+        radius: 'Connected'  // Hull 연결 영역임을 표시
+    });
+}
+```
+
+#### 결과
+- ✅ Hull 내부 클릭 시 `BEACON_HULL (Connected)` 타입으로 소유자 표시
+- ✅ 중첩된 영토가 있을 경우 ⚠️ "OVERLAP DETECTED" 경고와 함께 모든 소유자 표시
+- ✅ 디버깅 시 영토 ID, 소유자, 타입, 반경 정보 확인 가능
+
+---
+
+### 📦 **사용 라이브러리**
+
+- **@turf/turf v7.3.2**: 공간 연산 (concave, convex, difference, booleanPointInPolygon)
+- **react-leaflet**: React 컴포넌트 기반 Leaflet 래핑
+- **leaflet**: 핵심 맵 렌더링 엔진
+
+---
+
+### 🎯 **핵심 개선 포인트**
+
+1. **Circle → Hull 전환**: 개별 건물이 아닌 연결된 영토 전체를 인식
+2. **2-Pass 알고리즘**: 모든 Hull을 먼저 생성한 후 차집합 연산하여 정확도 향상
+3. **Point-in-Polygon**: 단순 거리 계산이 아닌 기하학적 내포 관계로 소유자 판별
+4. **UX 개선**: 불필요한 클릭 이벤트 제거 + 중첩 영토 디버깅 기능 추가
+
+---
+
 필요하시면 **실제 동작하는 코드 샘플**(HTML + JS)도 제공해 드릴 수 있습니다!  
 어떤 게임 유형을 목표로 하시나요? (예: RTS, 턴제, 탐험형 등)
