@@ -167,7 +167,10 @@ export default function AssignUnitModal({
             />
 
             {/* Modal */}
-            <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[2300] w-[90vw] max-w-3xl max-h-[85vh] bg-slate-900 border-2 border-purple-500/50 rounded-xl shadow-2xl overflow-hidden">
+            <div
+                className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[2300] w-[90vw] max-w-3xl max-h-[85vh] bg-slate-900 border-2 border-purple-500/50 rounded-xl shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Header */}
                 <div className="bg-gradient-to-r from-purple-900 to-indigo-900 p-4 border-b border-purple-500/30 flex items-center justify-between">
                     <div>
@@ -180,6 +183,7 @@ export default function AssignUnitModal({
                         </p>
                     </div>
                     <button
+                        type="button"
                         onClick={onClose}
                         className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                     >
@@ -210,8 +214,9 @@ export default function AssignUnitModal({
 
                                     return (
                                         <button
+                                            type="button"
                                             key={minion.id}
-                                            onClick={() => setSelectedMinion(minion)}
+                                            onClick={(e) => { e.stopPropagation(); setSelectedMinion(minion); }}
                                             className={`w-full p-3 rounded-lg border-2 transition-all text-left ${isSelected
                                                 ? 'border-purple-500 bg-purple-900/50 shadow-lg'
                                                 : 'border-slate-700 bg-slate-800 hover:border-purple-500/50'
@@ -314,7 +319,8 @@ export default function AssignUnitModal({
                                 </div>
 
                                 <button
-                                    onClick={handleAssign}
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleAssign(); }}
                                     disabled={isAssigning}
                                     className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:from-slate-700 disabled:to-slate-700 text-white font-bold rounded-lg transition-all mt-4"
                                 >

@@ -1644,6 +1644,43 @@ app.post('/api/admin/categories', (req, res) => {
     }
 });
 
+// Force Seed Planning Data (Emergency Fix)
+app.post('/api/admin/force-seed-planning', (req, res) => {
+    try {
+        const defaultCats = [
+            { id: 'ADMIN', label: 'Admin Tools', color: '#ef4444' },
+            { id: 'ECONOMY', label: 'Economy', color: '#f97316' },
+            { id: 'ITEM', label: 'Items & Inv', color: '#eab308' },
+            { id: 'MAP', label: 'Map & World', color: '#22c55e' },
+            { id: 'SERVER', label: 'Server/DB', color: '#06b6d4' },
+            { id: 'USER', label: 'Users', color: '#3b82f6' },
+            { id: 'CHARACTER', label: 'Character', color: '#a855f7' },
+            { id: 'SETTINGS', label: 'Settings', color: '#64748b' }
+        ];
+
+        const stmt = db.prepare(`
+            INSERT INTO admin_categories (id, label, color)
+            VALUES (?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+            label = excluded.label,
+            color = excluded.color
+        `);
+
+        const tx = db.transaction((cats) => {
+            for (const c of cats) {
+                stmt.run(c.id, c.label, c.color);
+            }
+        });
+
+        tx(defaultCats);
+        console.log("[Admin] Force seeded planning categories.");
+        res.json({ success: true, message: "Planning categories seeded." });
+    } catch (err) {
+        console.error("Force seed failed:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Delete Category
 app.delete('/api/admin/categories/:id', (req, res) => {
     try {
@@ -2632,6 +2669,9 @@ app.get('/api/npcs', (req, res) => {
                 u.username,
                 u.current_pos,
                 u.destination_pos,
+                u.start_pos,
+                u.departure_time,
+                u.arrival_time,
                 u.npc_type,
                 f.name as faction_name,
                 f.color as faction_color,
@@ -2658,6 +2698,17 @@ app.get('/api/npcs', (req, res) => {
                 }
             }
 
+            // Parse start_pos
+            let start_lat = null;
+            let start_lng = null;
+            if (npc.start_pos) {
+                const parts = npc.start_pos.split('_');
+                if (parts.length === 2) {
+                    start_lat = parseFloat(parts[0]);
+                    start_lng = parseFloat(parts[1]);
+                }
+            }
+
             // Parse destination if moving
             let dest_lat = null;
             let dest_lng = null;
@@ -2678,6 +2729,9 @@ app.get('/api/npcs', (req, res) => {
                 lat: lat_pos,
                 lng: lng_pos,
                 destination: dest_lat && dest_lng ? { lat: dest_lat, lng: dest_lng } : null,
+                start_pos: start_lat && start_lng ? { lat: start_lat, lng: start_lng } : null,
+                departure_time: npc.departure_time,
+                arrival_time: npc.arrival_time,
                 npc_type: npc.npc_type,
                 faction_name: npc.faction_name,
                 faction_color: npc.faction_color || '#CCCCCC',
@@ -2703,6 +2757,68 @@ app.get('/api/npcs', (req, res) => {
 
     } catch (err) {
         console.error('Get NPCs error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// API: Update NPC Stats
+app.post('/api/admin/npc/:id/update-stats', (req, res) => {
+    const { id } = req.params;
+    const { movement_speed, vision_range } = req.body;
+
+    try {
+        const check = db.prepare('SELECT id FROM character_cyborg WHERE user_id = ?').get(id);
+        if (check) {
+            db.prepare(`
+                UPDATE character_cyborg 
+                SET movement_speed = ?, vision_range = ? 
+                WHERE user_id = ?
+            `).run(movement_speed, vision_range, id);
+        } else {
+            // If missing, create minimal entry
+            // Need name from users table to be safe, or just default
+            const user = db.prepare('SELECT username FROM users WHERE id = ?').get(id);
+            const name = user ? user.username : 'Cyborg';
+
+            db.prepare(`
+                INSERT INTO character_cyborg (user_id, name, movement_speed, vision_range, level, current_hp, max_hp, strength, dexterity, constitution, intelligence)
+                VALUES (?, ?, ?, ?, 1, 100, 100, 10, 10, 10, 10)
+            `).run(id, name, movement_speed, vision_range);
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Update Stats Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// API: Command NPC
+app.post('/api/admin/npc/:id/command', (req, res) => {
+    const { id } = req.params;
+    const { command } = req.body; // 'PATROL', 'EXPAND', 'STOP', 'RETURN'
+
+    try {
+        const npc = db.prepare("SELECT u.id, f.name as faction_name FROM users u JOIN factions f ON u.faction_id = f.id WHERE u.id = ?").get(id);
+        if (!npc) return res.status(404).json({ error: 'NPC not found' });
+
+        // Log command
+        db.prepare(`
+            INSERT INTO npc_action_logs (npc_id, faction_name, action_type, details)
+            VALUES (?, ?, 'COMMAND', ?)
+        `).run(id, npc.faction_name, `Manual Command: ${command}`);
+
+        // Logic to force interrupt current action
+        if (command === 'STOP') {
+            db.prepare(`
+                UPDATE users 
+                SET destination_pos = NULL, start_pos = NULL, departure_time = NULL, arrival_time = NULL 
+                WHERE id = ?
+            `).run(id);
+        }
+
+        res.json({ success: true, message: `Command ${command} sent` });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });

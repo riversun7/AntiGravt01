@@ -86,7 +86,10 @@ export default function BuildingMenu({
             />
 
             {/* Menu Panel */}
-            <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[1600] w-[90vw] max-w-2xl max-h-[80vh] bg-slate-900 border-2 border-purple-500/50 rounded-xl shadow-2xl overflow-hidden">
+            <div
+                className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[1600] w-[90vw] max-w-2xl max-h-[80vh] bg-slate-900 border-2 border-purple-500/50 rounded-xl shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Header */}
                 <div className="bg-gradient-to-r from-purple-900 to-blue-900 p-4 border-b border-purple-500/30 flex items-center justify-between">
                     <div>
@@ -101,6 +104,7 @@ export default function BuildingMenu({
                             <div className="text-cyan-400 font-mono">💎 {playerResources.gem}</div>
                         </div>
                         <button
+                            type="button"
                             onClick={onClose}
                             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                         >
@@ -123,14 +127,15 @@ export default function BuildingMenu({
 
                                         return (
                                             <button
+                                                type="button"
                                                 key={building.id}
-                                                onClick={() => setSelectedBuilding(building)}
+                                                onClick={(e) => { e.stopPropagation(); setSelectedBuilding(building); }}
                                                 disabled={!building.unlocked}
                                                 className={`w-full p-3 rounded-lg border-2 transition-all text-left ${isSelected
-                                                        ? 'border-purple-500 bg-purple-900/50 shadow-lg'
-                                                        : affordable
-                                                            ? 'border-slate-700 bg-slate-800 hover:border-purple-500/50 hover:bg-slate-700'
-                                                            : 'border-slate-800 bg-slate-900/50 opacity-50'
+                                                    ? 'border-purple-500 bg-purple-900/50 shadow-lg'
+                                                    : affordable
+                                                        ? 'border-slate-700 bg-slate-800 hover:border-purple-500/50 hover:bg-slate-700'
+                                                        : 'border-slate-800 bg-slate-900/50 opacity-50'
                                                     } ${!building.unlocked ? 'grayscale cursor-not-allowed' : ''}`}
                                             >
                                                 <div className="flex items-start gap-3">
@@ -197,14 +202,16 @@ export default function BuildingMenu({
                                 </div>
 
                                 <button
-                                    onClick={() => {
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
                                         onBuild(selectedBuilding.id);
                                         onClose();
                                     }}
                                     disabled={!canAfford(selectedBuilding)}
                                     className={`w-full py-3 rounded-lg font-bold transition-all ${canAfford(selectedBuilding)
-                                            ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg'
-                                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                        ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg'
+                                        : 'bg-slate-700 text-slate-500 cursor-not-allowed'
                                         }`}
                                 >
                                     {canAfford(selectedBuilding) ? '🔨 건설 시작' : '자원 부족'}

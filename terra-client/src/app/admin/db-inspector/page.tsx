@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ServerFile } from "@/types/admin";
 import { Database, Edit2, Save, X, RefreshCw } from "lucide-react";
 import { API_BASE_URL } from "@/lib/config";
@@ -16,7 +16,8 @@ export default function DBInspectorPage() {
     const [userMap, setUserMap] = useState<Record<number, string>>({}); // user_id -> username mapping
 
     // Fetch all usernames for user_id lookups
-    const fetchUsernames = async () => {
+    // Fetch all usernames for user_id lookups
+    const fetchUsernames = useCallback(async () => {
         try {
             const res = await fetch(`${API_BASE_URL}/api/admin/db/terra.db/users`);
             if (res.ok) {
@@ -30,7 +31,12 @@ export default function DBInspectorPage() {
         } catch (e) {
             console.error("Failed to fetch users", e);
         }
-    };
+    }, []);
+
+    const fetchTables = useCallback(async (filename: string) => {
+        const res = await fetch(`${API_BASE_URL}/api/admin/db/${filename}`);
+        if (res.ok) setTables(await res.json());
+    }, []);
 
     useEffect(() => {
         fetch(`${API_BASE_URL}/api/admin/files`)
@@ -45,12 +51,7 @@ export default function DBInspectorPage() {
             });
         // Fetch user mapping for ID lookups
         fetchUsernames();
-    }, []);
-
-    const fetchTables = async (filename: string) => {
-        const res = await fetch(`${API_BASE_URL}/api/admin/db/${filename}`);
-        if (res.ok) setTables(await res.json());
-    };
+    }, [fetchTables, fetchUsernames]);
 
     const fetchTableData = async (filename: string, table: string) => {
         setSelectedTable(table);

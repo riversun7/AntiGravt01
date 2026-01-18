@@ -3,7 +3,9 @@ const path = require('path');
 const fs = require('fs');
 
 // Ensure db directory exists and has write permissions
-const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, 'db');
+// Ensure db directory exists and has write permissions
+// Default to terra-data/db for consistency with Docker and project structure
+const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, '..', 'terra-data', 'db');
 if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
 }
@@ -164,6 +166,10 @@ function initSchema() {
         -- Cyborg-specific
         parts_tier INTEGER DEFAULT 1,
         genetic_tier INTEGER DEFAULT 1,
+        
+        -- AI & Stats
+        movement_speed REAL DEFAULT 0.1, -- km/s (360km/h)
+        vision_range REAL DEFAULT 10.0, -- km
         
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -339,6 +345,31 @@ function initSchema() {
     db.exec(createMailTable);
     db.exec(createAdminTasksTable);
     db.exec(createAdminCategoriesTable);
+
+    // Seed Default Admin Categories if empty
+    try {
+        const catCount = db.prepare('SELECT COUNT(*) as count FROM admin_categories').get();
+        if (catCount.count === 0) {
+            const defaultCats = [
+                { id: 'ADMIN', label: 'Admin Tools', color: '#ef4444' },
+                { id: 'ECONOMY', label: 'Economy', color: '#f97316' },
+                { id: 'ITEM', label: 'Items & Inv', color: '#eab308' },
+                { id: 'MAP', label: 'Map & World', color: '#22c55e' },
+                { id: 'SERVER', label: 'Server/DB', color: '#06b6d4' },
+                { id: 'USER', label: 'Users', color: '#3b82f6' },
+                { id: 'CHARACTER', label: 'Character', color: '#a855f7' },
+                { id: 'SETTINGS', label: 'Settings', color: '#64748b' }
+            ];
+            const insertCat = db.prepare('INSERT INTO admin_categories (id, label, color) VALUES (?, ?, ?)');
+            const tx = db.transaction((cats) => {
+                for (const c of cats) insertCat.run(c.id, c.label, c.color);
+            });
+            tx(defaultCats);
+            console.log("Seeded default admin categories.");
+        }
+    } catch (e) {
+        console.error("Error seeding admin categories:", e);
+    }
     // Execute new character system tables
     db.exec(createCharacterCyborgTable);
     db.exec(createCharacterMinionTable);
@@ -350,6 +381,18 @@ function initSchema() {
     db.exec(createResourceNodesTable);
     db.exec(createWarehousesTable);
     db.exec(createMarketPricesTable);
+
+    // NPC Action Logs
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS npc_action_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            npc_id INTEGER,
+            faction_name TEXT,
+            action_type TEXT,
+            details TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
 
     // Migration: Check/Create building_assignments if missed (safety check)
     try {
@@ -370,6 +413,16 @@ function initSchema() {
             console.log("Migrated mail table: added expires_at");
         }
     } catch (e) { console.log("Migration error (mail):", e); }
+
+    try {
+        const cyborgCols = db.prepare('PRAGMA table_info(character_cyborg)').all();
+        const hasSpeed = cyborgCols.some(c => c.name === 'movement_speed');
+        if (!hasSpeed && cyborgCols.length > 0) {
+            db.exec("ALTER TABLE character_cyborg ADD COLUMN movement_speed REAL DEFAULT 0.1");
+            db.exec("ALTER TABLE character_cyborg ADD COLUMN vision_range REAL DEFAULT 10.0");
+            console.log("Migrated character_cyborg table: added movement_speed and vision_range");
+        }
+    } catch (e) { console.log("Migration error (character_cyborg):", e); }
 
     // Migration: Add AI attributes to character_minion
     try {

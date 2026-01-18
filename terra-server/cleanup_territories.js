@@ -1,9 +1,4 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-
-// Open the database
-const dbPath = path.join(__dirname, 'db', 'terra.db');
-const db = new Database(dbPath);
+const db = require('./database');
 
 console.log('=== Territory Cleanup Script ===\n');
 
@@ -85,5 +80,5 @@ const finalCount = db.prepare(`
 console.log(`- Final CC count in DB: ${finalCount.count}`);
 console.log('\n=== Cleanup Complete ===');
 
-db.close();
+// db.close(); // Database module manages connection
 

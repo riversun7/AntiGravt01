@@ -48,6 +48,7 @@ interface TerrainMapContentProps {
     showToast: (msg: string, type: 'info' | 'error' | 'success') => void;
     handleTileClick: (lat: number, lng: number, point?: { x: number; y: number }) => void;
     handleTerritoryClick?: (t: Territory, e: any) => void;
+    setSelectedNpc?: (npc: any) => void;
     isConstructing: boolean;
     constructionTimeLeft: number;
     isAdmin: boolean;
@@ -61,6 +62,7 @@ interface TerrainMapContentProps {
     path?: Array<{ lat: number; lng: number }>;
     waypoints?: Array<{ lat: number; lng: number }>;
     onWaypointRemove?: (index: number) => void;
+    npcRefreshKey?: number;
 }
 
 export default function TerrainMapContent({
@@ -87,7 +89,9 @@ export default function TerrainMapContent({
     territories,
     path = [],
     waypoints = [],
-    onWaypointRemove
+    onWaypointRemove,
+    setSelectedNpc,
+    npcRefreshKey = 0
 }: TerrainMapContentProps) {
 
     // Fix Leaflet Icons
@@ -185,10 +189,11 @@ export default function TerrainMapContent({
                 viewRangeKm={isAdmin ? 99999 : 10}
                 calculateDistance={calculateDistance}
                 onNpcClick={(npc) => {
-                    setSelectedNpc(npc);
+                    setSelectedNpc?.(npc);
                     setSelectedBuilding(null);
                     setSelectedTile(null);
                 }}
+                refreshKey={npcRefreshKey}
             />
 
             {/* Foreign Territory Markers */}

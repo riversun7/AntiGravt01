@@ -1,8 +1,4 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-
-const dbPath = path.join(__dirname, 'db', 'terra.db');
-const db = new Database(dbPath);
+const db = require('./database');
 
 console.log('Checking AREA_BEACON...');
 try {

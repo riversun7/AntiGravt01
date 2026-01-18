@@ -11,14 +11,21 @@ class FreeNpcManager {
             WHERE f.type = 'FREE' AND u.faction_rank = 2
         `).all();
 
+        console.log(`[FreeNPC] Found ${npcs.length} Free Faction NPCs`);
+
         npcs.forEach(npc => {
+            console.log(`[FreeNPC] Processing ${npc.faction_name} (ID: ${npc.id})`);
             this.collectResources(npc);
             this.developTerritory(npc);
             this.checkArrivalAndBuild(npc); // Check if arrived and build beacon
 
             // AI 의사결정: 이동 중이 아닐 때만 다음 행동 결정
+            console.log(`[FreeNPC] ${npc.faction_name} destination_pos: ${npc.destination_pos}`);
             if (!npc.destination_pos) {
+                console.log(`[FreeNPC] ${npc.faction_name} is not moving, calling decideNextAction`);
                 this.decideNextAction(npc);
+            } else {
+                console.log(`[FreeNPC] ${npc.faction_name} is already moving to ${npc.destination_pos}`);
             }
         });
     }
@@ -142,10 +149,10 @@ class FreeNpcManager {
                 db.prepare('UPDATE user_resources SET gold = gold - ? WHERE user_id = ?').run(cost, npc.id);
 
                 // Get AREA_BEACON radius from building_types
-                const beaconType = this.db.prepare('SELECT territory_radius FROM building_types WHERE code = ?').get('AREA_BEACON');
+                const beaconType = db.prepare('SELECT territory_radius FROM building_types WHERE code = ?').get('AREA_BEACON');
                 const beaconRadius = beaconType ? beaconType.territory_radius : 1.0;
 
-                this.db.prepare(`
+                db.prepare(`
                     INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius)
                     VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, ?)
                 `).run(npc.id, destLat, destLng, destWorldX, destWorldY, beaconRadius);
@@ -158,6 +165,7 @@ class FreeNpcManager {
                 `).run(`${destLat}_${destLng}`, npc.id);
 
                 console.log(`[FreeNPC] ${npc.faction_name} arrived and built AREA_BEACON at ${destLat.toFixed(4)}, ${destLng.toFixed(4)}`);
+                this.logAction(npc, 'BUILD', `Built AREA_BEACON at ${destLat.toFixed(4)}, ${destLng.toFixed(4)}`);
             })();
         }
     }
@@ -279,57 +287,170 @@ class FreeNpcManager {
 
         if (occupied) {
             // Location occupied, will try again next tick
-            return;
+            return false;
         }
 
-        // 6. Check funds for expansion
+        // 6. Check funds for restriction
         const cost = 500;
         const resources = db.prepare('SELECT gold FROM user_resources WHERE user_id = ?').get(npc.id);
 
-        if (resources.gold < cost) {
+        if (!resources || resources.gold < cost) {
             // Not enough funds
+            // console.log(`[FreeNPC] ${npc.faction_name} not enough gold for expansion`);
+            return false;
+        }
+
+        // 7. Move to target using setDestination
+        console.log(`[FreeNPC] ${npc.faction_name} expanding territory - Moving to (${targetLat.toFixed(4)}, ${targetLng.toFixed(4)})`);
+        this.setDestination(npc, targetLat, targetLng);
+        return true;
+    }
+
+    // ========== AI 의사결정 시스템 ==========
+    decideNextAction(npc) {
+        console.log(`[FreeNPC] ${npc.faction_name} AI 의사결정 시작...`);
+
+        // 1. 자원 탐지 (최고 우선순위)
+        const nearbyResource = this.findNearbyResource(npc);
+        if (nearbyResource) {
+            console.log(`[FreeNPC] ${npc.faction_name} 자원 발견 at (${nearbyResource.x}, ${nearbyResource.y})`);
+            this.setDestination(npc, nearbyResource.x, nearbyResource.y);
             return;
         }
 
-        // 7. Calculate travel time
-        // Distance in km (approximate)
-        const distanceKm = Math.sqrt(
-            Math.pow((targetLat - currentLat) * 111, 2) +
-            Math.pow((targetLng - currentLng) * 111, 2)
-        );
+        // 2. 영토 확장
+        if (this.shouldExpandTerritory(npc)) {
+            console.log(`[FreeNPC] ${npc.faction_name} 영토 확장 시도`);
+            if (this.attemptExpansion(npc)) {
+                return;
+            }
+            console.log(`[FreeNPC] ${npc.faction_name} 영토 확장 실패 (위치 점유 등), 순찰로 전환`);
+        }
 
-        // Speed: configurable, default 50 m/s = 0.05 km/s
-        // TODO: Make this configurable per NPC or via admin settings
-        const speedKmPerSec = 0.05; // 50 m/s
-        const travelTimeSec = distanceKm / speedKmPerSec;
-        const travelTimeMs = travelTimeSec * 1000;
+        // 3. 순찰 (기본 행동)
+        this.logAction(npc, 'DECISION', 'Starting Patrol');
+        this.patrolAroundBase(npc);
+    }
 
-        // 8. Set movement destination
-        const now = new Date();
-        const arrivalTime = new Date(now.getTime() + travelTimeMs);
+    findNearbyResource(npc) {
+        const cc = this.getCommandCenter(npc.id);
+        if (!cc) return null;
+
+        const visionRange = cc.vision_range_km || 10.0;
+        const resources = db.prepare('SELECT * FROM resource_nodes WHERE current_amount > 0').all();
+
+        if (!resources || !resources.length) return null;
+
+        const currentPos = npc.current_pos ? npc.current_pos.split('_').map(Number) : null;
+        if (!currentPos) return null;
+
+        const [currentLat, currentLng] = currentPos;
+        for (const r of resources) {
+            if (this.getDistanceFromLatLonInKm(currentLat, currentLng, r.x, r.y) <= visionRange) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    shouldExpandTerritory(npc) {
+        const beaconType = db.prepare('SELECT * FROM building_types WHERE code = ?').get('AREA_BEACON');
+        if (!beaconType) return false;
+
+        const cost = JSON.parse(beaconType.construction_cost || '{}');
+        const resources = db.prepare('SELECT * FROM user_resources WHERE user_id = ?').get(npc.id);
+
+        if (!resources || resources.gold < (cost.gold || 0)) {
+            return false;
+        }
+
+        const cc = this.getCommandCenter(npc.id);
+        if (!cc) return false;
+
+        const beaconCount = db.prepare(
+            'SELECT COUNT(*) as count FROM user_buildings WHERE user_id = ? AND type = ?'
+        ).get(npc.id, 'AREA_BEACON');
+
+        return beaconCount.count < cc.max_beacons;
+    }
+
+    patrolAroundBase(npc) {
+        const cc = this.getCommandCenter(npc.id);
+        if (!cc) {
+            console.warn(`[FreeNPC] ${npc.faction_name} has no command center!`);
+            return;
+        }
+
+        const r = cc.patrol_radius_km || 20.0;
+        const angle = Math.random() * 2 * Math.PI;
+        const dist = Math.random() * r;
+
+        const latO = (dist * Math.cos(angle)) / 111;
+        const lngO = (dist * Math.sin(angle)) / (111 * Math.cos(cc.x * Math.PI / 180));
+
+        this.setDestination(npc, cc.x + latO, cc.y + lngO);
+        console.log(`[FreeNPC] ${npc.faction_name} 순찰 시작 - 목적지: (${(cc.x + latO).toFixed(4)}, ${(cc.y + lngO).toFixed(4)}), 반경: ${r}km`);
+    }
+
+    getCommandCenter(userId) {
+        return db.prepare(`
+            SELECT ub.*, bt.patrol_radius_km, bt.vision_range_km, bt.max_beacons, bt.beacon_range_km 
+            FROM user_buildings ub 
+            JOIN building_types bt ON ub.type = bt.code 
+            WHERE ub.user_id = ? AND ub.type IN (?, ?) 
+            ORDER BY ub.type DESC 
+            LIMIT 1
+        `).get(userId, 'COMMAND_CENTER', 'CENTRAL_CONTROL_HUB');
+    }
+
+    // Helper: Log NPC Actions to DB
+    logAction(npc, type, details) {
+        try {
+            db.prepare(`
+                INSERT INTO npc_action_logs (npc_id, faction_name, action_type, details)
+                VALUES (?, ?, ?, ?)
+            `).run(npc.id, npc.faction_name, type, details);
+
+            // Auto-cleanup: Keep last 10000 records
+            db.prepare(`
+                DELETE FROM npc_action_logs 
+                WHERE id <= (
+                    SELECT id FROM npc_action_logs ORDER BY id DESC LIMIT 1 OFFSET 10000
+                )
+            `).run();
+        } catch (err) {
+            console.error('[FreeNPC] Failed to log action:', err);
+        }
+    }
+
+    setDestination(npc, destLat, destLng) {
+        const currentPos = npc.current_pos ? npc.current_pos.split('_').map(Number) : null;
+        if (!currentPos) {
+            console.warn(`[FreeNPC] ${npc.faction_name} has no current_pos!`);
+            return;
+        }
+
+        const [currentLat, currentLng] = currentPos;
+        const distanceKm = this.getDistanceFromLatLonInKm(currentLat, currentLng, destLat, destLng);
+        const travelTimeSec = distanceKm / 0.05; // 0.05 km/s = 180 km/h
+        const arrivalTime = new Date(Date.now() + travelTimeSec * 1000);
 
         db.prepare(`
             UPDATE users 
-            SET start_pos = ?, destination_pos = ?, departure_time = ?, arrival_time = ?
+            SET start_pos = ?, destination_pos = ?, departure_time = ?, arrival_time = ? 
             WHERE id = ?
         `).run(
             `${currentLat}_${currentLng}`,
-            `${targetLat}_${targetLng}`,
-            now.toISOString(),
+            `${destLat}_${destLng}`,
+            new Date().toISOString(),
             arrivalTime.toISOString(),
             npc.id
         );
 
-        console.log(`[FreeNPC] ${npc.faction_name} cyborg moving to ${targetLat.toFixed(4)}, ${targetLng.toFixed(4)} (${distanceKm.toFixed(2)}km, ETA: ${travelTimeSec.toFixed(0)}s)`);
+        const msg = `Moving to (${destLat.toFixed(4)}, ${destLng.toFixed(4)}) - Dist: ${distanceKm.toFixed(2)}km, ETA: ${travelTimeSec.toFixed(0)}s`;
+        console.log(`[FreeNPC] ${npc.faction_name} ${msg}`);
+        this.logAction(npc, 'MOVE', msg);
     }
-
-    // ========== AI 의사결정 시스템 ==========
-    decideNextAction(npc) { const nearbyResource = this.findNearbyResource(npc); if (nearbyResource) { console.log(`[FreeNPC] ${npc.faction_name} 자원 발견`); this.setDestination(npc, nearbyResource.x, nearbyResource.y); return; } if (this.shouldExpandTerritory(npc)) { this.attemptExpansion(npc); return; } this.patrolAroundBase(npc); }
-    findNearbyResource(npc) { const cc = this.getCommandCenter(npc.id); if (!cc) return null; const visionRange = cc.vision_range_km || 10.0; const resources = db.prepare('SELECT * FROM resource_nodes WHERE current_amount > 0').all(); if (!resources || !resources.length) return null; const currentPos = npc.current_pos ? npc.current_pos.split('_').map(Number) : null; if (!currentPos) return null; const [currentLat, currentLng] = currentPos; for (const r of resources) { if (this.getDistanceFromLatLonInKm(currentLat, currentLng, r.x, r.y) <= visionRange) return r; } return null; }
-    shouldExpandTerritory(npc) { const beaconType = db.prepare('SELECT * FROM building_types WHERE code = ?').get('AREA_BEACON'); if (!beaconType) return false; const cost = JSON.parse(beaconType.construction_cost || '{}'); const resources = db.prepare('SELECT * FROM user_resources WHERE user_id = ?').get(npc.id); if (!resources || resources.gold < (cost.gold || 0)) return false; const cc = this.getCommandCenter(npc.id); if (!cc) return false; const beaconCount = db.prepare('SELECT COUNT(*) as count FROM user_buildings WHERE user_id = ? AND type = ?').get(npc.id, 'AREA_BEACON'); return beaconCount.count < cc.max_beacons; }
-    patrolAroundBase(npc) { const cc = this.getCommandCenter(npc.id); if (!cc) return; const r = cc.patrol_radius_km || 20.0; const angle = Math.random() * 2 * Math.PI; const dist = Math.random() * r; const latO = (dist * Math.cos(angle)) / 111; const lngO = (dist * Math.sin(angle)) / (111 * Math.cos(cc.x * Math.PI / 180)); this.setDestination(npc, cc.x + latO, cc.y + lngO); console.log(`[FreeNPC] ${npc.faction_name} 순찰 중 (반경 ${r}km)`); }
-    getCommandCenter(userId) { return db.prepare('SELECT ub.*, bt.patrol_radius_km, bt.vision_range_km, bt.max_beacons, bt.beacon_range_km FROM user_buildings ub JOIN building_types bt ON ub.type = bt.code WHERE ub.user_id = ? AND ub.type IN (?, ?) ORDER BY ub.type DESC LIMIT 1').get(userId, 'COMMAND_CENTER', 'CENTRAL_CONTROL_HUB'); }
-    setDestination(npc, destLat, destLng) { const currentPos = npc.current_pos ? npc.current_pos.split('_').map(Number) : null; if (!currentPos) return; const [currentLat, currentLng] = currentPos; const distanceKm = this.getDistanceFromLatLonInKm(currentLat, currentLng, destLat, destLng); const travelTimeSec = distanceKm / 0.05; const arrivalTime = new Date(Date.now() + travelTimeSec * 1000); db.prepare('UPDATE users SET start_pos = ?, destination_pos = ?, departure_time = ?, arrival_time = ? WHERE id = ?').run(`${currentLat}_${currentLng}`, `${destLat}_${destLng}`, new Date().toISOString(), arrivalTime.toISOString(), npc.id); }
 }
 
 module.exports = new FreeNpcManager();

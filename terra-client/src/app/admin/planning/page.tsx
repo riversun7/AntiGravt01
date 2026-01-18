@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { Plus, X, ArrowRight, ArrowLeft, Trash2, Save, Copy, Settings, Layout, AlertCircle, Palette } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, X, ArrowRight, ArrowLeft, Trash2, Save, Copy, Settings, Layout, Palette } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/config';
 
 // --- Types ---
 interface TaskCategory {
@@ -90,15 +91,72 @@ export default function PlanningPage() {
     // UI State
     const [activeTab, setActiveTab] = useState<string>('ALL');
     const [isLoading, setIsLoading] = useState(true);
-
-    // Initial Load
-    useEffect(() => {
-        fetchData();
+    const syncCategories = useCallback(async (cats: TaskCategory[]) => {
+        try {
+            await fetch(`${API_BASE_URL}/api/admin/categories`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cats)
+            });
+        } catch (e) {
+            console.error("Cat sync failed", e);
+        }
     }, []);
 
-    const fetchData = async () => {
+
+    const fixLegacyColors = useCallback((cats: TaskCategory[]) => {
+        let hasChanges = false;
+        const fixed = cats.map(c => {
+            if (!c.color || c.color.startsWith('bg-')) {
+                hasChanges = true;
+                const newColor = LEGACY_COLOR_MAP[c.color] || getRandomHexColor();
+                console.log(`Migrating legacy color for ${c.label}: ${c.color} -> ${newColor}`);
+                return { ...c, color: newColor };
+            }
+            return c;
+        });
+
+        if (hasChanges) {
+            setTimeout(() => syncCategories(fixed), 1000); // Sync back to server
+        }
+        return fixed;
+    }, []);
+
+
+
+    const migrateData = useCallback(async (localTasks: Task[]) => {
         try {
-            const res = await fetch('/api/admin/planning');
+            // Upload Categories
+            const localCats = localStorage.getItem('terra_admin_categories');
+            const catsToUpload = localCats ? JSON.parse(localCats) : categories;
+            await fetch(`${API_BASE_URL}/api/admin/categories`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(catsToUpload)
+            });
+
+            // Upload Tasks
+            await Promise.all(localTasks.map(t =>
+                fetch(`${API_BASE_URL}/api/admin/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(t)
+                })
+            ));
+
+            // Clear Local and Refetch
+            localStorage.removeItem('terra_admin_tasks_v3');
+            localStorage.removeItem('terra_admin_categories');
+            window.location.reload(); // Simple reload to fetch fresh
+        } catch (e) {
+            console.error("Migration Failed", e);
+            alert("Migration failed. Check console.");
+        }
+    }, [categories]);
+
+    const fetchData = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/admin/planning`);
             const data = await res.json();
 
             // Check Migration: If Server Empty AND LocalStorage has data
@@ -122,55 +180,12 @@ export default function PlanningPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [fixLegacyColors, migrateData]);
 
-    const fixLegacyColors = (cats: TaskCategory[]) => {
-        let hasChanges = false;
-        const fixed = cats.map(c => {
-            if (!c.color || c.color.startsWith('bg-')) {
-                hasChanges = true;
-                const newColor = LEGACY_COLOR_MAP[c.color] || getRandomHexColor();
-                console.log(`Migrating legacy color for ${c.label}: ${c.color} -> ${newColor}`);
-                return { ...c, color: newColor };
-            }
-            return c;
-        });
-
-        if (hasChanges) {
-            setTimeout(() => syncCategories(fixed), 1000); // Sync back to server
-        }
-        return fixed;
-    };
-
-    const migrateData = async (localTasks: Task[]) => {
-        try {
-            // Upload Categories
-            const localCats = localStorage.getItem('terra_admin_categories');
-            const catsToUpload = localCats ? JSON.parse(localCats) : categories;
-            await fetch('/api/admin/categories', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(catsToUpload)
-            });
-
-            // Upload Tasks
-            await Promise.all(localTasks.map(t =>
-                fetch('/api/admin/tasks', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(t)
-                })
-            ));
-
-            // Clear Local and Refetch
-            localStorage.removeItem('terra_admin_tasks_v3');
-            localStorage.removeItem('terra_admin_categories');
-            fetchData();
-        } catch (e) {
-            console.error("Migration Failed", e);
-            alert("Migration failed. Check console.");
-        }
-    };
+    // Initial Load
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     // Modal State (Task)
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -213,7 +228,7 @@ export default function PlanningPage() {
         setCurrentTask({});
 
         try {
-            await fetch('/api/admin/tasks', {
+            await fetch(`${API_BASE_URL}/api/admin/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newTask)
@@ -233,7 +248,7 @@ export default function PlanningPage() {
         setIsDeleting(false);
 
         try {
-            await fetch(`/api/admin/tasks/${id}`, { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/api/admin/tasks/${id}`, { method: 'DELETE' });
         } catch (e) {
             console.error("Delete failed", e);
             setTasks(prevTasks);
@@ -253,7 +268,7 @@ export default function PlanningPage() {
         }
 
         try {
-            await fetch('/api/admin/tasks', {
+            await fetch(`${API_BASE_URL}/api/admin/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
@@ -287,7 +302,7 @@ export default function PlanningPage() {
         setCategories(newCats);
         setDeleteCatConfirm(null);
 
-        fetch(`/api/admin/categories/${id}`, { method: 'DELETE' });
+        fetch(`${API_BASE_URL}/api/admin/categories/${id}`, { method: 'DELETE' });
     };
 
     const handleResetCategories = async () => {
@@ -296,17 +311,7 @@ export default function PlanningPage() {
         setResetCatConfirm(false);
     };
 
-    const syncCategories = async (cats: TaskCategory[]) => {
-        try {
-            await fetch('/api/admin/categories', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(cats)
-            });
-        } catch (e) {
-            console.error("Cat sync failed", e);
-        }
-    };
+
 
     // --- AI Export ---
     const generatePrompt = (task: Task) => {

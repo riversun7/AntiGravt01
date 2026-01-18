@@ -36,6 +36,14 @@ const DiplomacyPanel = dynamic(
     () => import('@/components/ui/DiplomacyPanel'),
     { ssr: false }
 );
+const NpcInfoPanel = dynamic(
+    () => import('@/components/map/NpcInfoPanel'),
+    { ssr: false }
+);
+const NpcControlModal = dynamic(
+    () => import('@/components/map/NpcControlModal'),
+    { ssr: false }
+);
 
 // Other helper function imports retained if needed but components like TerritoryOverlay are now inside TerrainMapContent
 
@@ -75,6 +83,10 @@ export default function TerrainMapPage() {
     const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
 
     const [territories, setTerritories] = useState<any[]>([]);
+
+    // NPC Panel States
+    const [npcRefreshKey, setNpcRefreshKey] = useState(0);
+    const [showNpcAdminModal, setShowNpcAdminModal] = useState(false);
 
     const handleTileClick = async (lat: number, lng: number, point?: { x: number; y: number }) => {
         // If in Path Planning mode, add/remove waypoint
@@ -1001,6 +1013,7 @@ export default function TerrainMapPage() {
                         path={isMoving ? activePath : plannedPath} // Show active path while moving
                         waypoints={isMoving ? [] : waypoints} // Hide waypoints while moving
                         onWaypointRemove={removeWaypoint}
+                        setSelectedNpc={setSelectedNpc}
                     />
 
                     {/* Fixed floating toast */}
@@ -1105,6 +1118,7 @@ export default function TerrainMapPage() {
                     tileProviders={TILE_PROVIDERS}
 
                     geolocation={geolocation}
+                    npcRefreshKey={npcRefreshKey}
                 />
             </div>
 
@@ -1128,6 +1142,22 @@ export default function TerrainMapPage() {
                 onClose={() => setShowDiplomacy(false)}
                 currentUserId={userId}
             />
+
+            {/* NPC Information Panel (Read-Only) */}
+            <NpcInfoPanel
+                npc={selectedNpc}
+                onClose={() => setSelectedNpc(null)}
+                onOpenAdminControl={() => setShowNpcAdminModal(true)}
+            />
+
+            {/* NPC Admin Control Modal (Overlay) */}
+            {showNpcAdminModal && selectedNpc && (
+                <NpcControlModal
+                    npc={selectedNpc}
+                    onClose={() => setShowNpcAdminModal(false)}
+                    onUpdate={() => setNpcRefreshKey(k => k + 1)}
+                />
+            )}
         </div>
     );
 }
