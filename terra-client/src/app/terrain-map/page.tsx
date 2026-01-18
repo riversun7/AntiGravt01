@@ -96,12 +96,18 @@ export default function TerrainMapPage() {
             setPopupPosition(point);
         }
 
-        let ownerId = null;
+        // Find ALL overlapping territories (for debugging overlaps)
+        const overlappingTerritories: any[] = [];
         for (const t of territories) {
             const dist = calculateDistance(lat, lng, t.x, t.y);
             if (dist <= (t.territory_radius || 5.0)) {
-                ownerId = t.user_id;
-                break;
+                overlappingTerritories.push({
+                    user_id: t.user_id,
+                    owner_name: t.owner_name,
+                    id: t.id,
+                    type: t.type || t.building_type_code,
+                    radius: t.territory_radius
+                });
             }
         }
 
@@ -112,7 +118,8 @@ export default function TerrainMapPage() {
             y: 0,
             type: 'TERRAIN',
             name: null,
-            owner_id: ownerId,
+            owner_id: overlappingTerritories.length > 0 ? overlappingTerritories[0].user_id : null,
+            overlappingTerritories: overlappingTerritories, // All territories at this point
             clickLat: lat,
             clickLng: lng,
             isTerritoryCenter: false,

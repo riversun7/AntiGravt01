@@ -164,6 +164,47 @@ export default function GameControlPanel({
     const [adminInputValue, setAdminInputValue] = useState('');
     const [adminStatus, setAdminStatus] = useState({ loading: false, msg: null as string | null, isError: false });
 
+    // Admin Config State
+    const [adminSettings, setAdminSettings] = useState({ speed: 10000, viewRange: 99999 }); // speed: m/s, viewRange: km
+
+    useEffect(() => {
+        if (isAdmin) {
+            fetch(`${API_BASE_URL}/api/admin/config`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.speed !== undefined) {
+                        setAdminSettings(prev => ({
+                            ...prev,
+                            speed: data.speed * 1000, // Client uses m/s, Server uses km/s
+                            viewRange: data.viewRange
+                        }));
+                    }
+                })
+                .catch(console.error);
+        }
+    }, [isAdmin]);
+
+    const handleConfigSubmit = async (key: 'speed' | 'viewRange', value: number) => {
+        try {
+            const body: any = {};
+            if (key === 'speed') body.speed = value / 1000; // Client m/s -> Server km/s
+            if (key === 'viewRange') body.viewRange = value;
+
+            const res = await fetch(`${API_BASE_URL}/api/admin/config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (data.success) {
+                setAdminStatus({ loading: false, msg: `Updated ${key}!`, isError: false });
+                setTimeout(() => setAdminStatus(prev => ({ ...prev, msg: null })), 2000);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     const handleAdminSubmit = async () => {
         if (!selectedBuilding || !adminActionType) return;
         setAdminStatus({ loading: true, msg: null, isError: false });
@@ -360,9 +401,23 @@ export default function GameControlPanel({
 
                         <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 mb-4 flex-1">
                             <div>Type: <span className="text-white">{selectedTile.type}</span></div>
-                            <div>Owner: <span className={selectedTile.owner_id ? "text-green-400" : "text-slate-500"}>
-                                {selectedTile.owner_id ? `User ${selectedTile.owner_id}` : 'None'}
-                            </span></div>
+                            <div className="col-span-2">
+                                <div className="text-xs text-slate-400 mb-1">Territory Owner(s):</div>
+                                {selectedTile.overlappingTerritories && selectedTile.overlappingTerritories.length > 0 ? (
+                                    <div className={`${selectedTile.overlappingTerritories.length > 1 ? 'text-red-400 font-bold' : 'text-green-400'}`}>
+                                        {selectedTile.overlappingTerritories.length > 1 && (
+                                            <div className="text-xs text-red-300 mb-1">⚠️ OVERLAP DETECTED</div>
+                                        )}
+                                        {selectedTile.overlappingTerritories.map((t: any, idx: number) => (
+                                            <div key={idx} className="text-xs border-l-2 border-slate-600 pl-2 mb-1">
+                                                #{t.id} • User {t.user_id} • {t.owner_name || 'Unknown'} • {t.type} ({t.radius}km)
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <span className="text-slate-500">None</span>
+                                )}
+                            </div>
                             <div className="col-span-2 bg-slate-800 p-2 rounded mt-2 border border-slate-700">
                                 <div className="text-[10px] text-slate-400 uppercase font-bold">TERRAIN SCAN</div>
                                 {terrainInfo ? (
@@ -619,10 +674,23 @@ export default function GameControlPanel({
                                 <div className="bg-slate-900/50 p-2.5 rounded border border-slate-700/50 flex flex-col justify-between">
                                     <div className="text-slate-500 mb-0.5 font-medium">Top Speed</div>
                                     <div>
-                                        <div className={`font-mono font-bold text-sm ${isAdmin ? 'text-red-400' : 'text-cyan-400'}`}>
-                                            {isAdmin ? '10,000 m/s' : '100 m/s'}
+                                        {isAdmin ? (
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    value={adminSettings.speed}
+                                                    onChange={(e) => setAdminSettings(prev => ({ ...prev, speed: Number(e.target.value) }))}
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleConfigSubmit('speed', adminSettings.speed)}
+                                                    className="bg-transparent border-b border-red-500/50 text-red-400 font-mono font-bold text-sm w-16 focus:outline-none focus:border-red-400"
+                                                />
+                                                <span className="text-[10px] text-red-500">m/s</span>
+                                            </div>
+                                        ) : (
+                                            <div className="font-mono font-bold text-sm text-cyan-400">100 m/s</div>
+                                        )}
+                                        <div className="text-[10px] text-slate-600">
+                                            {isAdmin ? 'Enter to Apply' : '(360 km/h)'}
                                         </div>
-                                        <div className="text-[10px] text-slate-600">{isAdmin ? '(36,000 km/h)' : '(360 km/h)'}</div>
                                     </div>
                                 </div>
 
@@ -630,9 +698,20 @@ export default function GameControlPanel({
                                 <div className="bg-slate-900/50 p-2.5 rounded border border-slate-700/50 flex flex-col justify-between">
                                     <div className="text-slate-500 mb-0.5 font-medium">View Range</div>
                                     <div>
-                                        <div className={`font-mono font-bold text-sm ${isAdmin ? 'text-red-400' : 'text-green-400'}`}>
-                                            {isAdmin ? 'Unlimited' : '10 km'}
-                                        </div>
+                                        {isAdmin ? (
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    value={adminSettings.viewRange}
+                                                    onChange={(e) => setAdminSettings(prev => ({ ...prev, viewRange: Number(e.target.value) }))}
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleConfigSubmit('viewRange', adminSettings.viewRange)}
+                                                    className="bg-transparent border-b border-red-500/50 text-red-400 font-mono font-bold text-sm w-16 focus:outline-none focus:border-red-400"
+                                                />
+                                                <span className="text-[10px] text-red-500">km</span>
+                                            </div>
+                                        ) : (
+                                            <div className="font-mono font-bold text-sm text-green-400">10 km</div>
+                                        )}
                                         <div className="text-[10px] text-slate-600">Foreign Buildings</div>
                                     </div>
                                 </div>
