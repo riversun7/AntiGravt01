@@ -220,6 +220,8 @@ function ForeignBuildingMarkers({ territories, userId, playerPosition, calculate
                 lat: t.x,
                 lng: t.y,
                 color: t.color,
+                user_id: t.user_id,
+                owner_name: t.owner_name,
                 level: t.level
             }));
     }, [territories, userId, playerPosition, calculateDistance]);
