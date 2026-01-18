@@ -175,29 +175,68 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                     if (points.length >= 3) {
                         try {
                             const featureCollection = turf.featureCollection(points);
-                            const hull = turf.concave(featureCollection, { maxEdge: 30, units: 'kilometers' }) ||
+                            let hull = turf.concave(featureCollection, { maxEdge: 30, units: 'kilometers' }) ||
                                 turf.convex(featureCollection); // Fallback
 
-                            if (hull && hull.geometry.type === 'Polygon') {
-                                // 좌표 변환 (GeoJSON [lng, lat] -> Leaflet [lat, lng])
-                                const coords = hull.geometry.coordinates[0];
-                                const positions = coords.map(c => [c[1], c[0]] as [number, number]);
+                            if (hull) {
+                                // Foreign Territory Exclusion Logic
+                                // 내 영토가 아닌 모든 영토(사령부/비콘)를 순회하며 겹치는 부분을 빼냄
+                                territories.forEach(ft => {
+                                    // 내 영토이거나, 영토 센터가 아니면 패스
+                                    if (String(ft.user_id) === String(userId) || ft.is_territory_center !== 1) return;
 
-                                borders.push({
-                                    key: `beacon-border-${userId}`,
-                                    positions: [positions], // Polygon 포맷
-                                    color,
-                                    isMine,
-                                    isNpc,
-                                    ownerName: first.owner_name || `User ${userId}`,
-                                    factionName: first.faction_name,
-                                    npcType: first.npc_type,
-                                    beaconCount: beacons.length,
-                                    borderType: 'beacon'
+                                    try {
+                                        const fLat = Number(ft.x);
+                                        const fLng = Number(ft.y);
+                                        const fRadius = ft.territory_radius || 1.0;
+
+                                        // 상대방 영토 Polygon 생성 (Circle)
+                                        const fPoly = turf.circle([fLng, fLat], fRadius, { steps: 24, units: 'kilometers' });
+
+                                        // 겹치지 않으면 연산 불필요 (성능 최적화)
+                                        if (turf.booleanDisjoint(hull, fPoly)) return;
+
+                                        // 차집합 연산 (Hull - Foreign)
+                                        const diff = turf.difference(hull, fPoly);
+                                        if (diff) {
+                                            hull = diff;
+                                        }
+                                    } catch (err) {
+                                        // 연산 실패 시 무시 (원본 유지)
+                                    }
                                 });
+
+                                // 좌표 변환 (GeoJSON -> Leaflet)
+                                // Handle Polygon and MultiPolygon
+                                let leafPos: any[] = [];
+
+                                const flipCoords = (ring: any[]) => ring.map(c => [c[1], c[0]]); // [lng, lat] -> [lat, lng]
+
+                                if (hull.geometry.type === 'Polygon') {
+                                    // Polygon: coordinates = [ [outer], [hole], ... ]
+                                    leafPos = hull.geometry.coordinates.map(flipCoords);
+                                } else if (hull.geometry.type === 'MultiPolygon') {
+                                    // MultiPolygon: coordinates = [ [[outer],[hole]], ... ]
+                                    leafPos = hull.geometry.coordinates.map((poly: any[]) => poly.map(flipCoords));
+                                }
+
+                                if (leafPos.length > 0) {
+                                    borders.push({
+                                        key: `beacon-border-${userId}`,
+                                        positions: leafPos,
+                                        color,
+                                        isMine,
+                                        isNpc,
+                                        ownerName: first.owner_name || `User ${userId}`,
+                                        factionName: first.faction_name,
+                                        npcType: first.npc_type,
+                                        beaconCount: beacons.length,
+                                        borderType: 'beacon'
+                                    });
+                                }
                             }
                         } catch (err) {
-                            console.warn('Concave/Convex hull calculation failed for beacons', userId, err);
+                            console.warn('Hull calculation failed for beacons', userId, err);
                         }
                     }
                 }
@@ -207,83 +246,99 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
             }
         });
 
-        return { commandCenters: centers, beaconBorders: borders };
+        // Loop through borders and apply subtraction (Foreign Territory Exclusion)
+        // We do this here to access the full scope of territories if needed, 
+        // but actually we can do it inside the loop above if we have access to 'territories' array (we do).
+        // Refactoring the loop above to include subtraction:
+
+        // ... Wait, I will edit the code inside the loop directly in this ReplacementChunk ...
+        // Re-implementing the beacon hull part with subtraction logic:
+
+    } catch (e) {
+        // console.error...
+    }
+});
+
+// Retrying with correct placement inside the loop logic
+// I will replace the "if (points.length >= 3)" block entirely.
+
+return { commandCenters: centers, beaconBorders: borders };
     }, [territories, currentUserId]);
 
-    return (
-        <>
-            {/* Layer 1: 비콘 국경선 (하위 레이어, z-index 399) */}
-            <Pane name="beacon-borders" style={{ zIndex: 399 }}>
-                {beaconBorders.map((border) => (
-                    <Polygon
-                        key={border.key}
-                        positions={border.positions}
-                        pathOptions={{
-                            color: border.color,
-                            fillColor: border.color,
-                            fillOpacity: border.isMine ? 0.1 : 0.15,
-                            weight: 2,
-                            opacity: 0.7,
-                            dashArray: border.isMine ? undefined : '8, 4'
-                        }}
-                        interactive={true}
-                    >
-                        <Tooltip sticky direction="top">
-                            <div className="text-center">
-                                <strong>{border.ownerName}</strong>
-                                {border.factionName && <div className="text-xs text-blue-300">{border.factionName}</div>}
-                                <div className="text-[10px] mt-1 opacity-75">
-                                    {border.npcType ? `[${border.npcType}]` : '[PLAYER]'}
-                                    <br />
-                                    {border.borderType === 'command_center'
-                                        ? `🏛️ 영토 국경 (${border.beaconCount} 사령부)`
-                                        : `📡 확장 국경 (${border.beaconCount} 비콘)`
-                                    }
-                                </div>
+return (
+    <>
+        {/* Layer 1: 비콘 국경선 (하위 레이어, z-index 399) */}
+        <Pane name="beacon-borders" style={{ zIndex: 399 }}>
+            {beaconBorders.map((border) => (
+                <Polygon
+                    key={border.key}
+                    positions={border.positions}
+                    pathOptions={{
+                        color: border.color,
+                        fillColor: border.color,
+                        fillOpacity: border.isMine ? 0.1 : 0.15,
+                        weight: 2,
+                        opacity: 0.7,
+                        dashArray: border.isMine ? undefined : '8, 4'
+                    }}
+                    interactive={true}
+                >
+                    <Tooltip sticky direction="top">
+                        <div className="text-center">
+                            <strong>{border.ownerName}</strong>
+                            {border.factionName && <div className="text-xs text-blue-300">{border.factionName}</div>}
+                            <div className="text-[10px] mt-1 opacity-75">
+                                {border.npcType ? `[${border.npcType}]` : '[PLAYER]'}
+                                <br />
+                                {border.borderType === 'command_center'
+                                    ? `🏛️ 영토 국경 (${border.beaconCount} 사령부)`
+                                    : `📡 확장 국경 (${border.beaconCount} 비콘)`
+                                }
                             </div>
-                        </Tooltip>
-                    </Polygon>
-                ))}
-            </Pane>
+                        </div>
+                    </Tooltip>
+                </Polygon>
+            ))}
+        </Pane>
 
-            {/* Layer 2: 사령부 절대 영역 (상위 레이어, z-index 400) */}
-            <Pane name="command-centers" style={{ zIndex: 400 }}>
-                {commandCenters.map((cc) => (
-                    <Circle
-                        key={`cc-${cc.id}`}
-                        center={cc.center}
-                        radius={cc.radius * 1000} // km to meters
-                        pathOptions={{
-                            color: cc.color,
-                            fillColor: cc.color,
-                            fillOpacity: cc.isMine ? 0.35 : 0.4,
-                            weight: cc.isMine ? 3 : 2,
-                            opacity: 1,
-                            dashArray: undefined
-                        }}
-                        interactive={true}
-                        eventHandlers={{
-                            click: (e) => {
-                                L.DomEvent.stopPropagation(e.originalEvent);
-                                const orig = territories.find(t => t.id === cc.id);
-                                if (onTerritoryClick && orig) onTerritoryClick(orig, e);
-                            }
-                        }}
-                    >
-                        <Tooltip sticky direction="top">
-                            <div className="text-center">
-                                <strong>{cc.ownerName}</strong>
-                                {cc.factionName && <div className="text-xs text-blue-300">{cc.factionName}</div>}
-                                <div className="text-[10px] mt-1 opacity-75">
-                                    {cc.npcType ? `[${cc.npcType}]` : '[PLAYER]'}
-                                    <br />
-                                    🏛️ 사령부 ({cc.radius}km 절대 영역)
-                                </div>
+        {/* Layer 2: 사령부 절대 영역 (상위 레이어, z-index 400) */}
+        <Pane name="command-centers" style={{ zIndex: 400 }}>
+            {commandCenters.map((cc) => (
+                <Circle
+                    key={`cc-${cc.id}`}
+                    center={cc.center}
+                    radius={cc.radius * 1000} // km to meters
+                    pathOptions={{
+                        color: cc.color,
+                        fillColor: cc.color,
+                        fillOpacity: cc.isMine ? 0.35 : 0.4,
+                        weight: cc.isMine ? 3 : 2,
+                        opacity: 1,
+                        dashArray: undefined
+                    }}
+                    interactive={true}
+                    eventHandlers={{
+                        click: (e) => {
+                            L.DomEvent.stopPropagation(e.originalEvent);
+                            const orig = territories.find(t => t.id === cc.id);
+                            if (onTerritoryClick && orig) onTerritoryClick(orig, e);
+                        }
+                    }}
+                >
+                    <Tooltip sticky direction="top">
+                        <div className="text-center">
+                            <strong>{cc.ownerName}</strong>
+                            {cc.factionName && <div className="text-xs text-blue-300">{cc.factionName}</div>}
+                            <div className="text-[10px] mt-1 opacity-75">
+                                {cc.npcType ? `[${cc.npcType}]` : '[PLAYER]'}
+                                <br />
+                                🏛️ 사령부 ({cc.radius}km 절대 영역)
                             </div>
-                        </Tooltip>
-                    </Circle>
-                ))}
-            </Pane>
-        </>
-    );
+                        </div>
+                    </Tooltip>
+                </Circle>
+            ))}
+        </Pane>
+    </>
+);
 }
