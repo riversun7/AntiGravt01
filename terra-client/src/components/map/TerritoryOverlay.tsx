@@ -108,7 +108,7 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                 }).filter(p => p !== null) as any[];
 
                 if (beaconPoints.length >= 3) {
-                    const fc = turf.featureCollection(beaconPoints);
+                    const fc = turf.featureCollection(beaconPoints) as any;
                     beaconHull = turf.concave(fc, { maxEdge: 30, units: 'kilometers' }) || turf.convex(fc);
                 }
 
