@@ -993,7 +993,7 @@ export default function TerrainMapPage() {
                     selectedTile={selectedTile}
                     onCloseTileInfo={() => setSelectedTile(null)}
                     onMoveToTile={(lat, lng) => handleMoveToTile(lat, lng)}
-                    onMoveToTile={(lat, lng) => handleMoveToTile(lat, lng)}
+
                     isAdmin={isAdmin}
                     username={username}
 

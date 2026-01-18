@@ -1,5 +1,4 @@
-"use client";
-
+import React from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -67,7 +66,7 @@ const getBuildingIcon = (type: string) => {
     });
 };
 
-export default function BuildingMarkers({ buildings, onBuildingClick }: BuildingMarkersProps) {
+const BuildingMarkers = React.memo(function BuildingMarkers({ buildings, onBuildingClick }: BuildingMarkersProps) {
     return (
         <>
             {buildings.map((building, index) => (
@@ -93,4 +92,6 @@ export default function BuildingMarkers({ buildings, onBuildingClick }: Building
             ))}
         </>
     );
-}
+});
+
+export default BuildingMarkers;

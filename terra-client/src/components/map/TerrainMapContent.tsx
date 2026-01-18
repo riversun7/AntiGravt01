@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 import L from "leaflet";
 import MovementRange from "./MovementRange";
@@ -177,27 +177,48 @@ export default function TerrainMapContent({
             />
 
             {/* Foreign Territory Markers */}
-            <BuildingMarkers
-                buildings={territories
-                    .filter(t => String(t.user_id) !== String(userId))
-                    .filter(t => {
-                        // Optimization: Only show markers within 10km fixed range (Admin range is too large)
-                        const dist = calculateDistance(t.x, t.y, playerPosition[0], playerPosition[1]);
-                        return dist <= 10.0;
-                    })
-                    .map(t => ({
-                        id: t.id,
-                        type: t['type'] || (t.is_territory_center ? 'COMMAND_CENTER' : 'UNKNOWN'), // Use type from server or fallback
-                        lat: t.x,
-                        lng: t.y,
-                        level: t.level
-                    }))}
-                onBuildingClick={(b) => {
-                    // Foreign building click logic (optional: show owner info)
-                    // For now, re-use territory click handler logic or just show ID
-                    showToast(`Territory Center: ${b.type}`, 'info');
-                }}
+            <ForeignBuildingMarkers
+                territories={territories}
+                userId={userId}
+                playerPosition={playerPosition}
+                calculateDistance={calculateDistance}
+                showToast={showToast}
             />
         </MapContainer>
+    );
+}
+
+function ForeignBuildingMarkers({ territories, userId, playerPosition, calculateDistance, showToast }: {
+    territories: any[],
+    userId: string | null,
+    playerPosition: [number, number],
+    calculateDistance: any,
+    showToast: any
+}) {
+    const foreignBuildings = useMemo(() => {
+        if (!territories || territories.length === 0) return [];
+
+        return territories
+            .filter(t => String(t.user_id) !== String(userId))
+            .filter(t => {
+                const dist = calculateDistance(t.x, t.y, playerPosition[0], playerPosition[1]);
+                return dist <= 10.0; // Show foreign bases within 10km
+            })
+            .map(t => ({
+                id: t.id,
+                type: t['type'] || (t.is_territory_center ? 'COMMAND_CENTER' : 'UNKNOWN'),
+                lat: t.x,
+                lng: t.y,
+                level: t.level
+            }));
+    }, [territories, userId, playerPosition, calculateDistance]);
+
+    if (foreignBuildings.length === 0) return null;
+
+    return (
+        <BuildingMarkers
+            buildings={foreignBuildings}
+            onBuildingClick={(b) => showToast(`Territory Center: ${b.type}`, 'info')}
+        />
     );
 }
