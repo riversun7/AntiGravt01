@@ -2666,6 +2666,8 @@ app.get('/api/npcs', (req, res) => {
                 cc.user_id,
                 cc.name as cyborg_name,
                 cc.level,
+                cc.movement_speed,
+                cc.vision_range,
                 u.username,
                 u.current_pos,
                 u.destination_pos,
@@ -2725,6 +2727,8 @@ app.get('/api/npcs', (req, res) => {
                 user_id: npc.user_id,
                 cyborg_name: npc.cyborg_name,
                 level: npc.level,
+                movement_speed: npc.movement_speed,
+                vision_range: npc.vision_range,
                 username: npc.username,
                 lat: lat_pos,
                 lng: lng_pos,
@@ -2815,6 +2819,56 @@ app.post('/api/admin/npc/:id/command', (req, res) => {
                 SET destination_pos = NULL, start_pos = NULL, departure_time = NULL, arrival_time = NULL 
                 WHERE id = ?
             `).run(id);
+        } else if (command === 'RETURN' || command === 'PATROL') {
+            // 1. Get Base Location (Command Center)
+            const base = db.prepare(`
+                SELECT x, y FROM user_buildings 
+                WHERE user_id = ? AND type = 'COMMAND_CENTER' 
+                LIMIT 1
+            `).get(id);
+
+            if (base) {
+                // 2. Get Speed
+                const cyborg = db.prepare('SELECT movement_speed FROM character_cyborg WHERE user_id = ?').get(id);
+                const speedKmh = (cyborg && cyborg.movement_speed) ? cyborg.movement_speed : 180;
+                const speedKms = speedKmh / 3600;
+
+                // 3. Determine Target
+                let targetLat = base.x;
+                let targetLng = base.y;
+
+                if (command === 'PATROL') {
+                    // Random point within 20km
+                    const r = 20.0;
+                    const angle = Math.random() * 2 * Math.PI;
+                    const dist = Math.random() * r;
+                    targetLat += (dist * Math.cos(angle)) / 111;
+                    targetLng += (dist * Math.sin(angle)) / (111 * Math.cos(base.x * Math.PI / 180));
+                }
+
+                // 4. Calculate Time
+                const user = db.prepare('SELECT current_pos FROM users WHERE id = ?').get(id);
+                const currentPos = user.current_pos ? user.current_pos.split('_').map(Number) : [base.x, base.y];
+                const distanceKm = getDistanceFromLatLonInKm(currentPos[0], currentPos[1], targetLat, targetLng);
+
+                let travelTimeSec = distanceKm / speedKms;
+                if (travelTimeSec < 1) travelTimeSec = 1;
+
+                const arrivalTime = new Date(Date.now() + travelTimeSec * 1000);
+
+                // 5. Update Movement
+                db.prepare(`
+                    UPDATE users 
+                    SET start_pos = ?, destination_pos = ?, departure_time = ?, arrival_time = ? 
+                    WHERE id = ?
+                `).run(
+                    `${currentPos[0]}_${currentPos[1]}`,
+                    `${targetLat}_${targetLng}`,
+                    new Date().toISOString(),
+                    arrivalTime.toISOString(),
+                    id
+                );
+            }
         }
 
         res.json({ success: true, message: `Command ${command} sent` });
