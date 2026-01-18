@@ -33,19 +33,39 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
             return { commandCenters: [], beaconBorders: [] };
         }
 
-        // 사용자별로 그룹화
+        // 1. Group by User
         const userGroups = new Map<string, Territory[]>();
-
         territories.forEach(t => {
             const key = String(t.user_id);
             if (!userGroups.has(key)) userGroups.set(key, []);
             userGroups.get(key)!.push(t);
         });
 
-        const centers: any[] = [];
-        const borders: any[] = [];
+        // Data structure to hold Pass 1 results
+        interface UserHullData {
+            userId: string;
+            isMine: boolean;
+            isNpc: boolean;
+            color: string;
+            ownerName: string;
+            factionName?: string;
+            npcType?: string;
 
-        // 각 사용자별 처리
+            // Command Centers
+            commandCenters: Territory[];
+            ccHull: any | null;
+
+            // Beacons
+            beacons: Territory[];
+            beaconHull: any | null;
+        }
+
+        const userHulls = new Map<string, UserHullData>();
+        const allCenters: any[] = [];
+
+        // =========================================================
+        // PASS 1: Generate Raw Hulls & Collect Circle Data
+        // =========================================================
         userGroups.forEach((userTerritories, userId) => {
             try {
                 const first = userTerritories[0];
@@ -53,213 +73,218 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                 const isNpc = first.npc_type === 'ABSOLUTE' || first.npc_type === 'FREE';
                 const color = first.color || (isMine ? '#00FFFF' : (isNpc ? '#FFA500' : '#FF4444'));
 
-                // is_territory_center = 1인 모든 건물 찾기
                 const territoryCenters = userTerritories.filter(t => t.is_territory_center === 1);
 
-                // 사령부: COMMAND_CENTER 타입만
-                const commandCenters = territoryCenters.filter(t =>
-                    t.type === 'COMMAND_CENTER' ||
-                    t.building_type_code === 'COMMAND_CENTER'
+                const commandCentersList = territoryCenters.filter(t =>
+                    t.type === 'COMMAND_CENTER' || t.building_type_code === 'COMMAND_CENTER'
+                );
+                const beaconsList = territoryCenters.filter(t =>
+                    t.type === 'AREA_BEACON' || t.building_type_code === 'AREA_BEACON'
+                );
+                const otherList = territoryCenters.filter(t =>
+                    t.type !== 'COMMAND_CENTER' && t.building_type_code !== 'COMMAND_CENTER' &&
+                    t.type !== 'AREA_BEACON' && t.building_type_code !== 'AREA_BEACON'
                 );
 
-                // 비콘: AREA_BEACON 타입만
-                const beacons = territoryCenters.filter(t =>
-                    t.type === 'AREA_BEACON' ||
-                    t.building_type_code === 'AREA_BEACON'
-                );
-
-                // 기타 영토 건물 (사령부도 비콘도 아닌 것들)
-                const otherTerritories = territoryCenters.filter(t =>
-                    t.type !== 'COMMAND_CENTER' &&
-                    t.building_type_code !== 'COMMAND_CENTER' &&
-                    t.type !== 'AREA_BEACON' &&
-                    t.building_type_code !== 'AREA_BEACON'
-                );
-
-                // 사령부 국경선 (2개 이상 있을 때 Concave Hull)
-                if (commandCenters.length >= 2) {
-                    const ccPoints = commandCenters
-                        .map(cc => {
-                            const lat = Number(cc.x);
-                            const lng = Number(cc.y);
-                            if (isNaN(lat) || isNaN(lng)) return null;
-                            return turf.point([lng, lat]);
-                        })
-                        .filter(p => p !== null) as any[];
-
-                    if (ccPoints.length >= 2) {
-                        try {
-                            const ccCollection = turf.featureCollection(ccPoints);
-                            const ccHull = turf.concave(ccCollection, { maxEdge: 20, units: 'kilometers' }) ||
-                                turf.convex(ccCollection); // Fallback to convex if concave fails
-
-                            if (ccHull && ccHull.geometry.type === 'Polygon') {
-                                const coords = ccHull.geometry.coordinates[0];
-                                const positions = coords.map(c => [c[1], c[0]] as [number, number]);
-
-                                borders.push({
-                                    key: `cc-border-${userId}`,
-                                    positions: [positions],
-                                    color,
-                                    isMine,
-                                    isNpc,
-                                    ownerName: first.owner_name || `User ${userId}`,
-                                    factionName: first.faction_name,
-                                    npcType: first.npc_type,
-                                    beaconCount: commandCenters.length,
-                                    borderType: 'command_center'
-                                });
-                            }
-                        } catch (err) {
-                            console.warn('Concave/Convex hull calculation failed for CCs', userId, err);
-                        }
-                    }
-                }
-
-                // 사령부 원형 렌더링 (국경선이 있어도 중심점 표시용)
-                commandCenters.forEach(cc => {
+                // --- Generate CC Hull ---
+                let ccHull: any = null;
+                const ccPoints = commandCentersList.map(cc => {
                     const lat = Number(cc.x);
                     const lng = Number(cc.y);
-                    const radius = cc.territory_radius || 5.0;
+                    return (!isNaN(lat) && !isNaN(lng)) ? turf.point([lng, lat]) : null;
+                }).filter(p => p !== null) as any[];
 
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                        centers.push({
-                            id: cc.id,
-                            center: [lat, lng] as [number, number],
-                            radius,
-                            color,
-                            isMine,
-                            isNpc,
-                            ownerName: cc.owner_name || `User ${userId}`,
-                            factionName: cc.faction_name,
-                            npcType: cc.npc_type,
-                            buildingType: 'command_center'
-                        });
-                    }
-                });
-
-                // 기타 영토 건물도 원형으로 표시
-                otherTerritories.forEach(ot => {
-                    const lat = Number(ot.x);
-                    const lng = Number(ot.y);
-                    const radius = ot.territory_radius || 5.0;
-
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                        centers.push({
-                            id: ot.id,
-                            center: [lat, lng] as [number, number],
-                            radius,
-                            color,
-                            isMine,
-                            isNpc,
-                            ownerName: ot.owner_name || `User ${userId}`,
-                            factionName: ot.faction_name,
-                            npcType: ot.npc_type,
-                            buildingType: ot.type || 'territory'
-                        });
-                    }
-                });
-
-                // 비콘 국경 렌더링 (3개 이상일 때만)
-                if (beacons.length >= 3) {
-                    // Concave Hull 계산
-                    const points = beacons
-                        .map(b => {
-                            const lat = Number(b.x);
-                            const lng = Number(b.y);
-                            if (isNaN(lat) || isNaN(lng)) return null;
-                            return turf.point([lng, lat]);
-                        })
-                        .filter(p => p !== null) as any[];
-
-                    if (points.length >= 3) {
-                        try {
-                            const featureCollection = turf.featureCollection(points);
-                            let hull = turf.concave(featureCollection, { maxEdge: 30, units: 'kilometers' }) ||
-                                turf.convex(featureCollection); // Fallback
-
-                            if (hull) {
-                                // Foreign Territory Exclusion Logic
-                                // 내 영토가 아닌 모든 영토(사령부/비콘)를 순회하며 겹치는 부분을 빼냄
-                                territories.forEach(ft => {
-                                    // 내 영토이면 제외
-                                    if (String(ft.user_id) === String(userId)) return;
-
-                                    // 비콘이나 커맨드 센터 등 '영역'을 가진 건물만 대상
-                                    // is_territory_center 가 1인 것 (기존 로직)
-                                    // 또는 type이 COMMAND_CENTER, AREA_BEACON 인 것
-                                    const hasTerritory = ft.is_territory_center === 1 || ft.type === 'COMMAND_CENTER' || ft.type === 'AREA_BEACON';
-                                    if (!hasTerritory) return;
-
-                                    try {
-                                        const fLat = Number(ft.x);
-                                        const fLng = Number(ft.y);
-                                        const fRadius = ft.territory_radius || 1.0;
-
-                                        // 상대방 영토 Polygon 생성 (Circle)
-                                        const fPoly = turf.circle([fLng, fLat], fRadius, { steps: 24, units: 'kilometers' });
-
-                                        // 겹치지 않으면 연산 불필요
-                                        const isDisjoint = turf.booleanDisjoint(hull, fPoly);
-                                        if (isDisjoint) return;
-
-                                        // console.log(`[Hull] Subtracting foreign territory ${ft.id} from user ${userId}'s hull`);
-
-                                        // 차집합 연산 (Hull - Foreign)
-                                        // Turf v7: difference(featureCollection)
-                                        const diff = turf.difference(turf.featureCollection([hull as any, fPoly as any]));
-                                        if (diff) {
-                                            hull = diff;
-                                            console.log(`[Hull] Subtracted foreign territory ${ft.id}`);
-                                        }
-                                    } catch (err) {
-                                        // console.warn('Subtraction failed', err);
-                                    }
-                                });
-
-                                // 좌표 변환 (GeoJSON -> Leaflet)
-                                // Handle Polygon and MultiPolygon
-                                let leafPos: any[] = [];
-
-                                const flipCoords = (ring: any[]) => ring.map(c => [c[1], c[0]]); // [lng, lat] -> [lat, lng]
-
-                                if (hull.geometry.type === 'Polygon') {
-                                    // Polygon: coordinates = [ [outer], [hole], ... ]
-                                    leafPos = hull.geometry.coordinates.map(flipCoords);
-                                } else if (hull.geometry.type === 'MultiPolygon') {
-                                    // MultiPolygon: coordinates = [ [[outer],[hole]], ... ]
-                                    leafPos = hull.geometry.coordinates.map((poly: any[]) => poly.map(flipCoords));
-                                }
-
-                                if (leafPos.length > 0) {
-                                    borders.push({
-                                        key: `beacon-border-${userId}`,
-                                        positions: leafPos,
-                                        color,
-                                        isMine,
-                                        isNpc,
-                                        ownerName: first.owner_name || `User ${userId}`,
-                                        factionName: first.faction_name,
-                                        npcType: first.npc_type,
-                                        beaconCount: beacons.length,
-                                        borderType: 'beacon'
-                                    });
-                                }
-                            }
-                        } catch (err) {
-                            console.warn('Hull calculation failed for beacons', userId, err);
-                        }
-                    }
+                if (ccPoints.length >= 3) {
+                    const fc = turf.featureCollection(ccPoints);
+                    ccHull = turf.concave(fc, { maxEdge: 20, units: 'kilometers' }) || turf.convex(fc);
                 }
 
+                // --- Generate Beacon Hull ---
+                let beaconHull: any = null;
+                const beaconPoints = beaconsList.map(b => {
+                    const lat = Number(b.x);
+                    const lng = Number(b.y);
+                    return (!isNaN(lat) && !isNaN(lng)) ? turf.point([lng, lat]) : null;
+                }).filter(p => p !== null) as any[];
+
+                if (beaconPoints.length >= 3) {
+                    const fc = turf.featureCollection(beaconPoints);
+                    beaconHull = turf.concave(fc, { maxEdge: 30, units: 'kilometers' }) || turf.convex(fc);
+                }
+
+                // Store in Map
+                userHulls.set(userId, {
+                    userId, isMine, isNpc, color,
+                    ownerName: first.owner_name || `User ${userId}`,
+                    factionName: first.faction_name,
+                    npcType: first.npc_type,
+                    commandCenters: commandCentersList,
+                    ccHull,
+                    beacons: beaconsList,
+                    beaconHull
+                });
+
+                // --- Prepare Render Data for Circles ---
+                const addCircleData = (list: Territory[], bType: string) => {
+                    list.forEach(item => {
+                        const lat = Number(item.x);
+                        const lng = Number(item.y);
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            allCenters.push({
+                                id: item.id,
+                                center: [lat, lng] as [number, number],
+                                radius: item.territory_radius || 5.0,
+                                color,
+                                isMine,
+                                isNpc,
+                                ownerName: item.owner_name || `User ${userId}`,
+                                factionName: item.faction_name,
+                                npcType: item.npc_type,
+                                buildingType: bType
+                            });
+                        }
+                    });
+                };
+
+                addCircleData(commandCentersList, 'command_center');
+                addCircleData(otherList, 'territory');
+
             } catch (e) {
-                console.error('Error processing territory for user', userId, e);
+                console.error('Error in Pass 1 for user', userId, e);
             }
         });
 
+        // =========================================================
+        // PASS 2: Subtract Foreign Hulls/Circles
+        // =========================================================
+        const finalBorders: any[] = [];
 
+        userHulls.forEach((myData, myUserId) => {
+            // Processing Beacon Hull (Expansion Territory)
+            if (myData.beaconHull) {
+                let processedHull = myData.beaconHull;
 
-        return { commandCenters: centers, beaconBorders: borders };
+                // Subtract overlapping foreign territories
+                userHulls.forEach((otherData, otherUserId) => {
+                    if (myUserId === otherUserId) return; // Self
+
+                    // 1. Subtract Foreign Beacon Hull (Priority: Connected Area)
+                    if (otherData.beaconHull) {
+                        try {
+                            const diff = turf.difference(turf.featureCollection([processedHull, otherData.beaconHull]));
+                            if (diff) {
+                                processedHull = diff;
+                                console.log(`[Hull] Subtracted beacon hull of user ${otherUserId} from user ${myUserId}`);
+                            }
+                        } catch (e) {
+                            console.warn(`[Hull] Failed to subtract beacon hull: ${e}`);
+                        }
+                    } else {
+                        // If no hull, subtract individual beacon circles
+                        otherData.beacons.forEach(b => {
+                            try {
+                                const lat = Number(b.x);
+                                const lng = Number(b.y);
+                                const radius = b.territory_radius || 1.0;
+                                const circle = turf.circle([lng, lat], radius, { steps: 24, units: 'kilometers' });
+                                if (!turf.booleanDisjoint(processedHull, circle)) {
+                                    const diff = turf.difference(turf.featureCollection([processedHull, circle]));
+                                    if (diff) processedHull = diff;
+                                }
+                            } catch (e) { }
+                        });
+                    }
+
+                    // 2. Subtract Foreign CC Hull (Absolute Priority)
+                    if (otherData.ccHull) {
+                        try {
+                            const diff = turf.difference(turf.featureCollection([processedHull, otherData.ccHull]));
+                            if (diff) {
+                                processedHull = diff;
+                                console.log(`[Hull] Subtracted CC hull of user ${otherUserId} from user ${myUserId}`);
+                            }
+                        } catch (e) {
+                            console.warn(`[Hull] Failed to subtract CC hull: ${e}`);
+                        }
+                    } else {
+                        // Subtract individual CC circles
+                        otherData.commandCenters.forEach(cc => {
+                            try {
+                                const lat = Number(cc.x);
+                                const lng = Number(cc.y);
+                                const radius = cc.territory_radius || 5.0;
+                                const circle = turf.circle([lng, lat], radius, { steps: 24, units: 'kilometers' });
+                                if (!turf.booleanDisjoint(processedHull, circle)) {
+                                    const diff = turf.difference(turf.featureCollection([processedHull, circle]));
+                                    if (diff) processedHull = diff;
+                                }
+                            } catch (e) { }
+                        });
+                    }
+                });
+
+                // Convert to Leaflet Coords & Add to Borders
+                try {
+                    const flipCoords = (ring: any[]) => ring.map(c => [c[1], c[0]]);
+                    let leafPos: any[] = [];
+
+                    if (processedHull.geometry.type === 'Polygon') {
+                        leafPos = processedHull.geometry.coordinates.map(flipCoords);
+                    } else if (processedHull.geometry.type === 'MultiPolygon') {
+                        leafPos = processedHull.geometry.coordinates.map((poly: any[]) => poly.map(flipCoords));
+                    }
+
+                    if (leafPos.length > 0) {
+                        finalBorders.push({
+                            key: `beacon-border-${myData.userId}`,
+                            positions: leafPos,
+                            color: myData.color,
+                            isMine: myData.isMine,
+                            isNpc: myData.isNpc,
+                            ownerName: myData.ownerName,
+                            factionName: myData.factionName,
+                            npcType: myData.npcType,
+                            beaconCount: myData.beacons.length,
+                            borderType: 'beacon',
+                            userId: myData.userId
+                        });
+                    }
+                } catch (e) {
+                    console.error("Error converting coords", e);
+                }
+            }
+
+            // CC Hulls (Absolute)
+            if (myData.ccHull) {
+                try {
+                    const flipCoords = (ring: any[]) => ring.map(c => [c[1], c[0]]);
+                    let leafPos: any[] = [];
+                    if (myData.ccHull.geometry.type === 'Polygon') {
+                        leafPos = myData.ccHull.geometry.coordinates.map(flipCoords);
+                    } else if (myData.ccHull.geometry.type === 'MultiPolygon') {
+                        leafPos = myData.ccHull.geometry.coordinates.map((poly: any[]) => poly.map(flipCoords));
+                    }
+
+                    if (leafPos.length > 0) {
+                        finalBorders.push({
+                            key: `cc-border-${myData.userId}`,
+                            positions: leafPos,
+                            color: myData.color,
+                            isMine: myData.isMine,
+                            isNpc: myData.isNpc,
+                            ownerName: myData.ownerName,
+                            factionName: myData.factionName,
+                            npcType: myData.npcType,
+                            beaconCount: myData.commandCenters.length,
+                            borderType: 'command_center',
+                            userId: myData.userId
+                        });
+                    }
+                } catch (e) { }
+            }
+        });
+
+        return { commandCenters: allCenters, beaconBorders: finalBorders };
     }, [territories, currentUserId]);
 
     return (
@@ -283,6 +308,7 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                         <Tooltip sticky direction="top">
                             <div className="text-center">
                                 <strong>{border.ownerName}</strong>
+                                <div className="text-[9px] text-slate-400">UserID: {border.userId}</div>
                                 {border.factionName && <div className="text-xs text-blue-300">{border.factionName}</div>}
                                 <div className="text-[10px] mt-1 opacity-75">
                                     {border.npcType ? `[${border.npcType}]` : '[PLAYER]'}
