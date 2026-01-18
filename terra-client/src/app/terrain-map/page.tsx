@@ -120,37 +120,34 @@ export default function TerrainMapPage() {
             // Check if point is inside beacon Hull (if 3+ beacons)
             if (beacons.length >= 3) {
                 try {
-                    // Dynamic import of turf for point-in-polygon check
-                    import('@turf/turf').then(turf => {
-                        const beaconPoints = beacons
-                            .map((b: any) => {
-                                const lat = Number(b.x);
-                                const lng = Number(b.y);
-                                return (!isNaN(lat) && !isNaN(lng)) ? turf.point([lng, lat]) : null;
-                            })
-                            .filter((p: any) => p !== null);
+                    const beaconPoints = beacons
+                        .map((b: any) => {
+                            const bLat = Number(b.x);
+                            const bLng = Number(b.y);
+                            return (!isNaN(bLat) && !isNaN(bLng)) ? turf.point([bLng, bLat]) : null;
+                        })
+                        .filter((p: any) => p !== null) as any[];
 
-                        if (beaconPoints.length >= 3) {
-                            const fc = turf.featureCollection(beaconPoints);
-                            const hull = turf.concave(fc, { maxEdge: 30, units: 'kilometers' }) ||
-                                turf.convex(fc);
+                    if (beaconPoints.length >= 3) {
+                        const fc = turf.featureCollection(beaconPoints) as any;
+                        const hull = turf.concave(fc, { maxEdge: 30, units: 'kilometers' }) ||
+                            turf.convex(fc);
 
-                            if (hull) {
-                                const clickPoint = turf.point([lng, lat]);
-                                const isInside = turf.booleanPointInPolygon(clickPoint, hull);
+                        if (hull) {
+                            const clickPoint = turf.point([lng, lat]);
+                            const isInside = turf.booleanPointInPolygon(clickPoint, hull);
 
-                                if (isInside) {
-                                    overlappingTerritories.push({
-                                        user_id: userId,
-                                        owner_name: first.owner_name,
-                                        id: `hull_${userId}`,
-                                        type: 'BEACON_HULL',
-                                        radius: 'Connected'
-                                    });
-                                }
+                            if (isInside) {
+                                overlappingTerritories.push({
+                                    user_id: userId,
+                                    owner_name: first.owner_name,
+                                    id: `hull_${userId}`,
+                                    type: 'BEACON_HULL',
+                                    radius: 'Connected'
+                                });
                             }
                         }
-                    }).catch(console.error);
+                    }
                 } catch (e) {
                     console.error('Hull check failed', e);
                 }

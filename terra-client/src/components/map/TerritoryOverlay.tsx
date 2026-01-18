@@ -95,7 +95,7 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                 }).filter(p => p !== null) as any[];
 
                 if (ccPoints.length >= 3) {
-                    const fc = turf.featureCollection(ccPoints);
+                    const fc = turf.featureCollection(ccPoints) as any;
                     ccHull = turf.concave(fc, { maxEdge: 20, units: 'kilometers' }) || turf.convex(fc);
                 }
 
