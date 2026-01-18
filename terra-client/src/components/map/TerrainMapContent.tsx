@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 import L from "leaflet";
 import MovementRange from "./MovementRange";
@@ -202,11 +202,27 @@ function ForeignBuildingMarkers({ territories, userId, playerPosition, calculate
     showToast: any,
     onBuildingClick: (b: any) => void
 }) {
+    const [adminViewRange, setAdminViewRange] = useState(99999.0); // Default: Unlimited
+
+    // Fetch admin config for dynamic view range
+    useEffect(() => {
+        if (String(userId) === '1') { // Admin user
+            fetch(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/admin/config`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.viewRange !== undefined) {
+                        setAdminViewRange(data.viewRange);
+                    }
+                })
+                .catch(console.error);
+        }
+    }, [userId]);
+
     const foreignBuildings = useMemo(() => {
         if (!territories || territories.length === 0) return [];
 
-        // Admin gets extended view range (Unlimited)
-        const viewRange = String(userId) === '1' ? 99999.0 : 10.0;
+        // Admin gets dynamic view range from config
+        const viewRange = String(userId) === '1' ? adminViewRange : 10.0;
 
         return territories
             .filter(t => String(t.user_id) !== String(userId))
@@ -224,7 +240,7 @@ function ForeignBuildingMarkers({ territories, userId, playerPosition, calculate
                 owner_name: t.owner_name,
                 level: t.level
             }));
-    }, [territories, userId, playerPosition, calculateDistance]);
+    }, [territories, userId, playerPosition, calculateDistance, adminViewRange]);
 
     if (foreignBuildings.length === 0) return null;
 

@@ -197,8 +197,10 @@ export default function GameControlPanel({
             });
             const data = await res.json();
             if (data.success) {
-                setAdminStatus({ loading: false, msg: `Updated ${key}!`, isError: false });
-                setTimeout(() => setAdminStatus(prev => ({ ...prev, msg: null })), 2000);
+                setAdminStatus({ loading: false, msg: `Updated ${key}! Reloading...`, isError: false });
+                setTimeout(() => {
+                    window.location.reload();
+                }, 800);
             }
         } catch (e) {
             console.error(e);

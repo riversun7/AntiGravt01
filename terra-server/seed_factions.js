@@ -87,19 +87,32 @@ db.transaction(() => {
             user = { id: info.lastInsertRowid };
 
             // Give resources & Outpost
-            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(user.id, 5000, 100);
+            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(user.id, 50000, 1000);
 
-            // Random location
+            // Random location (converted to ~Korea region)
             const wx = Math.floor(Math.random() * 20) - 10;
             const wy = Math.floor(Math.random() * 20) - 10;
             const realX = 36.0 + (wx * 0.1);
             const realY = 127.0 + (wy * 0.1);
 
+            // Create COMMAND_CENTER (not AREA_BEACON)
             db.prepare(`
                  INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level)
-                 VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, 2.0, 1)
+                 VALUES (?, 'COMMAND_CENTER', ?, ?, ?, ?, 1, 3.0, 1)
              `).run(user.id, realX, realY, wx, wy);
-            console.log(`- Established Area Beacon for ${f.name}`);
+            console.log(`- Established Command Center for ${f.name} at (${realX.toFixed(4)}, ${realY.toFixed(4)})`);
+
+            // Create Cyborg Character
+            db.prepare(`
+                INSERT INTO character_cyborg (user_id, name, level, strength, dexterity, constitution, agility, intelligence, wisdom, hp, mp)
+                VALUES (?, ?, 1, 15, 15, 15, 15, 15, 15, 225, 210)
+            `).run(user.id, `${f.name} Commander`);
+            console.log(`- Created Cyborg Commander for ${f.name}`);
+
+            // Set initial GPS position to match command center
+            db.prepare('UPDATE users SET current_pos = ? WHERE id = ?')
+                .run(`${realX}_${realY}`, user.id);
+            console.log(`- Set initial GPS to ${realX.toFixed(4)}, ${realY.toFixed(4)}`);
 
         } else {
             db.prepare('UPDATE users SET faction_id = ?, faction_rank = 2, npc_type = \'FREE\' WHERE id = ?').run(faction.id, user.id);

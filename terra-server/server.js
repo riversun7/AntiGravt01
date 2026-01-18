@@ -2594,8 +2594,8 @@ app.post('/api/admin/spawn-free-npc', (req, res) => {
         // Link User to Faction Leader
         db.prepare('UPDATE factions SET leader_id = ? WHERE id = ?').run(userId, factionId);
 
-        // Give Resources
-        db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 5000, 100);
+        // Give Resources (Increased from 5000 to 50000)
+        db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 50000, 1000);
 
         // 3. Determine Location
         let spawnX = lat;
@@ -2613,19 +2613,36 @@ app.post('/api/admin/spawn-free-npc', (req, res) => {
             spawnY = 127.0 + (worldY * 0.1);
         } else {
             // Provided Lat/Lng is "Real" coords.
-            // Estimate World Grid? Not strictly needed unless we enforce grid logic.
-            // For now, allow arbitrary.
+            // Calculate world grid from real coords
+            worldX = Math.round((spawnX - 36.0) / 0.1);
+            worldY = Math.round((spawnY - 127.0) / 0.1);
         }
 
-        // 4. Create Area Beacon
+        // 4. Create COMMAND_CENTER (not AREA_BEACON)
         db.prepare(`
             INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level)
-            VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, 1.0, 1)
+            VALUES (?, 'COMMAND_CENTER', ?, ?, ?, ?, 1, 3.0, 1)
         `).run(userId, spawnX, spawnY, worldX, worldY);
 
-        console.log(`[Admin] Spawned Free NPC: ${name} at ${spawnX}, ${spawnY}`);
+        // 5. Create Cyborg Character
+        db.prepare(`
+            INSERT INTO character_cyborg (user_id, name, level, strength, dexterity, constitution, agility, intelligence, wisdom, hp, mp)
+            VALUES (?, ?, 1, 15, 15, 15, 15, 15, 15, 225, 210)
+        `).run(userId, `${name} Commander`);
 
-        res.json({ success: true, message: `Spawned ${name} at ${spawnX}, ${spawnY}`, factionId, userId });
+        // 6. Set initial GPS position
+        db.prepare('UPDATE users SET current_pos = ? WHERE id = ?')
+            .run(`${spawnX}_${spawnY}`, userId);
+
+        console.log(`[Admin] Spawned Free NPC: ${name} at ${spawnX.toFixed(4)}, ${spawnY.toFixed(4)} with cyborg commander`);
+
+        res.json({
+            success: true,
+            message: `Spawned ${name} at ${spawnX.toFixed(4)}, ${spawnY.toFixed(4)} with Command Center and Cyborg Commander`,
+            factionId,
+            userId,
+            coordinates: { lat: spawnX, lng: spawnY }
+        });
 
     } catch (err) {
         console.error('Spawn NPC Error:', err);

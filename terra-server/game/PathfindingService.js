@@ -129,7 +129,7 @@ class PathfindingService {
                             console.timeEnd("PathfindingDuration");
                             return {
                                 success: false,
-                                error: `🚫 접근 거부: ${closest.owner_name ? closest.owner_name : '알 수 없는 세력'}의 영토 (${closest.type}) 입니다. (거리: ${closest.distance.toFixed(2)}km)`
+                                error: `🚫 접근 거부: ${closest.owner_name ? closest.owner_name : '알 수 없는 세력'}의 영토 (${closest.type}, 중심에서 ${closest.distance.toFixed(2)}km, 반경 ${closest.territory_radius}km) 입니다. 차단 지점: [${sample.lat.toFixed(4)}, ${sample.lng.toFixed(4)}]`
                             };
                         }
                         // 가장 가까운 사령부가 자신의 것이면 통과
