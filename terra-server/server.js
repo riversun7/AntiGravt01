@@ -10,6 +10,12 @@ const terrainManager = new TerrainManager(db);
 const PathfindingService = require('./game/PathfindingService');
 const pathfindingService = new PathfindingService(db);
 
+// --- Admin Runtime Config ---
+let adminConfig = {
+    speed: 10.0,       // km/s (Default 36,000 km/h)
+    viewRange: 99999.0 // km  (Default Unlimited)
+};
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -3299,7 +3305,7 @@ app.post('/api/game/move', async (req, res) => {
         // User: 0.1 km/s (360 km/h) -> 100m/s
         let speedKmPerSec = 0.1;
         if (user.role === 'admin') {
-            speedKmPerSec = 10.0;
+            speedKmPerSec = adminConfig.speed; // Use Dynamic Admin Config
         }
 
         const durationSeconds = distanceKm / speedKmPerSec;
@@ -3456,6 +3462,23 @@ app.get('/api/admin/buildings', (req, res) => {
         console.error('Error fetching buildings:', error);
         res.status(500).json({ error: 'Failed to fetch buildings' });
     }
+});
+
+// =========================================
+// ADMIN CONFIG API
+// =========================================
+app.get('/api/admin/config', (req, res) => {
+    res.json(adminConfig);
+});
+
+app.post('/api/admin/config', (req, res) => {
+    const { speed, viewRange } = req.body;
+    console.log(`[AdminConfig] Update Request:`, req.body);
+
+    if (speed !== undefined) adminConfig.speed = parseFloat(speed);
+    if (viewRange !== undefined) adminConfig.viewRange = parseFloat(viewRange);
+
+    res.json({ success: true, config: adminConfig });
 });
 
 // PUT /api/admin/buildings/:buildingId - Update building
