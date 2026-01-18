@@ -15,21 +15,19 @@ export default function WarehousePanel({ userId }: { userId: number }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        const fetchWarehouse = async () => {
+            try {
+                const response = await fetch(`/api/warehouse/${userId}`);
+                const data = await response.json();
+                setWarehouse(data.warehouse);
+            } catch (error) {
+                console.error('Failed to fetch warehouse:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
         fetchWarehouse();
     }, [userId]);
-
-    const fetchWarehouse = async () => {
-        try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-            const response = await fetch(`${API_BASE_URL}/api/warehouse/${userId}`);
-            const data = await response.json();
-            setWarehouse(data.warehouse);
-        } catch (error) {
-            console.error('Failed to fetch warehouse:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     if (loading) {
         return <div className="text-gray-400">창고 정보 로딩 중...</div>;
@@ -58,8 +56,8 @@ export default function WarehousePanel({ userId }: { userId: number }) {
                 <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
                     <div
                         className={`h-full transition-all ${usagePercent > 90 ? 'bg-red-500' :
-                                usagePercent > 70 ? 'bg-yellow-500' :
-                                    'bg-green-500'
+                            usagePercent > 70 ? 'bg-yellow-500' :
+                                'bg-green-500'
                             }`}
                         style={{ width: `${usagePercent}%` }}
                     />

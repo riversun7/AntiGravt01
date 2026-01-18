@@ -31,11 +31,9 @@ export default function MarketPanel({ userId }: { userId: number }) {
 
     const fetchData = async () => {
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-
             const [pricesRes, warehouseRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/market/prices`),
-                fetch(`${API_BASE_URL}/api/warehouse/${userId}`)
+                fetch(`/api/market/prices`),
+                fetch(`/api/warehouse/${userId}`)
             ]);
 
             const pricesData = await pricesRes.json();
@@ -53,8 +51,7 @@ export default function MarketPanel({ userId }: { userId: number }) {
     const handleSell = async (resourceType: string, quantity: number) => {
         setSelling(resourceType);
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-            const response = await fetch(`${API_BASE_URL}/api/market/sell`, {
+            const response = await fetch(`/api/market/sell`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, resourceType, quantity })

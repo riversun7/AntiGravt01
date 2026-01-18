@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Users, Battery, Heart, Zap, Brain } from 'lucide-react';
-import { API_BASE_URL } from "@/lib/config";
 
 interface Minion {
     id: number;
@@ -21,11 +20,11 @@ export default function MinionStatusPanel({ userId }: { userId: number }) {
     const [loading, setLoading] = useState(true);
 
     const fetchMinions = React.useCallback(async () => {
+        if (!userId) return;
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-            const response = await fetch(`${API_BASE_URL}/api/minions/${userId}`);
+            const response = await fetch(`/api/character/${userId}/minions`);
             const data = await response.json();
-            setMinions(data.minions);
+            setMinions(data.minions || []);
         } catch (error) {
             console.error('Failed to fetch minions:', error);
         } finally {
@@ -42,7 +41,7 @@ export default function MinionStatusPanel({ userId }: { userId: number }) {
 
             // 2. Get Config Interval
             try {
-                const configRes = await fetch(`${API_BASE_URL}/api/admin/system/config`);
+                const configRes = await fetch(`/api/admin/system/config`);
                 const config = await configRes.json();
                 const pollRate = config.client_poll_interval || 60000; // Default 1 min
 
