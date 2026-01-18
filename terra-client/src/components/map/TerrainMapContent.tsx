@@ -219,8 +219,7 @@ function ForeignBuildingMarkers({ territories, userId, playerPosition, calculate
                 type: t['type'] || (t.is_territory_center ? 'COMMAND_CENTER' : 'UNKNOWN'),
                 lat: t.x,
                 lng: t.y,
-                color: t.color
-                lng: t.y,
+                color: t.color,
                 level: t.level
             }));
     }, [territories, userId, playerPosition, calculateDistance]);

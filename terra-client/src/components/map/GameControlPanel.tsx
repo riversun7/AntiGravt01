@@ -428,6 +428,7 @@ export default function GameControlPanel({
                             <p className="text-slate-400 italic mb-2">{getBuildingInfo(selectedBuilding.type).desc}</p>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>ID: <span className="font-mono text-slate-500">#{selectedBuilding.id}</span></div>
+                                <div className="col-span-2">Owner: <span className="text-blue-400 font-bold">#{selectedBuilding.user_id} {selectedBuilding.owner_name || ''}</span></div>
                                 <div>Level: <span className="text-yellow-400 font-bold">LV.{selectedBuilding.level || 1}</span></div>
                                 <div>내구도: <span className="text-green-400">100%</span></div>
                                 <div>생산력: <span className="text-blue-400">12/h</span></div>

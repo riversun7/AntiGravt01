@@ -72,23 +72,38 @@ class PathfindingService {
 
             // Fetch All Territories (Optimization: Cache this or use spatial query in future)
             const territories = this.db.prepare(`
-                SELECT user_id, x, y, territory_radius 
+                SELECT id, user_id, type, x, y, territory_radius 
                 FROM user_buildings 
                 WHERE is_territory_center = 1
             `).all();
+
+            // Fetch My Safe Zones (Command Centers) - 3km Radius
+            let mySafeZones = [];
+            if (userId) {
+                mySafeZones = this.db.prepare(`
+                    SELECT x, y FROM user_buildings 
+                    WHERE user_id = ? AND (type = 'COMMAND_CENTER' OR is_territory_center = 1)
+                `).all(userId);
+            }
 
             // Validate
             for (let i = 0; i < terrainResults.length; i++) {
                 const terrain = terrainResults[i];
                 const sample = allSamples[i];
 
-                // 1. Terrain Check
-                if (terrain.type === 'WATER' || terrain.type === 'MOUNTAIN') {
+                // 1. Terrain Check (Only WATER is blocked, MOUNTAIN is allowed)
+                if (terrain.type === 'WATER') {
                     console.timeEnd("PathfindingDuration");
                     return {
                         success: false,
-                        error: `Path obstructed by terrain at [${sample.lat.toFixed(4)}, ${sample.lng.toFixed(4)}]`
+                        error: `Path obstructed by terrain (${terrain.type}) at [${sample.lat.toFixed(4)}, ${sample.lng.toFixed(4)}]`
                     };
+                }
+
+                // 2. Safe Zone Check (My Command Center 3km)
+                if (mySafeZones.length > 0) {
+                    const inSafeZone = mySafeZones.some(mz => this.calculateDistance(sample.lat, sample.lng, mz.x, mz.y) <= 3.0);
+                    if (inSafeZone) continue; // Skip territory check if inside my safe zone
                 }
 
                 // 2. Territory Access Check (Power Diagram Logic)

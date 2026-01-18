@@ -1642,9 +1642,10 @@ app.get('/api/game/state', (req, res) => {
 
         // Get all buildings for this user (using existing user_buildings table)
         const buildings = db.prepare(`
-            SELECT id, type, x, y, level, user_id, created_at
-            FROM user_buildings 
-            WHERE user_id = ?
+            SELECT ub.id, ub.type, ub.x, ub.y, ub.level, ub.user_id, ub.created_at, u.username as owner_name
+            FROM user_buildings ub
+            LEFT JOIN users u ON ub.user_id = u.id
+            WHERE ub.user_id = ?
         `).all(userId);
 
         res.json({
@@ -1656,6 +1657,7 @@ app.get('/api/game/state', (req, res) => {
                 y: b.y,
                 level: b.level || 1,
                 user_id: b.user_id,
+                owner_name: b.owner_name,
                 created_at: b.created_at
             }))
         });
@@ -2612,7 +2614,7 @@ app.post('/api/admin/spawn-free-npc', (req, res) => {
         // 4. Create Area Beacon
         db.prepare(`
             INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level)
-            VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, 2.0, 1)
+            VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, 1.0, 1)
         `).run(userId, spawnX, spawnY, worldX, worldY);
 
         console.log(`[Admin] Spawned Free NPC: ${name} at ${spawnX}, ${spawnY}`);
