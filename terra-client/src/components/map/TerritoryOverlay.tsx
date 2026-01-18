@@ -340,13 +340,6 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                             dashArray: undefined
                         }}
                         interactive={true}
-                        eventHandlers={{
-                            click: (e) => {
-                                L.DomEvent.stopPropagation(e.originalEvent);
-                                const orig = territories.find(t => t.id === cc.id);
-                                if (onTerritoryClick && orig) onTerritoryClick(orig, e);
-                            }
-                        }}
                     >
                         <Tooltip sticky direction="top">
                             <div className="text-center">
