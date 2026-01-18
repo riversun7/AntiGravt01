@@ -103,6 +103,9 @@ function initSchema() {
         territory_radius REAL DEFAULT 5.0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_collected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_maintenance_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        hp INTEGER DEFAULT 100,
+        building_type_code TEXT DEFAULT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id)
     );`;
 
