@@ -113,7 +113,7 @@ export default function TerrainMapContent({
             minZoom={2}
             maxZoom={tileProvider.maxZoom || 19}
             doubleClickZoom={false}
-            doubleClickZoom={false}
+
             ref={setMap}
         >
             <TileLayer
