@@ -92,7 +92,7 @@ export default function TerrainMapContent({
     onWaypointRemove,
     setSelectedNpc,
     npcRefreshKey = 0
-}: TerrainMapContentProps) {
+}: TerrainMapContentProps) { // Updated props destructuring
 
     // Fix Leaflet Icons
     useEffect(() => {

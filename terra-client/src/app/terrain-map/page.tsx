@@ -1014,6 +1014,7 @@ export default function TerrainMapPage() {
                         waypoints={isMoving ? [] : waypoints} // Hide waypoints while moving
                         onWaypointRemove={removeWaypoint}
                         setSelectedNpc={setSelectedNpc}
+                        npcRefreshKey={npcRefreshKey}
                     />
 
                     {/* Fixed floating toast */}
@@ -1118,7 +1119,6 @@ export default function TerrainMapPage() {
                     tileProviders={TILE_PROVIDERS}
 
                     geolocation={geolocation}
-                    npcRefreshKey={npcRefreshKey}
                 />
             </div>
 
