@@ -339,7 +339,7 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                             opacity: 1,
                             dashArray: undefined
                         }}
-                        interactive={true}
+                        interactive={false}
                     >
                         <Tooltip sticky direction="top">
                             <div className="text-center">

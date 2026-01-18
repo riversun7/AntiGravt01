@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { TILE_PROVIDERS, type TileProvider } from '@/components/map/TileProviderSelector';
 import { useRouter } from 'next/navigation';
+import * as turf from '@turf/turf';
 
 import { API_BASE_URL } from "@/lib/config";
 
@@ -97,19 +98,78 @@ export default function TerrainMapPage() {
         }
 
         // Find ALL overlapping territories (for debugging overlaps)
+        // This includes both circle-based (individual buildings) and Hull-based (connected territories)
         const overlappingTerritories: any[] = [];
-        for (const t of territories) {
-            const dist = calculateDistance(lat, lng, t.x, t.y);
-            if (dist <= (t.territory_radius || 5.0)) {
-                overlappingTerritories.push({
-                    user_id: t.user_id,
-                    owner_name: t.owner_name,
-                    id: t.id,
-                    type: t.type || t.building_type_code,
-                    radius: t.territory_radius
-                });
+
+        // Group territories by user to build Hulls (same logic as TerritoryOverlay)
+        const userTerritoryGroups = new Map<string, any[]>();
+        territories.forEach(t => {
+            const key = String(t.user_id);
+            if (!userTerritoryGroups.has(key)) userTerritoryGroups.set(key, []);
+            userTerritoryGroups.get(key)!.push(t);
+        });
+
+        // Check each user's territories
+        userTerritoryGroups.forEach((userTerritories, userId) => {
+            const first = userTerritories[0];
+            const territoryCenters = userTerritories.filter((t: any) => t.is_territory_center === 1);
+            const beacons = territoryCenters.filter((t: any) =>
+                t.type === 'AREA_BEACON' || t.building_type_code === 'AREA_BEACON'
+            );
+
+            // Check if point is inside beacon Hull (if 3+ beacons)
+            if (beacons.length >= 3) {
+                try {
+                    // Dynamic import of turf for point-in-polygon check
+                    import('@turf/turf').then(turf => {
+                        const beaconPoints = beacons
+                            .map((b: any) => {
+                                const lat = Number(b.x);
+                                const lng = Number(b.y);
+                                return (!isNaN(lat) && !isNaN(lng)) ? turf.point([lng, lat]) : null;
+                            })
+                            .filter((p: any) => p !== null);
+
+                        if (beaconPoints.length >= 3) {
+                            const fc = turf.featureCollection(beaconPoints);
+                            const hull = turf.concave(fc, { maxEdge: 30, units: 'kilometers' }) ||
+                                turf.convex(fc);
+
+                            if (hull) {
+                                const clickPoint = turf.point([lng, lat]);
+                                const isInside = turf.booleanPointInPolygon(clickPoint, hull);
+
+                                if (isInside) {
+                                    overlappingTerritories.push({
+                                        user_id: userId,
+                                        owner_name: first.owner_name,
+                                        id: `hull_${userId}`,
+                                        type: 'BEACON_HULL',
+                                        radius: 'Connected'
+                                    });
+                                }
+                            }
+                        }
+                    }).catch(console.error);
+                } catch (e) {
+                    console.error('Hull check failed', e);
+                }
             }
-        }
+
+            // Also check individual territory circles
+            for (const t of userTerritories) {
+                const dist = calculateDistance(lat, lng, t.x, t.y);
+                if (dist <= (t.territory_radius || 5.0)) {
+                    overlappingTerritories.push({
+                        user_id: t.user_id,
+                        owner_name: t.owner_name,
+                        id: t.id,
+                        type: t.type || t.building_type_code,
+                        radius: t.territory_radius
+                    });
+                }
+            }
+        });
 
         // Create virtual tile object from Lat/Lng (No grid fetch)
         setSelectedTile({
