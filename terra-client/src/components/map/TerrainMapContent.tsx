@@ -113,6 +113,9 @@ export default function TerrainMapContent({
             minZoom={2}
             maxZoom={tileProvider.maxZoom || 19}
             doubleClickZoom={false}
+            whenReady={(e) => {
+                setMap(e.target);
+            }}
         >
             <TileLayer
                 attribution={tileProvider.attribution}

@@ -347,7 +347,9 @@ export default function TerrainMapPage() {
             const targetPos = fetchedPos || { x: playerPosition[0], y: playerPosition[1] };
 
             if (targetPos && targetPos.x) {
-                territoryUrl += `?lat=${targetPos.x}&lng=${targetPos.y}&radius=100`; // 100km radius
+                // Fetch ALL territories for global visibility
+                // territoryUrl += `?lat=${targetPos.x}&lng=${targetPos.y}&radius=100`; 
+                // Don't filter by radius for now
             }
 
             const territoriesResponse = await fetch(territoryUrl);

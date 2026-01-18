@@ -2762,8 +2762,8 @@ app.post('/api/buildings/construct', (req, res) => {
         const result = db.prepare(`
             INSERT INTO user_buildings (
                 user_id, type, building_type_code, x, y, world_x, world_y, 
-                is_territory_center, territory_radius, last_maintenance_at, hp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+                is_territory_center, territory_radius, hp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(userId, type, buildingType.code, x, y, gridX, gridY, isTerritoryCenter, radius, buildingType.max_hp || 100);
 
         const newBuilding = db.prepare('SELECT * FROM user_buildings WHERE id = ?').get(result.lastInsertRowid);
