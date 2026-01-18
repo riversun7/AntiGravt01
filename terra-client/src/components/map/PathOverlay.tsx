@@ -12,7 +12,11 @@ const PathOverlay = React.memo(function PathOverlay({ path, waypoints, onWaypoin
     if (!path || path.length === 0) return null;
 
     // Convert to Leaflet LatLngExpression
-    const positions = path.map(p => [p.lat, p.lng] as [number, number]);
+    const positions = path
+        .filter(p => p && typeof p.lat === 'number' && typeof p.lng === 'number')
+        .map(p => [p.lat, p.lng] as [number, number]);
+
+    if (positions.length === 0) return null;
 
     // Waypoint Icons
     // Waypoint Icons (Safe DivIcon)
