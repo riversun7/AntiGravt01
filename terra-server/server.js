@@ -3299,7 +3299,7 @@ app.post('/api/game/move', async (req, res) => {
         // User: 0.1 km/s (360 km/h) -> 100m/s
         let speedKmPerSec = 0.1;
         if (user.role === 'admin') {
-            speedKmPerSec = 1.0;
+            speedKmPerSec = 10.0;
         }
 
         const durationSeconds = distanceKm / speedKmPerSec;

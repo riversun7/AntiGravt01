@@ -125,11 +125,11 @@ class PathfindingService {
                         );
 
                         // 가장 가까운 사령부가 자신의 것이 아니면 차단
-                        if (String(closest.user_id) !== String(userId)) {
+                        if (closest.user_id && String(closest.user_id) !== String(userId)) {
                             console.timeEnd("PathfindingDuration");
                             return {
                                 success: false,
-                                error: `Blocked by ${closest.type || 'Territory'} (ID:${closest.id}) at [${closest.x.toFixed(4)}, ${closest.y.toFixed(4)}]. Player #${closest.user_id}, Dist: ${closest.distance.toFixed(2)}km`
+                                error: `🚫 접근 거부: ${closest.owner_name ? closest.owner_name : '알 수 없는 세력'}의 영토 (${closest.type}) 입니다. (거리: ${closest.distance.toFixed(2)}km)`
                             };
                         }
                         // 가장 가까운 사령부가 자신의 것이면 통과
