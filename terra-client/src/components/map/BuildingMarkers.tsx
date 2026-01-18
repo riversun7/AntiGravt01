@@ -7,6 +7,7 @@ interface Building {
     type: string;
     lat: number;
     lng: number;
+    color?: string;
 }
 
 interface BuildingMarkersProps {
@@ -14,7 +15,7 @@ interface BuildingMarkersProps {
     onBuildingClick?: (building: Building) => void;
 }
 
-const getBuildingIcon = (type: string) => {
+const getBuildingIcon = (type: string, color?: string) => {
     const iconMap: Record<string, string> = {
         'COMMAND_CENTER': '🏰',
         'CENTRAL_CONTROL_HUB': '🏛️',
@@ -39,19 +40,24 @@ const getBuildingIcon = (type: string) => {
     const normalizedType = type.toUpperCase();
     const emoji = iconMap[normalizedType] || iconMap[type.toLowerCase()] || '🏗️'; // Default Construction Crane
 
+    // Default blue if no color provided
+    const borderColor = color || '#3b82f6';
+    // Create shadow color with opacity
+    const shadowColor = color ? `${color}80` : 'rgba(59, 130, 246, 0.5)'; // 80 is 50% alpha approx or use rgba
+
     return L.divIcon({
         html: `
       <div style="
         width: 36px;
         height: 36px;
         background: rgba(30, 41, 59, 0.95);
-        border: 2px solid #3b82f6;
+        border: 2px solid ${borderColor};
         border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 22px;
-        box-shadow: 0 2px 12px rgba(59, 130, 246, 0.5);
+        box-shadow: 0 0 12px ${borderColor};
         cursor: pointer;
         transition: transform 0.2s;
       "
@@ -73,7 +79,7 @@ const BuildingMarkers = React.memo(function BuildingMarkers({ buildings, onBuild
                 <Marker
                     key={`building-${building.id}-${index}`}
                     position={[building.lat, building.lng]}
-                    icon={getBuildingIcon(building.type)}
+                    icon={getBuildingIcon(building.type, building.color)}
                     eventHandlers={{
                         click: (e) => {
                             L.DomEvent.stopPropagation(e as any);

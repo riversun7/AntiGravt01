@@ -3474,6 +3474,9 @@ app.put('/api/admin/buildings/:buildingId', (req, res) => {
         const params = [];
 
         if (ownerId !== undefined) {
+            if (String(ownerId).trim() === '') {
+                return res.status(400).json({ error: 'Owner ID cannot be empty' });
+            }
             updates.push('user_id = ?');
             params.push(ownerId);
         }

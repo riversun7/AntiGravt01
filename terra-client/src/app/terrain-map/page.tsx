@@ -221,8 +221,15 @@ export default function TerrainMapPage() {
     }, []);
 
     // Admin check
-    const userId = typeof window !== 'undefined' ? localStorage.getItem('terra_user_id') : null;
-    const isAdmin = userId === '1';
+    const [userId, setUserId] = useState<string | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+
+    useEffect(() => {
+        const storedId = localStorage.getItem('terra_user_id');
+        setUserId(storedId);
+        setIsAdmin(storedId === '1');
+    }, []);
+
     const maxMovementRange = isAdmin ? 100 : 10; // Admin: 100km, Normal: 10km
 
     // Tile provider state

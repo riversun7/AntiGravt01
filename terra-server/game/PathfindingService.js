@@ -114,7 +114,7 @@ class PathfindingService {
                             console.timeEnd("PathfindingDuration");
                             return {
                                 success: false,
-                                error: `Path blocked by Player #${closest.user_id}'s territory (${closest.distance.toFixed(2)}km from their center)`
+                                error: `Blocked by ${closest.type || 'Territory'} (ID:${closest.id}) at [${closest.x.toFixed(4)}, ${closest.y.toFixed(4)}]. Player #${closest.user_id}, Dist: ${closest.distance.toFixed(2)}km`
                             };
                         }
                         // 가장 가까운 사령부가 자신의 것이면 통과

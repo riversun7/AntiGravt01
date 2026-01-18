@@ -159,6 +159,60 @@ export default function GameControlPanel({
         }
     }, [selectedTile]);
 
+    // Admin Action State
+    const [adminActionType, setAdminActionType] = useState<'MOVE' | 'OWNER' | 'TELEPORT' | 'DESTROY' | null>(null);
+    const [adminInputValue, setAdminInputValue] = useState('');
+    const [adminStatus, setAdminStatus] = useState({ loading: false, msg: null as string | null, isError: false });
+
+    const handleAdminSubmit = async () => {
+        if (!selectedBuilding || !adminActionType) return;
+        setAdminStatus({ loading: true, msg: null, isError: false });
+
+        try {
+            let res;
+            if (adminActionType === 'MOVE') {
+                const [lat, lng] = adminInputValue.split(',').map(s => parseFloat(s.trim()));
+                if (isNaN(lat) || isNaN(lng)) throw new Error('Invalid coordinates');
+
+                res = await fetch(`${API_BASE_URL}/api/admin/buildings/${selectedBuilding.id}?userId=${isAdmin ? '1' : '0'}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ x: lat, y: lng })
+                });
+            } else if (adminActionType === 'OWNER') {
+                res = await fetch(`${API_BASE_URL}/api/admin/buildings/${selectedBuilding.id}?userId=${isAdmin ? '1' : '0'}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ownerId: adminInputValue })
+                });
+            } else if (adminActionType === 'TELEPORT') {
+                res = await fetch(`${API_BASE_URL}/api/admin/buildings/${selectedBuilding.id}?userId=${isAdmin ? '1' : '0'}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ x: playerPosition[0], y: playerPosition[1] })
+                });
+            } else if (adminActionType === 'DESTROY') {
+                res = await fetch(`${API_BASE_URL}/api/admin/buildings/${selectedBuilding.id}?userId=${isAdmin ? '1' : '0'}`, { method: 'DELETE' });
+            }
+
+            if (res && !res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || `Server returned ${res.status}`);
+            }
+
+            // Success
+            setAdminStatus({ loading: false, msg: 'Success. Reloading...', isError: false });
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 800);
+
+        } catch (e: any) {
+            console.error(e);
+            setAdminStatus({ loading: false, msg: e.message || String(e), isError: true });
+        }
+    };
+
     // Admin Terrain Set Helper
     const setTerrainOverride = async (type: string) => {
         if (!selectedTile) return;
@@ -413,6 +467,49 @@ export default function GameControlPanel({
                                 </button>
                             )}
                         </div>
+
+                        {/* Admin Action Panel */}
+                        {isAdmin && (
+                            <div className="mt-3 pt-3 border-t border-red-500/30">
+                                <div className="text-[10px] font-bold text-red-400 mb-2 flex items-center gap-1">
+                                    <span>🛡️ ADMIN CONTROLS</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1 mb-1">
+                                    <button
+                                        onClick={() => {
+                                            setAdminActionType('MOVE');
+                                            setAdminInputValue(`${selectedBuilding.lat}, ${selectedBuilding.lng}`);
+                                        }}
+                                        className="bg-blue-900/40 hover:bg-blue-800/60 border border-blue-700/50 text-blue-200 py-1.5 rounded text-[10px] flex items-center justify-center gap-1"
+                                    >
+                                        📍 Move (Coord)
+                                    </button>
+                                    <button
+                                        onClick={() => setAdminActionType('TELEPORT')}
+                                        className="bg-blue-900/40 hover:bg-blue-800/60 border border-blue-700/50 text-blue-200 py-1.5 rounded text-[10px] flex items-center justify-center gap-1"
+                                    >
+                                        🏃 Teleport Here
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1">
+                                    <button
+                                        onClick={() => {
+                                            setAdminActionType('OWNER');
+                                            setAdminInputValue('');
+                                        }}
+                                        className="bg-purple-900/40 hover:bg-purple-800/60 border border-purple-700/50 text-purple-200 py-1.5 rounded text-[10px] flex items-center justify-center gap-1"
+                                    >
+                                        👤 Assign Owner
+                                    </button>
+                                    <button
+                                        onClick={() => setAdminActionType('DESTROY')}
+                                        className="bg-red-900/40 hover:bg-red-800/60 border border-red-700/50 text-red-200 py-1.5 rounded text-[10px] flex items-center justify-center gap-1"
+                                    >
+                                        💣 Force Destroy
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -809,6 +906,75 @@ export default function GameControlPanel({
                     );
                 })}
             </div>
+            {/* Admin Input Modal */}
+            {adminActionType && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-slate-800 p-4 rounded-lg shadow-2xl border border-slate-600 w-full max-w-sm animate-fadeIn">
+                        <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                            {adminActionType === 'MOVE' ? '📍 Move Building' :
+                                adminActionType === 'OWNER' ? '👤 Change Owner' :
+                                    adminActionType === 'TELEPORT' ? '🏃 Teleport Building' : '💣 Force Destroy'}
+                        </h3>
+
+                        {(adminActionType === 'MOVE' || adminActionType === 'OWNER') && (
+                            <div className="mb-4">
+                                <label className="text-xs text-slate-400 mb-1 block">
+                                    {adminActionType === 'MOVE' ? 'Coordinates (Lat, Lng)' : 'New Owner User ID'}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={adminInputValue}
+                                    onChange={(e) => setAdminInputValue(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 text-white p-2.5 rounded focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                                    placeholder={adminActionType === 'MOVE' ? '37.1234, 127.5678' : 'Enter User ID (e.g., 2)'}
+                                    autoFocus
+                                    disabled={adminStatus.loading}
+                                />
+                            </div>
+                        )}
+
+                        {(adminActionType === 'TELEPORT' || adminActionType === 'DESTROY') && (
+                            <div className="mb-4 text-sm text-slate-300">
+                                {adminActionType === 'TELEPORT'
+                                    ? 'Are you sure you want to teleport this building to your current location?'
+                                    : 'WARNING: This will permanently delete the building. This action cannot be undone.'}
+                            </div>
+                        )}
+
+                        {/* Status Message */}
+                        {adminStatus.msg && (
+                            <div className={`mb-4 p-2 rounded text-xs text-center font-bold ${adminStatus.isError ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-green-500/20 text-green-300 border border-green-500/30'
+                                }`}>
+                                {adminStatus.msg}
+                            </div>
+                        )}
+
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                onClick={() => {
+                                    setAdminActionType(null);
+                                    setAdminStatus({ loading: false, msg: null, isError: false });
+                                }}
+                                className="px-4 py-2 bg-slate-700 text-slate-300 rounded hover:bg-slate-600 text-xs font-bold"
+                                disabled={adminStatus.loading}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleAdminSubmit}
+                                disabled={adminStatus.loading}
+                                className={`px-4 py-2 text-white rounded text-xs font-bold shadow-lg flex items-center gap-2 ${adminActionType === 'DESTROY'
+                                    ? 'bg-red-600 hover:bg-red-500 shadow-red-900/20'
+                                    : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20'
+                                    } ${adminStatus.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                {adminStatus.loading && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

@@ -185,23 +185,28 @@ export default function TerrainMapContent({
                 playerPosition={playerPosition}
                 calculateDistance={calculateDistance}
                 showToast={showToast}
+                onBuildingClick={(b) => {
+                    setSelectedBuilding(b);
+                    setSelectedTile(null);
+                }}
             />
         </MapContainer>
     );
 }
 
-function ForeignBuildingMarkers({ territories, userId, playerPosition, calculateDistance, showToast }: {
+function ForeignBuildingMarkers({ territories, userId, playerPosition, calculateDistance, showToast, onBuildingClick }: {
     territories: any[],
     userId: string | null,
     playerPosition: [number, number],
     calculateDistance: any,
-    showToast: any
+    showToast: any,
+    onBuildingClick: (b: any) => void
 }) {
     const foreignBuildings = useMemo(() => {
         if (!territories || territories.length === 0) return [];
 
-        // Admin gets extended view range
-        const viewRange = String(userId) === '1' ? 50.0 : 10.0;
+        // Admin gets extended view range (Unlimited)
+        const viewRange = String(userId) === '1' ? 99999.0 : 10.0;
 
         return territories
             .filter(t => String(t.user_id) !== String(userId))
@@ -214,6 +219,8 @@ function ForeignBuildingMarkers({ territories, userId, playerPosition, calculate
                 type: t['type'] || (t.is_territory_center ? 'COMMAND_CENTER' : 'UNKNOWN'),
                 lat: t.x,
                 lng: t.y,
+                color: t.color
+                lng: t.y,
                 level: t.level
             }));
     }, [territories, userId, playerPosition, calculateDistance]);
@@ -223,7 +230,7 @@ function ForeignBuildingMarkers({ territories, userId, playerPosition, calculate
     return (
         <BuildingMarkers
             buildings={foreignBuildings}
-            onBuildingClick={(b) => showToast(`Territory Center: ${b.type}`, 'info')}
+            onBuildingClick={onBuildingClick}
         />
     );
 }
