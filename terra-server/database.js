@@ -749,6 +749,25 @@ function initSchema() {
                 prerequisites: JSON.stringify([])
             },
             {
+                code: 'AREA_BEACON',
+                name: '영토 신호기',
+                description: '단순 영토 주장용 구조물. 지휘 기능 없음.',
+                tier: 1,
+                category: 'TERRITORY',
+                construction_cost: JSON.stringify({ gold: 100 }),
+                maintenance_cost: JSON.stringify({ gold: 2 }),
+                min_units: 0,
+                max_units: 0,
+                storage_volume: 0.0,
+                production_type: null,
+                production_rate: 0.0,
+                is_territory_center: 1,
+                territory_radius: 1.0,
+                max_hp: 10,
+                housing_capacity: 0,
+                prerequisites: JSON.stringify([])
+            },
+            {
                 code: 'COMMAND_CENTER',
                 name: '사령부',
                 description: '영토의 중심. 사령관 및 부관 배치 가능.',

@@ -18,7 +18,7 @@ class PathfindingService {
      * @param {Array} waypoints 
      * @returns {Promise<Object>}
      */
-    async findPath(startLat, startLng, endLat, endLng, waypoints = []) {
+    async findPath(startLat, startLng, endLat, endLng, waypoints = [], userId = null) {
         console.log(`[Pathfinding] Validating direct path...`);
 
         // Construct full set of points
@@ -67,20 +67,49 @@ class PathfindingService {
         if (allSampleCoords.length > 0) {
             console.log(`[Pathfinding] Batch checking ${allSampleCoords.length} points...`);
 
-            // Batch Fetch
+            // Batch Fetch Terrain
             const terrainResults = await this.terrainManager.getTerrainInfos(allSampleCoords);
+
+            // Fetch All Territories (Optimization: Cache this or use spatial query in future)
+            const territories = this.db.prepare(`
+                SELECT user_id, x, y, territory_radius 
+                FROM user_buildings 
+                WHERE is_territory_center = 1
+            `).all();
 
             // Validate
             for (let i = 0; i < terrainResults.length; i++) {
                 const terrain = terrainResults[i];
                 const sample = allSamples[i];
 
+                // 1. Terrain Check
                 if (terrain.type === 'WATER' || terrain.type === 'MOUNTAIN') {
                     console.timeEnd("PathfindingDuration");
                     return {
                         success: false,
-                        error: `Path obstructed at [${sample.lat.toFixed(4)}, ${sample.lng.toFixed(4)}]`
+                        error: `Path obstructed by terrain at [${sample.lat.toFixed(4)}, ${sample.lng.toFixed(4)}]`
                     };
+                }
+
+                // 2. Territory Access Check
+                if (userId) {
+                    for (const t of territories) {
+                        // Skip own territories
+                        if (String(t.user_id) === String(userId)) continue;
+
+                        const dist = this.calculateDistance(sample.lat, sample.lng, t.x, t.y);
+                        if (dist <= t.territory_radius) {
+                            // Inside someone else's territory
+                            // TODO: Add Diplomacy Check here (e.g., Alliance allow)
+
+                            // For now, strict block
+                            console.timeEnd("PathfindingDuration");
+                            return {
+                                success: false,
+                                error: `Path blocked by Player #${t.user_id}'s territory`
+                            };
+                        }
+                    }
                 }
             }
         }

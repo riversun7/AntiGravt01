@@ -183,6 +183,7 @@ export default function TerrainMapPage() {
     const [constructionTimeLeft, setConstructionTimeLeft] = useState(0);
     const [playerResources, setPlayerResources] = useState({ gold: 1000, gem: 10 });
     const [currentTick, setCurrentTick] = useState(Date.now()); // For pure rendering of timers
+    const [username, setUsername] = useState<string>('Commander');
 
     // Building interaction states
     const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
@@ -271,6 +272,7 @@ export default function TerrainMapPage() {
                 const userData = await response.json();
                 if (userData.resources) {
                     setPlayerResources({ gold: userData.resources.gold || 0, gem: userData.resources.gem || 0 });
+                    if (userData.username) setUsername(userData.username);
                     console.log('[Resources] Loaded:', userData.resources);
                 }
             }
@@ -991,6 +993,9 @@ export default function TerrainMapPage() {
                     selectedTile={selectedTile}
                     onCloseTileInfo={() => setSelectedTile(null)}
                     onMoveToTile={(lat, lng) => handleMoveToTile(lat, lng)}
+                    onMoveToTile={(lat, lng) => handleMoveToTile(lat, lng)}
+                    isAdmin={isAdmin}
+                    username={username}
 
                     selectedBuilding={selectedBuilding}
                     onCloseBuildingInfo={() => setSelectedBuilding(null)}

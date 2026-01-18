@@ -76,6 +76,7 @@ interface GameControlPanelProps {
     constructionTimeLeft: number;
     currentTick?: number;
     isAdmin?: boolean; // Added prop for Admin Mode
+    username?: string; // Added prop for User Display
 
     // Units tab
     minions: Array<{ id: number; name: string; type: string; hp: number; battery: number; fatigue: number; status?: string }>;
@@ -124,7 +125,7 @@ export default function GameControlPanel({
     constructingBuildingName,
     constructionTimeLeft,
     currentTick = 0,
-    isAdmin = true, // Default true for prototype
+    isAdmin = false, // Default false for security
     minions = [],
     onBuild,
     onBuildingClick,
@@ -141,6 +142,7 @@ export default function GameControlPanel({
     onTileProviderChange,
     tileProviders,
     geolocation,
+    username,
 }: GameControlPanelProps) {
     const [activeTab, setActiveTab] = useState<TabType>('info');
     const [terrainInfo, setTerrainInfo] = useState<any>(null);
@@ -499,7 +501,7 @@ export default function GameControlPanel({
                                 </div>
                                 <div className="flex-1">
                                     <div className="text-white font-bold text-sm flex items-center gap-2">
-                                        {isAdmin ? 'Administrator' : 'Commander'}
+                                        {username || (isAdmin ? 'Administrator' : 'Commander')}
                                         {isAdmin && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded font-mono">OP</span>}
                                     </div>
                                     <div className="text-slate-400 text-xs flex items-center gap-1.5 mt-0.5">

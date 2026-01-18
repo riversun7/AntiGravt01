@@ -175,6 +175,29 @@ export default function TerrainMapContent({
                     setSelectedTile(null);
                 }}
             />
+
+            {/* Foreign Territory Markers */}
+            <BuildingMarkers
+                buildings={territories
+                    .filter(t => String(t.user_id) !== String(userId))
+                    .filter(t => {
+                        // Optimization: Only show markers within 10km fixed range (Admin range is too large)
+                        const dist = calculateDistance(t.x, t.y, playerPosition[0], playerPosition[1]);
+                        return dist <= 10.0;
+                    })
+                    .map(t => ({
+                        id: t.id,
+                        type: t['type'] || (t.is_territory_center ? 'COMMAND_CENTER' : 'UNKNOWN'), // Use type from server or fallback
+                        lat: t.x,
+                        lng: t.y,
+                        level: t.level
+                    }))}
+                onBuildingClick={(b) => {
+                    // Foreign building click logic (optional: show owner info)
+                    // For now, re-use territory click handler logic or just show ID
+                    showToast(`Territory Center: ${b.type}`, 'info');
+                }}
+            />
         </MapContainer>
     );
 }

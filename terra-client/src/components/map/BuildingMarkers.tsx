@@ -17,18 +17,28 @@ interface BuildingMarkersProps {
 
 const getBuildingIcon = (type: string) => {
     const iconMap: Record<string, string> = {
-        house: '🏠',
-        castle: '🏰',
-        factory: '🏭',
-        mine: '⛏️',
-        warehouse: '📦',
-        barracks: '⚔️',
-        farm: '🌾',
-        lab: '⚗️',
-        market: '⚖️',
+        'COMMAND_CENTER': '🏰',
+        'CENTRAL_CONTROL_HUB': '🏛️',
+        'HOUSE': '🏠',
+        'BASIC_QUARTERS': '🏘️',
+        'FACTORY': '🏭',
+        'MINE': '⛏️',
+        'WAREHOUSE': '📦',
+        'BASIC_WAREHOUSE': '📦',
+        'ADVANCED_WAREHOUSE': '🏢',
+        'BARRACKS': '⚔️',
+        'FARM': '🌾',
+        'LAB': '⚗️',
+        'RESEARCH_LAB': '🧪',
+        'MARKET': '⚖️',
+        'LUMBERYARD': '🪓',
+        'AREA_BEACON': '📡',
+        'TERRITORY_UNIT': '🏴',
     };
 
-    const emoji = iconMap[type.toLowerCase()] || '🏢';
+    // Normalize input match
+    const normalizedType = type.toUpperCase();
+    const emoji = iconMap[normalizedType] || iconMap[type.toLowerCase()] || '🏗️'; // Default Construction Crane
 
     return L.divIcon({
         html: `

@@ -2498,7 +2498,7 @@ app.get('/api/tiles/user/:userId', (req, res) => {
 app.get('/api/territories', (req, res) => {
     try {
         const territories = db.prepare(`
-            SELECT ub.id, ub.user_id, ub.x, ub.y, ub.territory_radius, ub.is_territory_center, ub.custom_boundary, ub.level,
+            SELECT ub.id, ub.user_id, ub.x, ub.y, ub.territory_radius, ub.is_territory_center, ub.custom_boundary, ub.level, ub.type, ub.building_type_code,
                    u.username as owner_name, f.name as faction_name, f.type as npc_type, f.color, f.id as faction_id
             FROM user_buildings ub
             LEFT JOIN users u ON ub.user_id = u.id
@@ -3177,7 +3177,7 @@ app.post('/api/game/path', async (req, res) => {
     }
 
     try {
-        const result = await pathfindingService.findPath(startLat, startLng, endLat, endLng, waypoints || []);
+        const result = await pathfindingService.findPath(startLat, startLng, endLat, endLng, waypoints || [], req.body.userId);
         console.log(`[PATH_RES] Success: ${result.success}, Distance: ${result.distance}`);
         res.json(result);
     } catch (err) {
@@ -3187,7 +3187,7 @@ app.post('/api/game/path', async (req, res) => {
 });
 
 // Execute Move (with path validation and timing)
-app.post('/api/game/move', (req, res) => {
+app.post('/api/game/move', async (req, res) => {
     let { userId, x, y, path, targetLat, targetLng } = req.body;
 
     // Support alias
@@ -3235,6 +3235,26 @@ app.post('/api/game/move', (req, res) => {
             console.error(`[MOVE_ERROR] Calculated distance is NaN. Start: ${startLat},${startLng}, Target: ${x},${y}, PathLen: ${path ? path.length : 0}`);
             distanceKm = 0;
         }
+
+        // --- NEW: Validate Path (Terrain & Territory) ---
+        // We use the path array if provided, or just start/end if direct
+        try {
+            const validation = await pathfindingService.findPath(
+                startLat, startLng,
+                x, y,
+                (path && Array.isArray(path)) ? path : [],
+                userId // Pass userId for territory checks
+            );
+            if (!validation.success) {
+                return res.status(400).json({ error: validation.error });
+            }
+        } catch (postMoveErr) {
+            console.error("Path validation error during move:", postMoveErr);
+            // Optional: Block move if validation fails? For now, we allow fallback or block.
+            // Let's block to enforce rules.
+            return res.status(500).json({ error: postMoveErr.message });
+        }
+        // ------------------------------------------------
 
         // 2. Determine Speed
         // Admin: 1 km/s (3600 km/h)
