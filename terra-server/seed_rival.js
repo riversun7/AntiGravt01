@@ -15,7 +15,7 @@ function seedRival() {
             console.log(`Created rival user: ${rivalName} (ID: ${rival.id})`);
 
             // Init resources
-            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(rival.id, 10000, 1000);
+            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(rival.id, 3000, 100);
         } else {
             console.log(`Rival user exists: ${rivalName} (ID: ${rival.id})`);
         }

@@ -87,7 +87,7 @@ db.transaction(() => {
             user = { id: info.lastInsertRowid };
 
             // Give resources & Outpost
-            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(user.id, 50000, 1000);
+            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(user.id, 3000, 100);
 
             // Random location (converted to ~Korea region)
             const wx = Math.floor(Math.random() * 20) - 10;

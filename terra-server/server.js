@@ -61,9 +61,9 @@ app.post('/api/login', (req, res) => {
             const userId = info.lastInsertRowid;
 
             // Initialize resources
-            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 1000, 10);
+            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 3000, 100);
             // Initialize resources
-            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 1000, 10);
+            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 3000, 100);
 
             // Create default cyborg with base stats
             // Base stats defaults handled by table schema or explicit insert here
@@ -917,16 +917,19 @@ app.get('/api/game/position/:userId', (req, res) => {
 app.post('/api/build', (req, res) => {
     const { user_id, type, x, y, world_x, world_y } = req.body;
 
-    // Define Costs (Hardcoded for MVP)
-    const COSTS = {
-        'HOUSE': { gold: 100, gem: 0 },
-        'FACTORY': { gold: 500, gem: 0 },
-        'MINE': { gold: 300, gem: 0 },
-        'TURRET': { gold: 200, gem: 0 }
-    };
+    // --- LEGACY ENDPOINT (Deprecated, use /api/buildings/construct instead) ---
+    // Get building type from database
+    const buildingType = db.prepare('SELECT * FROM building_types WHERE code = ?').get(type);
+    if (!buildingType) {
+        return res.status(400).json({ error: "Invalid Building Type - not found in building_types" });
+    }
 
-    const cost = COSTS[type];
-    if (!cost) return res.status(400).json({ error: "Invalid Building Type" });
+    // Parse construction cost from database
+    const cost = JSON.parse(buildingType.construction_cost || '{}');
+    if (!cost.gold) {
+        return res.status(400).json({ error: "Building type has no defined construction cost" });
+    }
+
     const def = buildingDefs[type];
     if (!def) return res.status(400).json({ error: "Invalid Building Type" });
 
@@ -1071,28 +1074,26 @@ app.post('/api/diplomacy/requests/:requestId/approve', (req, res) => {
         // 2. Build the building
         // 3. Update Status
 
-        // Simplified Defs lookup (Duplicate code, should verify consistency)
-        const buildingDefs = {
-            'COMMAND_CENTER': { cost: { gold: 500, gem: 5 }, isTerritory: true },
-            'WAREHOUSE': { cost: { gold: 50, gem: 0 }, isTerritory: false },
-            'MINE': { cost: { gold: 100, gem: 0 }, isTerritory: false },
-            'FARM': { cost: { gold: 75, gem: 0 }, isTerritory: false },
-            'BARRACKS': { cost: { gold: 150, gem: 0 }, isTerritory: false },
-            'FACTORY': { cost: { gold: 200, gem: 0 }, isTerritory: false }
-        };
-        const def = buildingDefs[request.building_type];
+        // Get building type from database
+        const buildingType = db.prepare('SELECT * FROM building_types WHERE code = ?').get(request.building_type);
+        if (!buildingType) {
+            return res.status(404).json({ error: 'Building type not found in database' });
+        }
+
+        const cost = JSON.parse(buildingType.construction_cost || '{}');
+        const isTerritory = buildingType.is_territory_center === 1;
 
         // Transaction
         const tx = db.transaction(() => {
             // Check requester funds
             const resources = db.prepare('SELECT gold, gem FROM user_resources WHERE user_id = ?').get(request.requester_id);
-            if (resources.gold < def.cost.gold || resources.gem < def.cost.gem) {
+            if (resources.gold < (cost.gold || 0) || resources.gem < (cost.gem || 0)) {
                 throw new Error('Requester has insufficient funds');
             }
 
             // Pay
             db.prepare('UPDATE user_resources SET gold = gold - ?, gem = gem - ? WHERE user_id = ?')
-                .run(def.cost.gold, def.cost.gem, request.requester_id);
+                .run(cost.gold || 0, cost.gem || 0, request.requester_id);
 
             // Build
             db.prepare(`
@@ -2702,7 +2703,7 @@ app.post('/api/admin/spawn-free-npc', (req, res) => {
         db.prepare('UPDATE factions SET leader_id = ? WHERE id = ?').run(userId, factionId);
 
         // Give Resources (Increased from 5000 to 50000)
-        db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 50000, 1000);
+        db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 3000, 100);
 
         // 3. Determine Location
         let spawnX = lat;

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { CircleMarker, Popup } from "react-leaflet";
+import { Marker, Popup } from "react-leaflet";
+import L from "leaflet";
 
 interface Npc {
     cyborg_id: number;
@@ -63,22 +64,52 @@ export default function NpcCyborgMarkers({
         });
     }, [npcs, playerPosition, viewRangeKm, calculateDistance]);
 
+    // Create custom icon for NPC
+    const createNpcIcon = (color: string, npcType: string) => {
+        const emoji = npcType === 'ABSOLUTE' ? '👑' : '🤖';
+        return L.divIcon({
+            html: `
+                <div style="
+                    position: relative;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                ">
+                    <div style="
+                        position: absolute;
+                        width: 36px;
+                        height: 36px;
+                        background: ${color};
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 20px;
+                    ">
+                        ${emoji}
+                    </div>
+                </div>
+            `,
+            className: 'npc-cyborg-marker',
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+            popupAnchor: [0, -20]
+        });
+    };
+
     if (loading || visibleNpcs.length === 0) return null;
 
     return (
         <>
             {visibleNpcs.map(npc => (
-                <CircleMarker
+                <Marker
                     key={`npc-${npc.cyborg_id}`}
-                    center={[npc.lat, npc.lng]}
-                    radius={8}
-                    pathOptions={{
-                        fillColor: npc.faction_color,
-                        color: '#FFFFFF',
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.8
-                    }}
+                    position={[npc.lat, npc.lng]}
+                    icon={createNpcIcon(npc.faction_color, npc.npc_type)}
                 >
                     <Popup>
                         <div className="text-sm">
@@ -97,7 +128,7 @@ export default function NpcCyborgMarkers({
                             </div>
                         </div>
                     </Popup>
-                </CircleMarker>
+                </Marker>
             ))}
         </>
     );
