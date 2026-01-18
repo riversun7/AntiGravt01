@@ -430,9 +430,17 @@ class FreeNpcManager {
             return;
         }
 
+        // Get movement speed from DB (km/h)
+        const cyborg = db.prepare('SELECT movement_speed FROM character_cyborg WHERE user_id = ?').get(npc.id);
+        const speedKmh = (cyborg && cyborg.movement_speed) ? cyborg.movement_speed : 180; // Default 180 km/h
+        const speedKms = speedKmh / 3600;
+
         const [currentLat, currentLng] = currentPos;
         const distanceKm = this.getDistanceFromLatLonInKm(currentLat, currentLng, destLat, destLng);
-        const travelTimeSec = distanceKm / 0.05; // 0.05 km/s = 180 km/h
+
+        let travelTimeSec = distanceKm / speedKms;
+        if (travelTimeSec < 1) travelTimeSec = 1; // Minimum 1 second
+
         const arrivalTime = new Date(Date.now() + travelTimeSec * 1000);
 
         db.prepare(`
@@ -447,7 +455,7 @@ class FreeNpcManager {
             npc.id
         );
 
-        const msg = `Moving to (${destLat.toFixed(4)}, ${destLng.toFixed(4)}) - Dist: ${distanceKm.toFixed(2)}km, ETA: ${travelTimeSec.toFixed(0)}s`;
+        const msg = `Moving to (${destLat.toFixed(4)}, ${destLng.toFixed(4)}) - Dist: ${distanceKm.toFixed(2)}km, Speed: ${speedKmh}km/h, ETA: ${travelTimeSec.toFixed(0)}s`;
         console.log(`[FreeNPC] ${npc.faction_name} ${msg}`);
         this.logAction(npc, 'MOVE', msg);
     }

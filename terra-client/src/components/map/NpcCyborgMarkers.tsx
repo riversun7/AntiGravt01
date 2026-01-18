@@ -164,9 +164,14 @@ function InterpolatedNpcMarker({ npc, createIcon, onClick }: { npc: Npc, createI
         <Marker
             position={position}
             icon={createIcon(npc.faction_color, npc.npc_type)}
-            zIndexOffset={10000} // Ensure NPCs are always on top of buildings
+            zIndexOffset={1000000} // Ensure NPCs are always on top of buildings (very high z-index)
+            riseOnHover={true}
+            bubblingMouseEvents={false}
             eventHandlers={{
-                click: () => onClick?.(npc)
+                click: (e) => {
+                    L.DomEvent.stopPropagation(e as any);
+                    onClick?.(npc);
+                }
             }}
         >
             <Popup>
