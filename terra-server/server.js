@@ -2571,6 +2571,113 @@ app.get('/api/factions', (req, res) => {
     }
 });
 
+// Get NPC Cyborg Positions
+app.get('/api/npcs', (req, res) => {
+    try {
+        const { lat, lng, radius } = req.query;
+
+        let sql = `
+            SELECT 
+                cc.id as cyborg_id,
+                cc.user_id,
+                cc.name as cyborg_name,
+                cc.level,
+                u.username,
+                u.current_pos,
+                u.destination_pos,
+                u.npc_type,
+                f.name as faction_name,
+                f.color as faction_color,
+                f.id as faction_id
+            FROM character_cyborg cc
+            JOIN users u ON cc.user_id = u.id
+            LEFT JOIN factions f ON u.faction_id = f.id
+            WHERE u.npc_type IN ('ABSOLUTE', 'FREE')
+        `;
+
+        const npcs = db.prepare(sql).all();
+
+        // Parse GPS coordinates and filter by range if provided
+        const enriched = npcs.map(npc => {
+            // Parse current_pos (format: "lat_lng")
+            let lat_pos = null;
+            let lng_pos = null;
+
+            if (npc.current_pos && npc.current_pos !== '10_10') {
+                const parts = npc.current_pos.split('_');
+                if (parts.length === 2) {
+                    lat_pos = parseFloat(parts[0]);
+                    lng_pos = parseFloat(parts[1]);
+                }
+            }
+
+            // Parse destination if moving
+            let dest_lat = null;
+            let dest_lng = null;
+            if (npc.destination_pos) {
+                const dest_parts = npc.destination_pos.split('_');
+                if (dest_parts.length === 2) {
+                    dest_lat = parseFloat(dest_parts[0]);
+                    dest_lng = parseFloat(dest_parts[1]);
+                }
+            }
+
+            return {
+                cyborg_id: npc.cyborg_id,
+                user_id: npc.user_id,
+                cyborg_name: npc.cyborg_name,
+                level: npc.level,
+                username: npc.username,
+                lat: lat_pos,
+                lng: lng_pos,
+                destination: dest_lat && dest_lng ? { lat: dest_lat, lng: dest_lng } : null,
+                npc_type: npc.npc_type,
+                faction_name: npc.faction_name,
+                faction_color: npc.faction_color || '#CCCCCC',
+                faction_id: npc.faction_id
+            };
+        }).filter(npc => npc.lat !== null && npc.lng !== null); // Only return NPCs with valid GPS
+
+        // Spatial filtering if lat/lng/radius provided
+        if (lat && lng && radius) {
+            const centerLat = parseFloat(lat);
+            const centerLng = parseFloat(lng);
+            const rangeKm = parseFloat(radius);
+
+            const filtered = enriched.filter(npc => {
+                const dist = getDistanceFromLatLonInKm(npc.lat, npc.lng, centerLat, centerLng);
+                return dist <= rangeKm;
+            });
+
+            res.json({ npcs: filtered, total: enriched.length, filtered: filtered.length });
+        } else {
+            res.json({ npcs: enriched, total: enriched.length });
+        }
+
+    } catch (err) {
+        console.error('Get NPCs error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Helper function for distance calculation (add if not exists)
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+    var R = 6371; // Radius of the earth in km
+    var dLat = deg2rad(lat2 - lat1);
+    var dLon = deg2rad(lon2 - lon1);
+    var a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    var d = R * c; // Distance in km
+    return d;
+}
+
+function deg2rad(deg) {
+    return deg * (Math.PI / 180);
+}
+
 // Admin: Spawn Free NPC
 app.post('/api/admin/spawn-free-npc', (req, res) => {
     const { name, color, lat, lng } = req.body;
@@ -2618,11 +2725,14 @@ app.post('/api/admin/spawn-free-npc', (req, res) => {
             worldY = Math.round((spawnY - 127.0) / 0.1);
         }
 
-        // 4. Create COMMAND_CENTER (not AREA_BEACON)
+        // 4. Create COMMAND_CENTER (get radius from building_types)
+        const ccType = db.prepare('SELECT territory_radius FROM building_types WHERE code = ?').get('COMMAND_CENTER');
+        const ccRadius = ccType ? ccType.territory_radius : 3.0;
+
         db.prepare(`
             INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level)
-            VALUES (?, 'COMMAND_CENTER', ?, ?, ?, ?, 1, 3.0, 1)
-        `).run(userId, spawnX, spawnY, worldX, worldY);
+            VALUES (?, 'COMMAND_CENTER', ?, ?, ?, ?, 1, ?, 1)
+        `).run(userId, spawnX, spawnY, worldX, worldY, ccRadius);
 
         // 5. Create Cyborg Character
         db.prepare(`

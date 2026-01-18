@@ -124,10 +124,14 @@ class FreeNpcManager {
             db.transaction(() => {
                 db.prepare('UPDATE user_resources SET gold = gold - ? WHERE user_id = ?').run(cost, npc.id);
 
-                db.prepare(`
+                // Get AREA_BEACON radius from building_types
+                const beaconType = this.db.prepare('SELECT territory_radius FROM building_types WHERE code = ?').get('AREA_BEACON');
+                const beaconRadius = beaconType ? beaconType.territory_radius : 1.0;
+
+                this.db.prepare(`
                     INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius)
-                    VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, 5)
-                `).run(npc.id, destLat, destLng, destWorldX, destWorldY);
+                    VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, ?)
+                `).run(npc.id, destLat, destLng, destWorldX, destWorldY, beaconRadius);
 
                 // Update current position and clear movement
                 db.prepare(`

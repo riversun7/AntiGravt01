@@ -95,11 +95,14 @@ db.transaction(() => {
             const realX = 36.0 + (wx * 0.1);
             const realY = 127.0 + (wy * 0.1);
 
-            // Create COMMAND_CENTER (not AREA_BEACON)
+            // Create COMMAND_CENTER (get radius from building_types)
+            const ccType = db.prepare('SELECT territory_radius FROM building_types WHERE code = ?').get('COMMAND_CENTER');
+            const ccRadius = ccType ? ccType.territory_radius : 3.0;
+
             db.prepare(`
                  INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level)
-                 VALUES (?, 'COMMAND_CENTER', ?, ?, ?, ?, 1, 3.0, 1)
-             `).run(user.id, realX, realY, wx, wy);
+                 VALUES (?, 'COMMAND_CENTER', ?, ?, ?, ?, 1, ?, 1)
+             `).run(user.id, realX, realY, wx, wy, ccRadius);
             console.log(`- Established Command Center for ${f.name} at (${realX.toFixed(4)}, ${realY.toFixed(4)})`);
 
             // Create Cyborg Character

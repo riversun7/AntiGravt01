@@ -10,6 +10,7 @@ import PlayerMarker from "./PlayerMarker";
 import BuildingMarkers from "./BuildingMarkers";
 import SelectedPointMarker from "./SelectedPointMarker";
 import PathOverlay from "./PathOverlay";
+import NpcCyborgMarkers from "./NpcCyborgMarkers";
 
 interface GeolocationState {
     loading: boolean;
@@ -176,6 +177,13 @@ export default function TerrainMapContent({
                     setSelectedBuilding(b);
                     setSelectedTile(null);
                 }}
+            />
+
+            {/* NPC Cyborg Markers */}
+            <NpcCyborgMarkers
+                playerPosition={playerPosition}
+                viewRangeKm={isAdmin ? 99999 : 10}
+                calculateDistance={calculateDistance}
             />
 
             {/* Foreign Territory Markers */}
