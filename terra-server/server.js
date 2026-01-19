@@ -429,16 +429,16 @@ const MARKET_UPDATE_INTERVAL = 60000; // 1 minute (Legacy constant, kept for ref
 
 // Global System Configuration
 let SYSTEM_CONFIG = {
-    market_fluctuation: true,
+    market_fluctuation: false,       // Default: Inactive
     market_interval: 60000,         // 60s
-    production_active: true,
-    production_interval: 30000,      // 30s
-    npc_activity: true,
-    npc_interval: 5000,              // 5s
-    npc_position_update_interval: 30, // NEW: 30s (in seconds, not ms)
-    faction_active: true,
-    faction_interval: 60000,         // 60s
-    client_poll_interval: 5000       // Client auto-refresh interval
+    production_active: false,       // Default: Inactive
+    production_interval: 60000,     // 60s
+    npc_activity: false,            // Default: Inactive
+    npc_interval: 60000,            // 60s
+    npc_position_update_interval: 60, // 60s
+    faction_active: false,          // Default: Inactive
+    faction_interval: 60000,        // 60s
+    client_poll_interval: 60000     // 60s
 };
 
 // Export config globally for NPC managers
@@ -1240,6 +1240,7 @@ app.post('/api/production/collect', (req, res) => {
 // Admin APIs
 
 app.get('/api/admin/users', (req, res) => {
+    res.set('Cache-Control', 'no-store');
     try {
         const users = db.prepare(`
             SELECT u.*, 
@@ -3394,6 +3395,7 @@ app.post('/api/buildings/:buildingId/pay-maintenance', (req, res) => {
 // ----------------------------------------------------------------------
 // ADMIN: User Management
 // ----------------------------------------------------------------------
+/* DUPLICATE ROUTE - COMMENTED OUT 
 app.get('/api/admin/users', (req, res) => {
     try {
         const users = db.prepare(`
@@ -3410,6 +3412,7 @@ app.get('/api/admin/users', (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+*/
 
 app.post('/api/admin/users/:id/update', (req, res) => {
     const userId = req.params.id;
@@ -3434,10 +3437,11 @@ app.post('/api/admin/users/:id/update', (req, res) => {
 // ADMIN: NPC Management
 // ----------------------------------------------------------------------
 app.get('/api/admin/npcs', (req, res) => {
+    res.set('Cache-Control', 'no-store');
     try {
         // Fix: Group By user.id to prevent duplicates when NPC has multiple territories
         const npcs = db.prepare(`
-            SELECT u.id, u.username, u.npc_type, 
+            SELECT u.id, u.username, u.npc_type, u.cyborg_model,
                    ub.id as building_id, ub.x, ub.y, ub.custom_boundary, ub.territory_radius
             FROM users u
             LEFT JOIN user_buildings ub ON u.id = ub.user_id AND ub.is_territory_center = 1
@@ -3476,13 +3480,13 @@ app.post('/api/admin/seed-factions', (req, res) => {
     try {
         console.log('Seeding NPC Factions via Admin API...');
         const factions = [
-            { name: 'The Empire (NPC)', username: 'empire_npc', desc: 'Global Hegemony', color: '#FF0000' },
-            { name: 'Republic of Korea (NPC)', username: 'rok_npc', desc: 'Peninsula Defenders', color: '#0000FF' },
-            { name: 'Neo Tokyo (NPC)', username: 'japan_npc', desc: 'Tech Giants', color: '#FFFF00' },
-            { name: 'Dragon Dynasty (NPC)', username: 'china_npc', desc: 'Eastern Power', color: '#FF0000' },
-            { name: 'Liberty Union (NPC)', username: 'usa_npc', desc: 'Western Alliance', color: '#0000FF' },
-            { name: 'European Federation (NPC)', username: 'eu_npc', desc: 'Old World Coalition', color: '#00FF00' },
-            { name: 'Slavic Bloc (NPC)', username: 'ru_npc', desc: 'Northern Bears', color: '#FF00FF' }
+            { name: 'The Empire (NPC)', username: 'empire_npc', desc: 'Global Hegemony', color: '#FF0000', model: 'COMMANDER', stats: { strength: 20, dexterity: 15, constitution: 20, intelligence: 15, wisdom: 15, agility: 10 } },
+            { name: 'Republic of Korea (NPC)', username: 'rok_npc', desc: 'Peninsula Defenders', color: '#0000FF', model: 'BUILDER', stats: { strength: 15, dexterity: 10, constitution: 20, intelligence: 15, wisdom: 10, agility: 10 } },
+            { name: 'Neo Tokyo (NPC)', username: 'japan_npc', desc: 'Tech Giants', color: '#FFFF00', model: 'EXPLORER', stats: { strength: 10, dexterity: 20, constitution: 10, intelligence: 20, wisdom: 15, agility: 15 } },
+            { name: 'Dragon Dynasty (NPC)', username: 'china_npc', desc: 'Eastern Power', color: '#FF0000', model: 'COMMANDER', stats: { strength: 18, dexterity: 12, constitution: 18, intelligence: 12, wisdom: 12, agility: 12 } },
+            { name: 'Liberty Union (NPC)', username: 'usa_npc', desc: 'Western Alliance', color: '#0000FF', model: 'COMMANDER', stats: { strength: 15, dexterity: 15, constitution: 15, intelligence: 15, wisdom: 15, agility: 15 } },
+            { name: 'European Federation (NPC)', username: 'eu_npc', desc: 'Old World Coalition', color: '#00FF00', model: 'EXPLORER', stats: { strength: 12, dexterity: 12, constitution: 12, intelligence: 18, wisdom: 18, agility: 12 } },
+            { name: 'Slavic Bloc (NPC)', username: 'ru_npc', desc: 'Northern Bears', color: '#FF00FF', model: 'BUILDER', stats: { strength: 20, dexterity: 10, constitution: 20, intelligence: 10, wisdom: 10, agility: 10 } }
         ];
 
         const capitals = [
@@ -3498,18 +3502,79 @@ app.post('/api/admin/seed-factions', (req, res) => {
         ];
 
         db.transaction(() => {
-            // 1. Update/Create Users with NPC Type
+            // 1. Update/Create Users with NPC Type, Model, and Stats
             for (const f of factions) {
                 let user = db.prepare('SELECT id FROM users WHERE username = ?').get(f.username);
                 if (!user) {
-                    const info = db.prepare('INSERT INTO users (username, password, npc_type) VALUES (?, ?, ?)')
-                        .run(f.username, 'npc_password', 'ABSOLUTE');
+                    const info = db.prepare('INSERT INTO users (username, password, npc_type, cyborg_model) VALUES (?, ?, ?, ?)')
+                        .run(f.username, 'npc_password', 'ABSOLUTE', f.model);
                     user = { id: info.lastInsertRowid };
                     db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(user.id, 999999, 999999);
                 } else {
-                    db.prepare('UPDATE users SET npc_type = \'ABSOLUTE\' WHERE id = ?').run(user.id);
+                    db.prepare('UPDATE users SET npc_type = \'ABSOLUTE\', cyborg_model = ? WHERE id = ?').run(f.model, user.id);
                 }
+
+                // Update/Create Faction in 'factions' table & Link User
+                let factionEntry = db.prepare('SELECT id FROM factions WHERE name = ?').get(f.name);
+                if (!factionEntry) {
+                    const fInfo = db.prepare('INSERT INTO factions (name, description, color, type, leader_id) VALUES (?, ?, ?, ?, ?)')
+                        .run(f.name, f.desc, f.color, 'ABSOLUTE', user.id);
+                    factionEntry = { id: fInfo.lastInsertRowid };
+                } else {
+                    db.prepare('UPDATE factions SET leader_id = ?, color = ?, description = ?, type = ? WHERE id = ?')
+                        .run(user.id, f.color, f.desc, 'ABSOLUTE', factionEntry.id);
+                }
+                // Link User to Faction (Rank 2 = Leader) - Critical for AI
+                db.prepare('UPDATE users SET faction_id = ?, faction_rank = 2 WHERE id = ?').run(factionEntry.id, user.id);
+
                 f.id = user.id;
+
+                // Update/Insert Stats
+                const statsExist = db.prepare('SELECT user_id FROM user_stats WHERE user_id = ?').get(user.id);
+                if (statsExist) {
+                    db.prepare(`
+                        UPDATE user_stats 
+                        SET strength = ?, dexterity = ?, constitution = ?, intelligence = ?, wisdom = ?, agility = ? 
+                        WHERE user_id = ?
+                    `).run(f.stats.strength, f.stats.dexterity, f.stats.constitution, f.stats.intelligence, f.stats.wisdom, f.stats.agility, user.id);
+                } else {
+                    // Check if user_stats table exists (it might be removed in some envs but UI relies on it)
+                    try {
+                        db.prepare(`
+                            INSERT INTO user_stats (user_id, strength, dexterity, constitution, intelligence, wisdom, agility)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        `).run(user.id, f.stats.strength, f.stats.dexterity, f.stats.constitution, f.stats.intelligence, f.stats.wisdom, f.stats.agility);
+                    } catch (e) {
+                        console.warn('Could not insert user_stats for NPC (maybe table missing):', e.message);
+                    }
+                }
+
+                // Update/Insert Character Cyborg (For Active Admin API)
+                const charExist = db.prepare('SELECT user_id FROM character_cyborg WHERE user_id = ?').get(user.id);
+                // HP = con * 10 + str * 5, MP = wis * 8 + int * 6
+                const hp = (f.stats.constitution * 10) + (f.stats.strength * 5);
+                const mp = (f.stats.wisdom * 8) + (f.stats.intelligence * 6);
+
+                // Generate distinct name based on faction
+                const displayName = f.name.replace(' (NPC)', '');
+                const cyborgName = `${displayName} Commander`;
+
+                if (charExist) {
+                    db.prepare(`
+                        UPDATE character_cyborg 
+                        SET name = ?, strength = ?, dexterity = ?, constitution = ?, intelligence = ?, wisdom = ?, agility = ?, hp = ?, mp = ?
+                        WHERE user_id = ?
+                    `).run(cyborgName, f.stats.strength, f.stats.dexterity, f.stats.constitution, f.stats.intelligence, f.stats.wisdom, f.stats.agility, hp, mp, user.id);
+                } else {
+                    try {
+                        db.prepare(`
+                            INSERT INTO character_cyborg (user_id, name, strength, dexterity, constitution, intelligence, wisdom, agility, hp, mp)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `).run(user.id, cyborgName, f.stats.strength, f.stats.dexterity, f.stats.constitution, f.stats.intelligence, f.stats.wisdom, f.stats.agility, hp, mp);
+                    } catch (e) {
+                        console.warn('Could not insert character_cyborg for NPC:', e.message);
+                    }
+                }
             }
 
             // 2. Update Capitals (Command Centers)
@@ -3540,12 +3605,16 @@ app.post('/api/admin/seed-factions', (req, res) => {
 
                 if (!exists) {
                     insertBldg.run(faction.id, c.x, c.y, c.radius, boundary);
+                    // Also move the Cyborg to the capital
+                    db.prepare('UPDATE users SET current_pos = ? WHERE id = ?').run(`${c.x}_${c.y}`, faction.id);
                 } else {
                     if (boundary) {
                         updateBoundary.run(boundary, exists.id);
                     } else {
                         updateRadius.run(c.radius, exists.id);
                     }
+                    // Reset Cyborg to capital
+                    db.prepare('UPDATE users SET current_pos = ? WHERE id = ?').run(`${c.x}_${c.y}`, faction.id);
                 }
             }
         })();

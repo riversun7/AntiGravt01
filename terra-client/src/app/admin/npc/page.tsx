@@ -7,6 +7,7 @@ interface NPC {
     id: number;
     username: string;
     npc_type: 'ABSOLUTE' | 'FREE' | 'NONE';
+    cyborg_model?: string;
     building_id?: number;
     x?: number;
     y?: number;
@@ -34,7 +35,7 @@ export default function NPCAdminPage() {
     const fetchNPCs = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/admin/npcs');
+            const res = await fetch(`/api/admin/npcs?_t=${Date.now()}`);
             const data = await res.json();
             setNpcs(data.npcs || []);
         } catch (e) {
@@ -128,6 +129,7 @@ export default function NPCAdminPage() {
                                 <th className="p-4 border-b border-slate-700">ID</th>
                                 <th className="p-4 border-b border-slate-700">Username</th>
                                 <th className="p-4 border-b border-slate-700">Type</th>
+                                <th className="p-4 border-b border-slate-700">Model</th>
                                 <th className="p-4 border-b border-slate-700">Territory Center</th>
                                 <th className="p-4 border-b border-slate-700">Boundary</th>
                                 <th className="p-4 border-b border-slate-700">Actions</th>
@@ -147,6 +149,11 @@ export default function NPCAdminPage() {
                                                 'bg-slate-800 text-slate-400'
                                             }`}>
                                             {npc.npc_type}
+                                        </span>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className="text-xs font-mono text-cyan-300">
+                                            {npc.cyborg_model || '-'}
                                         </span>
                                     </td>
                                     <td className="p-4">
@@ -175,7 +182,7 @@ export default function NPCAdminPage() {
                             ))}
                             {npcs.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="p-8 text-center text-slate-500">No NPC Factions found.</td>
+                                    <td colSpan={7} className="p-8 text-center text-slate-500">No NPC Factions found.</td>
                                 </tr>
                             )}
                         </tbody>

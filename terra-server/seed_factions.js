@@ -1,5 +1,6 @@
 const path = require('path');
 const db = require('./database');
+const UserFactory = require('./src/factories/UserFactory');
 
 console.log('Connected to database via module');
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
@@ -41,25 +42,29 @@ db.transaction(() => {
             console.log(`Created Absolute Faction: ${f.name}`);
         }
 
-        // Check/Create Leader User
+        // Check/Create Leader User via Factory
         let user = db.prepare('SELECT id FROM users WHERE username = ?').get(f.username);
-        const personality = f.personality || 'Balanced';
-        const tech = f.tech || 'Balanced';
 
         if (!user) {
-            const info = db.prepare('INSERT INTO users (username, password, npc_type, personality, tech_focus, faction_id, faction_rank) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                .run(f.username, 'npc_password', 'ABSOLUTE', personality, tech, faction.id, 2); // Rank 2 = Leader
-            user = { id: info.lastInsertRowid };
-            console.log(`Created Leader User: ${f.username}`);
-            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(user.id, 999999, 999999);
+            user = UserFactory.create({
+                username: f.username,
+                password: 'npc_password',
+                npcType: 'ABSOLUTE',
+                factionId: faction.id,
+                factionRank: 2, // Leader
+                resources: { gold: 999999, gem: 999999 },
+                // Location is set later by capitals loop or ignored for now
+                location: { x: 0, y: 0, world_x: 0, world_y: 0 }
+            });
+            console.log(`Created Leader User: ${f.username} (ID: ${user.id})`);
         } else {
-            // Update existing NPC
+            // Update existing NPC to ensure faction link
             db.prepare('UPDATE users SET faction_id = ?, faction_rank = 2, npc_type = \'ABSOLUTE\' WHERE id = ?').run(faction.id, user.id);
         }
 
         // Link Leader to Faction
         db.prepare('UPDATE factions SET leader_id = ? WHERE id = ?').run(user.id, faction.id);
-        f.id = user.id; // Keep user ID for building ownership
+        f.id = user.id;
     }
 
     // 2. Seed Free Factions (Wanderers/Warlords)
@@ -82,40 +87,24 @@ db.transaction(() => {
         // Leader User
         let user = db.prepare('SELECT id FROM users WHERE username = ?').get(f.username);
         if (!user) {
-            const info = db.prepare('INSERT INTO users (username, password, npc_type, personality, tech_focus, faction_id, faction_rank) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                .run(f.username, 'npc_password', 'FREE', f.personality, f.tech, faction.id, 2);
-            user = { id: info.lastInsertRowid };
-
-            // Give resources & Outpost
-            db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(user.id, 3000, 100);
-
             // Random location (converted to ~Korea region)
             const wx = Math.floor(Math.random() * 20) - 10;
             const wy = Math.floor(Math.random() * 20) - 10;
             const realX = 36.0 + (wx * 0.1);
             const realY = 127.0 + (wy * 0.1);
 
-            // Create COMMAND_CENTER (get radius from building_types)
-            const ccType = db.prepare('SELECT territory_radius FROM building_types WHERE code = ?').get('COMMAND_CENTER');
-            const ccRadius = ccType ? ccType.territory_radius : 3.0;
-
-            db.prepare(`
-                 INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, level)
-                 VALUES (?, 'COMMAND_CENTER', ?, ?, ?, ?, 1, ?, 1)
-             `).run(user.id, realX, realY, wx, wy, ccRadius);
-            console.log(`- Established Command Center for ${f.name} at (${realX.toFixed(4)}, ${realY.toFixed(4)})`);
-
-            // Create Cyborg Character
-            db.prepare(`
-                INSERT INTO character_cyborg (user_id, name, level, strength, dexterity, constitution, agility, intelligence, wisdom, hp, mp)
-                VALUES (?, ?, 1, 15, 15, 15, 15, 15, 15, 225, 210)
-            `).run(user.id, `${f.name} Commander`);
-            console.log(`- Created Cyborg Commander for ${f.name}`);
-
-            // Set initial GPS position to match command center
-            db.prepare('UPDATE users SET current_pos = ? WHERE id = ?')
-                .run(`${realX}_${realY}`, user.id);
-            console.log(`- Set initial GPS to ${realX.toFixed(4)}, ${realY.toFixed(4)}`);
+            // Create via Factory (Includes User, Cyborg, Resources, AND Initial Building)
+            user = UserFactory.create({
+                username: f.username,
+                password: 'npc_password',
+                npcType: 'FREE',
+                factionId: faction.id,
+                factionRank: 2,
+                location: { x: realX, y: realY, world_x: wx, world_y: wy },
+                resources: { gold: 3000, gem: 100 },
+                initialBuilding: { code: 'COMMAND_CENTER' }
+            });
+            console.log(`- Created Free Faction Leader & Base: ${f.username} at (${realX.toFixed(4)}, ${realY.toFixed(4)})`);
 
         } else {
             db.prepare('UPDATE users SET faction_id = ?, faction_rank = 2, npc_type = \'FREE\' WHERE id = ?').run(faction.id, user.id);

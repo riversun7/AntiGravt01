@@ -20,7 +20,7 @@ export function useGeolocation(options: GeolocationOptions = {}) {
     const {
         watch = true,
         enableHighAccuracy = true,
-        timeout = 10000,
+        timeout = 20000,
         maximumAge = 0
     } = options;
 
@@ -74,11 +74,13 @@ export function useGeolocation(options: GeolocationOptions = {}) {
                     break;
             }
 
+            const isFatal = error.code === error.PERMISSION_DENIED;
+
             setState(prev => ({
                 ...prev,
                 error: errorMessage,
                 loading: false,
-                watching: false,
+                watching: watch && !isFatal, // Only stop watching if fatal
             }));
         };
 
