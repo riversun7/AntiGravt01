@@ -128,7 +128,7 @@ export default function NpcCyborgMarkers({
 // Separate component for interpolated movement
 function InterpolatedNpcMarker({ npc, createIcon, onClick }: { npc: Npc, createIcon: (c: string, t: string) => L.DivIcon, onClick?: (n: Npc) => void }) {
     // Calculate position using useMemo instead of requestAnimationFrame
-    const position = useMemo(() => {
+    const position: [number, number] = useMemo(() => {
         // Validate position data first
         if (!npc.lat || !npc.lng || isNaN(npc.lat) || isNaN(npc.lng)) {
             console.error('[NPC MARKER] Invalid position data for', npc.cyborg_name);
@@ -160,12 +160,12 @@ function InterpolatedNpcMarker({ npc, createIcon, onClick }: { npc: Npc, createI
 
         // If journey hasn't started yet
         if (now < start) {
-            return [npc.start_pos.lat, npc.start_pos.lng];
+            return [npc.start_pos.lat, npc.start_pos.lng] as [number, number];
         }
 
         // If journey has ended
         if (now >= end) {
-            return [npc.destination.lat, npc.destination.lng];
+            return [npc.destination.lat, npc.destination.lng] as [number, number];
         }
 
         // Calculate interpolated position
