@@ -1,3 +1,16 @@
+/**
+ * @file PathfindingService.js
+ * @description 유닛의 이동 경로 유효성을 검사하고 장애물을 판별하는 서비스입니다.
+ * @role 경로 검증(Validation), 지형 및 영토 충돌 체크
+ * @dependencies TerrainManager, database
+ * @referenced_by server.js (이동 API)
+ * @status Active
+ * @analysis 
+ * - Grid 기반 A* 알고리즘이 아니라, 출발지-목적지 직선 경로 상의 샘플링(Sampling) 방식을 사용합니다.
+ * - "Grid-less" 방식은 자유로운 이동을 허용하지만, 복잡한 지형에서의 길찾기(Pathfinding) 능력은 부족합니다.
+ * - 경로 중간에 장애물이 있으면 실패 처리되므로, 향후 A* 등의 알고리즘 도입이 필요할 수 있습니다.
+ */
+
 const TerrainManager = require('./TerrainManager');
 
 class PathfindingService {
@@ -7,16 +20,18 @@ class PathfindingService {
     }
 
     /**
-     * Validate a path defined by user clicks.
-     * Checks for obstacles along the direct line segments.
-     * "Grid-less" - uses purely Lat/Lng sampling.
-     * 
-     * @param {number} startLat 
-     * @param {number} startLng 
-     * @param {number} endLat 
-     * @param {number} endLng 
-     * @param {Array} waypoints 
-     * @returns {Promise<Object>}
+     * @function findPath
+     * @description 출발지에서 목적지로의 경로가 유효한지 검증하고 최종 경로를 반환합니다.
+     * @param {number} startLat - 출발 위도
+     * @param {number} startLng - 출발 경도
+     * @param {number} endLat - 도착 위도
+     * @param {number} endLng - 도착 경도
+     * @param {Array} waypoints - 경유지 (현재는 주로 빈 배열)
+     * @param {number|null} userId - 이동 주체 사용자 ID (영토 통행 권한 확인용)
+     * @returns {Promise<Object>} { success, path, error? }
+     * @analysis 
+     * - BATCH OPTIMIZATION: 경로 전체를 1km 단위로 샘플링하여 한 번에 지형/영토 정보를 조회합니다.
+     * - 영토 권한 체크: 타인의 영토(Territory Center 반경 내) 진입 시 권한이 없으면 이동을 차단합니다.
      */
     async findPath(startLat, startLng, endLat, endLng, waypoints = [], userId = null) {
         console.log(`[Pathfinding] Validating direct path...`);

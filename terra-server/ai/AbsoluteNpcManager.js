@@ -1,3 +1,15 @@
+/**
+ * @file AbsoluteNpcManager.js
+ * @description '절대자(Absolute)' 세력의 AI 로직을 관리하는 매니저입니다.
+ * @role NPC 세력의 경제 활동, 병력 운용, 영토 방어 및 순찰
+ * @dependencies database
+ * @referenced_by server.js (NPC Loop)
+ * @status Active
+ * @analysis 
+ * - 절대자 세력은 플레이어와 대립하거나 강력한 NPC 제국을 형성합니다.
+ * - 현재 `manageDefense` 등 일부 로직은 플레이스홀더(Placeholder) 상태입니다.
+ */
+
 const db = require('../database');
 
 class AbsoluteNpcManager {
@@ -10,6 +22,11 @@ class AbsoluteNpcManager {
         this.lastPositionUpdate = null;
     }
 
+    /**
+     * @function run
+     * @description 주기적으로 실행되는 메인 루프입니다.
+     * @role 이동 중인 NPC 위치 업데이트 및 각 NPC 개별 행동(도착 확인, 방어, 경제, 이동) 처리
+     */
     run() {
         console.log('[AbsoluteNPC] Running Absolute Faction Logic...');
 

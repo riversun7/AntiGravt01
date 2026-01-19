@@ -1,6 +1,20 @@
 const db = require('../../database');
 
 /**
+ * @file UserFactory.js
+ * @description 사용자와 그 부속 데이터(자원, 스탯, 사이보그, 초기 건물)를 원자적(Atomic)으로 생성하는 팩토리 클래스입니다.
+ * @role 데이터 무결성을 보장하며 복잡한 사용자 생성 프로세스를 캡슐화
+ * @dependencies database
+ * @referenced_by seed_factions.js, seed_rival.js, server.js (회원가입/로그인 등에서 사용 권장)
+ * @status Active
+ * @analysis 
+ * - DB 트랜잭션을 사용하여 모든 관련 레코드가 동시에 생성되거나, 실패 시 롤백되도록 보장합니다.
+ * - `user_stats` 테이블과 `character_cyborg` 테이블 간의 데이터 중복이 보이며, 이는 추후 통합 모델로 리팩토링할 필요가 있습니다.
+ */
+
+const db = require('../../database');
+
+/**
  * @class UserFactory
  * @description
  * Creates a User and all their required dependencies atomically.
@@ -8,17 +22,19 @@ const db = require('../../database');
  */
 class UserFactory {
     /**
-     * Creates a full user entity with cyborg, resources, and optional building.
-     * @param {Object} params
-     * @param {string} params.username - Unique username
-     * @param {string} params.password - Default: '1234'
-     * @param {string} params.npcType - 'NONE' (Player), 'ABSOLUTE', 'FREE'
-     * @param {string} params.role - 'user' or 'admin'
-     * @param {number|null} params.factionId - Optional faction ID
-     * @param {Object} params.location - { x, y, world_x, world_y }
-     * @param {Object} params.resources - { gold, gem }
-     * @param {Object} params.initialBuilding - Optional { code, radius }
-     * @returns {Object} Created User Object
+     * @function create
+     * @description 사용자 엔티티를 생성하고 관련 자원, 캐릭터, 건물을 초기화합니다.
+     * @param {Object} params - 생성 파라미터
+     * @param {string} params.username - 아이디 (Unique)
+     * @param {string} params.password - 비밀번호 (Default: '1234')
+     * @param {string} params.npcType - NPC 타입 ('NONE', 'ABSOLUTE', 'FREE')
+     * @param {Object} params.location - 초기 위치
+     * @param {Object} params.resources - 초기 자원
+     * @param {Object} params.initialBuilding - 초기 건물 (옵션)
+     * @returns {Object} 생성된 사용자 객체 ({ id, username })
+     * @analysis 
+     * - `user_stats`는 향후 제거될 예정(Legacy)이나 호환성을 위해 유지되고 있습니다.
+     * - 건물 생성 시 `building_types` 테이블을 참조하여 유효성을 검증하는 소프트 체크(Soft Check)가 포함되어 있습니다.
      */
     static create({
         username,
@@ -27,6 +43,8 @@ class UserFactory {
         role = 'user',
         factionId = null,
         factionRank = 0,
+        cyborgModel = 'COMMANDER', // Default model
+        stats = null, // Optional custom stats { strength, dexterity ... }
         location = { x: 0, y: 0, world_x: 0, world_y: 0 },
         resources = { gold: 1000, gem: 10 },
         initialBuilding = null // e.g. { code: 'COMMAND_CENTER' }
@@ -40,9 +58,9 @@ class UserFactory {
             const insertUser = db.prepare(`
                 INSERT INTO users (
                     username, password, role, npc_type, 
-                    faction_id, faction_rank,
+                    faction_id, faction_rank, cyborg_model,
                     current_pos, start_pos, destination_pos
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
             const posStr = `${location.x}_${location.y}`;
@@ -53,6 +71,7 @@ class UserFactory {
                 npcType,
                 factionId,
                 factionRank,
+                cyborgModel,
                 posStr, posStr, posStr // Init movement vars
             );
             userId = info.lastInsertRowid;
@@ -63,24 +82,37 @@ class UserFactory {
             `);
             insertRes.run(userId, resources.gold, resources.gem);
 
-            // 3. Create Cyborg (REQUIRED)
-            // Default stats for a new cyborg
-            const baseStats = { str: 10, dex: 10, con: 10, int: 10, wis: 10 };
-            const hp = baseStats.con * 10 + baseStats.str * 5;
-            const mp = baseStats.wis * 8 + baseStats.int * 6;
+            // 3. Create Cyborg & Stats
+            // Default stats for a new cyborg if not provided
+            const baseStats = stats || { strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, agility: 10 };
+
+            // Insert into user_stats (important for UI/Logic consistency)
+            try {
+                const insertStats = db.prepare(`
+                    INSERT INTO user_stats (
+                        user_id, strength, dexterity, constitution, intelligence, wisdom, agility
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                `);
+                insertStats.run(userId, baseStats.strength, baseStats.dexterity, baseStats.constitution, baseStats.intelligence, baseStats.wisdom, baseStats.agility);
+            } catch (e) {
+                console.warn('[UserFactory] Failed to insert user_stats (might be missing table or duplicate):', e.message);
+            }
+
+            const hp = (baseStats.constitution * 10) + (baseStats.strength * 5);
+            const mp = (baseStats.wisdom * 8) + (baseStats.intelligence * 6);
 
             const insertCyborg = db.prepare(`
                 INSERT INTO character_cyborg (
                     user_id, name, 
-                    strength, dexterity, constitution, intelligence, wisdom,
+                    strength, dexterity, constitution, intelligence, wisdom, agility,
                     hp, mp, movement_speed, vision_range
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
             insertCyborg.run(
                 userId,
                 `${username}'s Cyborg`, // Default name
-                baseStats.str, baseStats.dex, baseStats.con, baseStats.int, baseStats.wis,
+                baseStats.strength, baseStats.dexterity, baseStats.constitution, baseStats.intelligence, baseStats.wisdom, baseStats.agility,
                 hp, mp,
                 0.1, // Default speed
                 10.0 // Default vision

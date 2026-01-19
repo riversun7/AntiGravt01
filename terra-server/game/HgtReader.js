@@ -2,6 +2,18 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * @file HgtReader.js
+ * @description SRTM HGT 포맷(지형 고도 데이터) 파일 리더입니다.
+ * @role HGT 바이너리 파일 파싱 및 고도 추출
+ * @dependencies fs, path
+ * @referenced_by ElevationService.js
+ * @status Active
+ * @analysis 
+ * - Big-Endian 16-bit Signed Integer 포맷을 직접 읽어 처리합니다.
+ * - 파일 읽기 시 Sync 방식을 사용하므로 대량 요청 시 이벤트 루프 블로킹 주의가 필요하지만, 현재는 캐싱(Map)으로 완화하고 있습니다.
+ * - 2.8MB(SRTM3) 파일 크기는 메모리에 캐싱해도 부담이 적습니다.
+ */
+/**
  * HGT Reader for SRTM Data (SRTM1 or SRTM3).
  * SRTM files are named NxxEyyy.hgt.
  * Data is signed 16-bit integer, big-endian.
@@ -31,10 +43,14 @@ class HgtReader {
     }
 
     /**
-     * Get elevation at lat/lng.
-     * @param {number} lat 
-     * @param {number} lng 
-     * @returns {number|null} Elevation in meters, or null if file not found.
+     * @function getElevation
+     * @description 특정 위경도의 고도를 HGT 파일에서 추출합니다.
+     * @param {number} lat - 위도
+     * @param {number} lng - 경도
+     * @returns {number|null} 고도(m) 또는 파일 없음 시 null
+     * @analysis 
+     * - 파일명을 위경도 기반으로 계산하여 매핑합니다. (예: N37E127.hgt)
+     * - `readFromBuffer`를 통해 바이너리 오프셋을 계산합니다.
      */
     getElevation(lat, lng) {
         const floorLat = Math.floor(lat);

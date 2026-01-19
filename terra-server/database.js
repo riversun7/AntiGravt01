@@ -1,8 +1,20 @@
+/**
+ * @file database.js
+ * @description SQLite 데이터베이스 연결 및 스키마 초기화를 담당하는 모듈입니다.
+ * @role DB 연결, 테이블 생성, 마이그레이션(컬럼 추가), 초기 데이터 시딩(Seeding)
+ * @dependencies better-sqlite3, fs, path
+ * @referenced_by server.js 및 각종 스크립트 파일
+ * @status Active
+ * @analysis 
+ * - `initSchema` 함수 내에서 `CREATE TABLE`과 `ALTER TABLE`(마이그레이션)을 모두 수행하고 있습니다.
+ * - 프로젝트 규모가 커짐에 따라 마이그레이션 로직을 별도 파일이나 도구(e.g., node-pg-migrate, sequelize-cli)로 분리하는 것이 좋습니다.
+ * - `chmod 777`은 Docker/NAS 환경 이슈 해결을 위한 임시방편으로 보안 위험이 있습니다.
+ */
+
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure db directory exists and has write permissions
 // Ensure db directory exists and has write permissions
 // Default to terra-data/db for consistency with Docker and project structure
 const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, '..', 'terra-data', 'db');
@@ -26,6 +38,14 @@ if (!path.isAbsolute(dbPath)) {
 const db = new Database(dbPath);
 
 // Initialize Schema
+/**
+ * @function initSchema
+ * @description DB 테이블을 생성하고 필요한 경우 컬럼을 추가(마이그레이션)하며, 초기 데이터를 시딩합니다.
+ * @role 스키마 관리 메인 함수
+ * @analysis 
+ * - 함수가 매우 비대해졌습니다 (1000라인+). 테이블별 생성 로직을 분리하는 리팩토링이 시급합니다.
+ * - 마이그레이션 코드가 `PRAGMA table_info`를 확인하는 방식으로 수동 구현되어 있어 누락 가능성이 있습니다.
+ */
 function initSchema() {
     const createUsersTable = `
     CREATE TABLE IF NOT EXISTS users (

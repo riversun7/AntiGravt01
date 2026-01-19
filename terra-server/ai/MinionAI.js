@@ -1,3 +1,15 @@
+/**
+ * @file MinionAI.js
+ * @description 개별 미니언(유닛)의 행동 상태 로직을 관리합니다.
+ * @role 미니언의 생체/기계적 욕구(배고픔, 피로, 배터리)에 따른 행동 결정 (Finite State Machine 유사)
+ * @dependencies ResourceType
+ * @referenced_by server.js (Minion Tick)
+ * @status Active
+ * @analysis 
+ * - Rule-based 시스템으로 구현되어 있습니다.
+ * - 우선순위(priority) 기반으로 행동(EAT, REST, RECHARGE, GATHER)을 결정합니다.
+ */
+
 // Minion AI Engine - Rule-based decision making
 const { ResourceType } = require('../types/ResourceTypes');
 
@@ -6,7 +18,16 @@ class MinionAI {
         this.db = db;
     }
 
-    // Decide what action a minion should take based on its state
+    /**
+     * @function decideBehavior
+     * @description 미니언의 상태를 분석하여 가장 시급한 행동을 반환합니다.
+     * @param {Object} minion - 미니언 객체
+     * @returns {Object} { action, priority, reason }
+     * @analysis 
+     * - 인간/생물형: 배고픔(Hunger), 스태미나(Stamina) 체크
+     * - 안드로이드형: 배터리(Battery) 체크
+     * - 공통: 피로(Fatigue) 체크
+     */
     decideBehavior(minion) {
         // Parse preferences
         const prefs = JSON.parse(minion.preferences || '{}');

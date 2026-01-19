@@ -1,3 +1,15 @@
+/**
+ * @file seed_factions.js
+ * @description 게임 초기화를 위한 NPC 세력(Factions) 및 주요 도시(Capitals) 시딩 스크립트입니다.
+ * @role 초기 DB 데이터 생성 (Absolute Factions, Free Factions, Leaders, Capitals)
+ * @dependencies database, UserFactory
+ * @status Active (Initialization)
+ * @analysis 
+ * - 주요 국가별 NPC 세력을 생성하고 수도(Conmand Center)를 배치합니다.
+ * - '서울'의 경우 단순 좌표 반경이 아닌 다각형(Polygon) 경계를 설정하는 로직이 포함되어 있습니다.
+ * - 서버 실행 시 `node seed_factions.js`로 수동 실행하거나 초기화 루틴에서 호출됩니다.
+ */
+
 const path = require('path');
 const db = require('./database');
 const UserFactory = require('./src/factories/UserFactory');
@@ -93,6 +105,17 @@ db.transaction(() => {
             const realX = 36.0 + (wx * 0.1);
             const realY = 127.0 + (wy * 0.1);
 
+            // Random Stats for Free NPC Leader
+            const randStat = () => Math.floor(Math.random() * 10) + 8;
+            const npcStats = {
+                strength: randStat(),
+                dexterity: randStat(),
+                constitution: randStat(),
+                intelligence: randStat(),
+                wisdom: randStat(),
+                agility: randStat()
+            };
+
             // Create via Factory (Includes User, Cyborg, Resources, AND Initial Building)
             user = UserFactory.create({
                 username: f.username,
@@ -100,6 +123,8 @@ db.transaction(() => {
                 npcType: 'FREE',
                 factionId: faction.id,
                 factionRank: 2,
+                cyborgModel: 'EXPLORER', // Default for Free NPCs
+                stats: npcStats,
                 location: { x: realX, y: realY, world_x: wx, world_y: wy },
                 resources: { gold: 3000, gem: 100 },
                 initialBuilding: { code: 'COMMAND_CENTER' }

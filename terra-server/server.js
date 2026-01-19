@@ -1,3 +1,16 @@
+/**
+ * @file server.js
+ * @description Terra-Server의 메인 진입점 파일입니다. Express 앱을 설정하고 API 라우트, 게임 루프(경제, NPC 등)를 실행합니다.
+ * @role 백엔드 서버 코어, API 라우팅, 주기적 게임 로직 실행 (Cron Jobs)
+ * @dependencies express, sqlite3(better-sqlite3), database.js, 각종 Game/AI Managers
+ * @referenced_by Client App (API 호출), Docker Container (Entrypoint)
+ * @status Active (Monolith)
+ * @analysis 
+ * - 현재 모든 API와 게임 로직이 이 파일 하나에 집중되어 있어 유지보수가 어렵습니다 (God Object).
+ * - 추후 라우트(Routes)와 컨트롤러(Controllers)를 분리하는 리팩토링이 강력히 권장됩니다.
+ * - `adminConfig` 변수는 현재 코드 내에서 실질적으로 사용되지 않는 것으로 보입니다.
+ */
+
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -5,15 +18,21 @@ const db = require('./database');
 const fs = require('fs');
 const path = require('path');
 
+// 게임 로직 매니저 로드
 const TerrainManager = require('./game/TerrainManager');
 const terrainManager = new TerrainManager(db);
 const PathfindingService = require('./game/PathfindingService');
 const pathfindingService = new PathfindingService(db);
 
 // --- Admin Runtime Config ---
+/**
+ * @variable adminConfig
+ * @description 관리자 런타임 설정 (현재 로직에는 깊게 관여하지 않음, 추후 확장성 고려)
+ * @analysis 현재 코드에서 적극적으로 참조되지 않음. 레거시 혹은 미구현 기능일 가능성.
+ */
 let adminConfig = {
-    speed: 10.0,       // km/s (Default 36,000 km/h)
-    viewRange: 99999.0 // km  (Default Unlimited)
+    speed: 10.0,       // km/s (기본 36,000 km/h)
+    viewRange: 99999.0 // km  (기본 무제한)
 };
 
 const app = express();
@@ -94,6 +113,14 @@ app.post('/api/login', (req, res) => {
 });
 
 // 2. Get User Info (with resources & equipment)
+/**
+ * @route GET /api/user/:id
+ * @description 사용자 기본 정보, 자원, 장비 상태를 조회합니다. 이동 완료 체크도 수행합니다.
+ * @param {string} id - 사용자 ID
+ * @analysis 
+ * - 도착 시간(arrival_time)이 지난 경우 요청 시점에 업데이트를 수행하는 Lazy Update 방식을 사용합니다.
+ * - 장비 데이터 조인을 위해 raw SQL이 사용되고 있습니다. ORM 도입 고려 가능.
+ */
 app.get('/api/user/:id', (req, res) => {
     try {
         let user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
@@ -425,41 +452,56 @@ app.post('/api/character/:userId/minion/:minionId/feed', (req, res) => { // Orga
 // Economy: Market Ticker & APIs
 // Economy: Market Ticker & APIs
 // Economy: Market Ticker & APIs
-const MARKET_UPDATE_INTERVAL = 60000; // 1 minute (Legacy constant, kept for reference)
+const MARKET_UPDATE_INTERVAL = 60000; // 1분 (레거시 상수, 참조용)
 
 // Global System Configuration
+/**
+ * @variable SYSTEM_CONFIG
+ * @description 시스템 전역 설정 객체. 게임 내 각종 주기(Interval)와 활성화 여부를 제어합니다.
+ * @role 서버 런타임 설정 (DB가 아닌 메모리 상주)
+ * @analysis 
+ * - 서버 재시작 시 초기화됩니다. 영구 저장이 필요하다면 DB로 이관해야 합니다.
+ * - `global.SYSTEM_CONFIG`로 할당되어 다른 모듈에서도 접근 가능합니다.
+ */
 let SYSTEM_CONFIG = {
-    market_fluctuation: false,       // Default: Inactive
-    market_interval: 60000,         // 60s
-    production_active: false,       // Default: Inactive
-    production_interval: 60000,     // 60s
-    npc_activity: false,            // Default: Inactive
-    npc_interval: 60000,            // 60s
-    npc_position_update_interval: 60, // 60s
-    faction_active: false,          // Default: Inactive
-    faction_interval: 60000,        // 60s
-    client_poll_interval: 60000     // 60s
+    market_fluctuation: false,       // 기본: 비활성 (시장 가격 변동)
+    market_interval: 60000,         // 60초
+    production_active: false,       // 기본: 비활성 (자원 생산)
+    production_interval: 60000,     // 60초
+    npc_activity: false,            // 기본: 비활성 (NPC AI)
+    npc_interval: 60000,            // 60초
+    npc_position_update_interval: 60, // 60초
+    faction_active: false,          // 기본: 비활성 (세력전)
+    faction_interval: 60000,        // 60초
+    client_poll_interval: 60000     // 60초 (클라이언트 폴링 주기)
 };
 
-// Export config globally for NPC managers
 global.SYSTEM_CONFIG = SYSTEM_CONFIG;
 
+/**
+ * @function updateMarketPrices
+ * @description 시장 가격을 주기적으로 변동시키는 함수
+ * @role 경제 시스템 핵심 루프
+ * @analysis 
+ * - 단순한 랜덤 변동 로직 (-volatility% ~ +volatility%)을 사용 중입니다.
+ * - 수요/공급에 기반한 동적 가격 모델로 고도화할 필요가 있습니다.
+ */
 function updateMarketPrices() {
-    // Schedule next run
+    // 다음 실행 스케줄링
     setTimeout(updateMarketPrices, SYSTEM_CONFIG.market_interval);
 
-    if (!SYSTEM_CONFIG.market_fluctuation) return; // Skip if disabled
+    if (!SYSTEM_CONFIG.market_fluctuation) return; // 비활성화 시 스킵
 
     try {
         const items = db.prepare('SELECT * FROM market_items').all();
         const updateStmt = db.prepare('UPDATE market_items SET current_price = ?, previous_price = ? WHERE id = ?');
 
         items.forEach(item => {
-            // Simple random fluctuation: -volatility% to +volatility%
+            // 단순 랜덤 변동: -volatility% ~ +volatility%
             const changePercent = (Math.random() * (item.volatility * 2) - item.volatility) / 100;
             let newPrice = Math.floor(item.current_price * (1 + changePercent));
 
-            // Bounds check (e.g., minimum 10% of base price, max 500% ?)
+            // 경계값 체크 (최소 가격: 기본가의 10%)
             if (newPrice < item.base_price * 0.1) newPrice = Math.floor(item.base_price * 0.1);
 
             updateStmt.run(newPrice, item.current_price, item.id);
@@ -482,8 +524,16 @@ setTimeout(updateMarketPrices, SYSTEM_CONFIG.market_interval);
 const MinionAI = require('./ai/MinionAI');
 const minionAI = new MinionAI(db);
 
+/**
+ * @function processMinionAI
+ * @description 미니언 AI 로직을 주기적으로 실행하는 루프 함수
+ * @role NPC/Minion 행동 처리 (채굴, 휴식 등)
+ * @analysis 
+ * - `SYSTEM_CONFIG.npc_interval` (기본 60초) 마다 실행됩니다.
+ * - `character_minion` 테이블의 `user_id`를 기반으로 사용자별 미니언들을 처리합니다.
+ */
 function processMinionAI() {
-    // Schedule next run
+    // 다음 실행 스케줄링
     setTimeout(processMinionAI, SYSTEM_CONFIG.npc_interval);
 
     if (!SYSTEM_CONFIG.npc_activity) return;
@@ -523,6 +573,15 @@ console.log(`[Minion AI] AI tick system started (Interval: ${SYSTEM_CONFIG.npc_i
 // RESOURCE PRODUCTION CRON
 // ============================================
 
+/**
+ * @function processResourceProduction
+ * @description 건물에 배치된 미니언들의 자원 생산을 처리하는 루프
+ * @role 자원 생산 및 미니언 상태(배터리, 체력) 소모 관리
+ * @analysis 
+ * - `building_assignments` 테이블을 순회하며 채굴(mining) 작업자를 처리합니다.
+ * - 생산량은 `production_rate`와 시간 비율(intervalRatio)에 비례합니다.
+ * - 미니언의 체력/배터리가 낮으면 자동으로 병영(Barracks)으로 보내 휴식시킵니다.
+ */
 function processResourceProduction() {
     // Schedule next run
     setTimeout(processResourceProduction, SYSTEM_CONFIG.production_interval);
@@ -585,6 +644,12 @@ function processResourceProduction() {
     }
 }
 
+/**
+ * @function checkMinionHealth
+ * @description 미니언이 작업을 계속할 수 있는지(체력/배터리 체크) 확인
+ * @param {Object} assignment - 작업 배정 정보
+ * @returns {boolean} - 작업 가능 여부
+ */
 function checkMinionHealth(assignment) {
     // Check HP for all types
     if (assignment.hp < 30) {
@@ -601,6 +666,11 @@ function checkMinionHealth(assignment) {
     return true;
 }
 
+/**
+ * @function drainMinionResources
+ * @description 작업 수행에 따른 미니언의 자원(체력, 배터리, 연료) 소모 처리
+ * @param {Object} assignment - 작업 배정 정보
+ */
 function drainMinionResources(assignment) {
     const healthDrain = assignment.minion_type === 'android' ? 0 : 2; // Organic types lose HP
     const batteryDrain = assignment.minion_type === 'android' ? 3 : 0; // Androids lose battery
@@ -615,6 +685,12 @@ function drainMinionResources(assignment) {
     `).run(healthDrain, batteryDrain, fuelDrain, assignment.minion_id);
 }
 
+/**
+ * @function sendToBarracks
+ * @description 미니언을 강제로 벙영(Barracks)으로 이동시켜 휴식(resing) 상태로 전환
+ * @param {number} minionId - 미니언 ID
+ * @param {number} userId - 사용자 ID
+ */
 function sendToBarracks(minionId, userId) {
     try {
         // Find user's barracks
@@ -646,6 +722,11 @@ function sendToBarracks(minionId, userId) {
     }
 }
 
+/**
+ * @function processRestingMinions
+ * @description 휴식 중인 미니언들의 체력/배터리 회복 처리
+ * @role 병영(Barracks) 내 미니언 회복 로직
+ */
 function processRestingMinions() {
     const restingAssignments = db.prepare(`
         SELECT 
@@ -694,6 +775,11 @@ console.log('[Production] Resource production cron started');
 const absoluteNpcManager = require('./ai/AbsoluteNpcManager');
 const freeNpcManager = require('./ai/FreeNpcManager');
 
+/**
+ * @function processFactionLogic
+ * @description NPC 세력(Faction) AI를 주기적으로 실행하는 루프
+ * @role Absolute(절대자) 및 Free(자유) 세력의 행동(이동, 전투, 확장) 처리
+ */
 function processFactionLogic() {
     setTimeout(processFactionLogic, SYSTEM_CONFIG.faction_interval);
 
@@ -921,6 +1007,20 @@ app.get('/api/game/position/:userId', (req, res) => {
 // app.post('/api/map/move', ...); REMOVED
 
 // Build API
+/**
+ * @route POST /api/build
+ * @description 건물을 건설하거나 건설 요청을 생성합니다.
+ * @param {string} type - 건물 타입 코드 (例: COMMAND_CENTER)
+ * @param {number} x, y - 타일 좌표
+ * @role 건설 시스템 메인 엔드포인트 (영토 확인 및 외교 관계 체크 포함)
+ * @analysis 
+ * - 영토(Territory) 판정 로직이 포함되어 있습니다.
+ * - 타 세력 영토 내 건설 시:
+ *   - 적대(Hostile): 건설 불가 (403)
+ *   - 동맹(Alliance): 건설 요청 생성 (Pending Request)
+ *   - 중립(Neutral): 건설 불가 (기본값)
+ * - 로직이 길고 복잡하므로 별도의 `ConstructionService`로 분리하는 것이 좋습니다.
+ */
 app.post('/api/build', (req, res) => {
     const { user_id, type, x, y, world_x, world_y } = req.body;
 
@@ -1047,6 +1147,10 @@ app.post('/api/build', (req, res) => {
 // DIPLOMACY REQUESTS API
 // =========================================
 
+/**
+ * @route GET /api/diplomacy/requests
+ * @description 내 영토에 대한 건설 요청 목록을 조회합니다 (주로 동맹이 요청한 것).
+ */
 // Get pending requests for the owner
 app.get('/api/diplomacy/requests', (req, res) => {
     const { userId } = req.query; // Authenticated user ID
@@ -1066,6 +1170,14 @@ app.get('/api/diplomacy/requests', (req, res) => {
     }
 });
 
+/**
+ * @route POST /api/diplomacy/requests/:requestId/approve
+ * @description 건설 요청을 승인하고 건물을 생성합니다.
+ * @role 외교적 건설 승인 처리
+ * @analysis 
+ * - 승인 시점에 요청자(Requester)의 자원을 차감합니다.
+ * - 트랜잭션으로 자원 차감과 건물 생성을 원자적(Atomic)으로 처리합니다.
+ */
 // Approve Request
 app.post('/api/diplomacy/requests/:requestId/approve', (req, res) => {
     const { requestId } = req.params;
@@ -1288,7 +1400,8 @@ app.get('/api/admin/files', (req, res) => {
 
 // Inspect Tables in a DB
 app.get('/api/admin/db/:filename', (req, res) => {
-    const dbPath = path.join(__dirname, '..', 'terra-data', 'db', req.params.filename);
+    const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, '..', 'terra-data', 'db');
+    const dbPath = path.join(dbDir, req.params.filename);
     if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
 
     try {
@@ -1303,7 +1416,8 @@ app.get('/api/admin/db/:filename', (req, res) => {
 
 // Inspect Data in a Table
 app.get('/api/admin/db/:filename/:table', (req, res) => {
-    const dbPath = path.join(__dirname, '..', 'terra-data', 'db', req.params.filename);
+    const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, '..', 'terra-data', 'db');
+    const dbPath = path.join(dbDir, req.params.filename);
     if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
 
     try {
@@ -1325,7 +1439,8 @@ app.get('/api/admin/db/:filename/:table', (req, res) => {
 
 // Update a specific row in a table (Admin DB Editor)
 app.put('/api/admin/db/:filename/:table/:id', (req, res) => {
-    const dbPath = path.join(__dirname, '..', 'terra-data', 'db', req.params.filename);
+    const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, '..', 'terra-data', 'db');
+    const dbPath = path.join(dbDir, req.params.filename);
     if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
 
     try {
@@ -1366,7 +1481,8 @@ app.put('/api/admin/db/:filename/:table/:id', (req, res) => {
 
 // Download DB File
 app.get('/api/admin/db/:filename/download', (req, res) => {
-    const dbPath = path.join(__dirname, '..', 'terra-data', 'db', req.params.filename);
+    const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, '..', 'terra-data', 'db');
+    const dbPath = path.join(dbDir, req.params.filename);
     if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
     res.download(dbPath);
 });
@@ -2919,8 +3035,10 @@ app.post('/api/admin/spawn-free-npc', (req, res) => {
         const factionId = factionInfo.lastInsertRowid;
 
         // 2. Create User (Leader)
-        const userInfo = db.prepare('INSERT INTO users (username, password, npc_type, personality, tech_focus, faction_id, faction_rank) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            .run(username, 'npc_password', 'FREE', 'Aggressive', 'Military', factionId, 2);
+        // Add Cyborg Model
+        const cyborgModel = 'EXPLORER';
+        const userInfo = db.prepare('INSERT INTO users (username, password, npc_type, personality, tech_focus, faction_id, faction_rank, cyborg_model) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(username, 'npc_password', 'FREE', 'Aggressive', 'Military', factionId, 2, cyborgModel);
         const userId = userInfo.lastInsertRowid;
 
         // Link User to Faction Leader
@@ -2928,6 +3046,41 @@ app.post('/api/admin/spawn-free-npc', (req, res) => {
 
         // Give Resources (Increased from 5000 to 50000)
         db.prepare('INSERT INTO user_resources (user_id, gold, gem) VALUES (?, ?, ?)').run(userId, 3000, 100);
+
+        // 2.5 Generate Random Stats & Create Cyborg
+        const randStat = () => Math.floor(Math.random() * 10) + 8; // 8-18 range
+        const stats = {
+            strength: randStat(),
+            dexterity: randStat(),
+            constitution: randStat(),
+            intelligence: randStat(),
+            wisdom: randStat(),
+            agility: randStat()
+        };
+
+        // Insert Stats
+        try {
+            db.prepare(`
+                INSERT INTO user_stats (user_id, strength, dexterity, constitution, intelligence, wisdom, agility)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(userId, stats.strength, stats.dexterity, stats.constitution, stats.intelligence, stats.wisdom, stats.agility);
+        } catch (e) {
+            console.warn('Could not insert user_stats for Free NPC:', e.message);
+        }
+
+        // Create Cyborg Character
+        const hp = (stats.constitution * 10) + (stats.strength * 5);
+        const mp = (stats.wisdom * 8) + (stats.intelligence * 6);
+        const displayName = name + ' Leader';
+
+        try {
+            db.prepare(`
+                INSERT INTO character_cyborg (user_id, name, strength, dexterity, constitution, intelligence, wisdom, agility, hp, mp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(userId, displayName, stats.strength, stats.dexterity, stats.constitution, stats.intelligence, stats.wisdom, stats.agility, hp, mp);
+        } catch (e) {
+            console.warn('Could not insert character_cyborg for Free NPC:', e.message);
+        }
 
         // 3. Determine Location
         let spawnX = lat;

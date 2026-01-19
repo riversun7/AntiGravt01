@@ -1,3 +1,15 @@
+/**
+ * @file FreeNpcManager.js
+ * @description '자유(Free)' 세력의 AI 로직을 관리하는 매니저입니다.
+ * @role 자원 채집, 영토 확장, 비전투적 경제 활동
+ * @dependencies database
+ * @referenced_by server.js (NPC Loop)
+ * @status Active
+ * @analysis 
+ * - 자유 세력은 자원을 찾아 영토를 확장하고 건물을 건설하는 데 초점을 맞춥니다.
+ * - `developTerritory`에서 무작위 확장을 시도하며, 충돌 시 다른 곳을 찾습니다.
+ */
+
 const db = require('../database');
 
 class FreeNpcManager {
@@ -116,6 +128,14 @@ class FreeNpcManager {
         tx();
     }
 
+    /**
+     * @function developTerritory
+     * @description 영토 내 빈 공간에 자원 건물을 건설하여 영토를 개발합니다.
+     * @param {Object} npc - NPC 사용자 객체
+     * @analysis 
+     * - 랜덤한 위치를 선정하고 자원(Gold)을 소비하여 광산(MINE)이나 농장(FARM)을 건설합니다.
+     * - 건물 겹침 방지 로직이 포함되어 있습니다.
+     */
     developTerritory(npc) {
         // 1. Find all territory centers (Area Beacons/Command Centers)
         const territories = db.prepare('SELECT * FROM user_buildings WHERE user_id = ? AND is_territory_center = 1').all(npc.id);
@@ -361,6 +381,15 @@ class FreeNpcManager {
     }
 
     // ========== AI 의사결정 시스템 ==========
+    /**
+     * @function decideNextAction
+     * @description NPC의 다음 행동(이동, 확장, 순찰)을 결정하는 함수
+     * @param {Object} npc - NPC 사용자 객체
+     * @analysis 
+     * - 우선순위: 자원 발견 > 영토 확장 > 순찰
+     * - `findNearbyResource`: 시야(Vision Range) 내의 자원 발견 시 이동
+     * - `shouldExpandTerritory`: 조건 충족 시 영토 확장 시도
+     */
     decideNextAction(npc) {
         console.log(`[FreeNPC] ${npc.faction_name} AI 의사결정 시작...`);
 

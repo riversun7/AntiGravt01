@@ -1,3 +1,15 @@
+/**
+ * @file ElevationService.js
+ * @description 전세계 지형 고도 데이터를 제공하는 서비스입니다.
+ * @role 고도 데이터 조회 (Local HGT 파일 우선, 없을 시 Open-Meteo API, DB 캐싱)
+ * @dependencies axios, fs, path, HgtReader, database
+ * @referenced_by TerrainManager.js
+ * @status Active
+ * @analysis 
+ * - 로컬 파일(HGT) -> DB 캐시 -> 외부 API 순으로 조회하는 3단 구조로 효율적입니다.
+ * - Open-Meteo API 의존성이 있으므로, 외부 인터넷 연결이 없는 환경에서는 HGT 파일이 필수입니다.
+ */
+
 const axios = require('axios'); // Ensure axios is installed or use fetch
 const path = require('path');
 const fs = require('fs');
@@ -54,9 +66,13 @@ class ElevationService {
      * @returns {Promise<number>} Elevation in meters
      */
     /**
-     * Get elevation for multiple points in batch.
-     * @param {Array<{lat: number, lng: number}>} locations 
-     * @returns {Promise<Array<number>>} Array of elevations matching input order
+     * @function getElevations
+     * @description 다수 좌표의 고도를 일괄 조회합니다. (배치 처리 최적화)
+     * @param {Array<{lat: number, lng: number}>} locations - 조회할 좌표 배열
+     * @returns {Promise<Array<number>>} 입력 순서와 일치하는 고도(m) 배열
+     * @analysis 
+     * - API 요청 시 Chunk Size(50)로 나누어 요청하는 것은 좋은 처리입니다.
+     * - 실패 시 기본값 10(평지)으로 반환하는 안전장치가 있습니다.
      */
     async getElevations(locations) {
         const results = new Array(locations.length).fill(null);

@@ -1,4 +1,15 @@
 
+/**
+ * @file seed_rival.js
+ * @description 개발 및 테스트 목적으로 플레이어 주변에 적대적 라이벌 사용자를 생성하는 스크립트입니다.
+ * @role 테스트 데이터 생성 (라이벌 유저, 건물, 사이보그)
+ * @dependencies database, UserFactory
+ * @status Dev/Test Only
+ * @analysis 
+ * - 서울 좌표(37.5665, 126.9780)를 기준으로 북동쪽 약 6km 지점에 라이벌을 생성합니다.
+ * - `UserFactory`를 사용하여 생성하지만, 추가 건물(배럭, 광산 등)은 직접 SQL 삽입하고 있어 일관성 유지가 필요할 수 있습니다.
+ */
+
 const db = require('./database');
 const UserFactory = require('./src/factories/UserFactory');
 
