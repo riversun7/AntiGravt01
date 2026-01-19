@@ -64,7 +64,7 @@ export default function FloatingGamePanel({
     useEffect(() => {
         const saved = localStorage.getItem('gamePanel_position');
         if (saved && !isMobile) {
-            // eslint-disable-next-line react-hooks/exhaustive-deps
+             
             setPosition(JSON.parse(saved));
         }
     }, [isMobile]);

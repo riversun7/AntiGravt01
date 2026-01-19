@@ -48,6 +48,7 @@ interface TerrainMapContentProps {
     showToast: (msg: string, type: 'info' | 'error' | 'success') => void;
     handleTileClick: (lat: number, lng: number, point?: { x: number; y: number }) => void;
     handleTerritoryClick?: (t: Territory, e: any) => void;
+    selectedNpc?: any;
     setSelectedNpc?: (npc: any) => void;
     isConstructing: boolean;
     constructionTimeLeft: number;
@@ -91,7 +92,8 @@ export default function TerrainMapContent({
     waypoints = [],
     onWaypointRemove,
     setSelectedNpc,
-    npcRefreshKey = 0
+    npcRefreshKey = 0,
+    selectedNpc
 }: TerrainMapContentProps) { // Updated props destructuring
 
     // Fix Leaflet Icons
@@ -154,6 +156,18 @@ export default function TerrainMapContent({
                 waypoints={waypoints}
                 onWaypointClick={onWaypointRemove}
             />
+
+            {/* NPC Movement Path */}
+            {selectedNpc && selectedNpc.destination && selectedNpc.start_pos && (
+                <PathOverlay
+                    path={[
+                        { lat: selectedNpc.start_pos.lat, lng: selectedNpc.start_pos.lng },
+                        { lat: selectedNpc.destination.lat, lng: selectedNpc.destination.lng }
+                    ]}
+                    waypoints={[]}
+                    onWaypointClick={() => { }}
+                />
+            )}
 
             <MapClickHandler
                 onMove={setPlayerPosition}

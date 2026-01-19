@@ -1,8 +1,16 @@
 const db = require('../database');
 
 class FreeNpcManager {
+    constructor() {
+        this.lastPositionUpdate = null;
+    }
+
     run() {
         console.log('[FreeNPC] Running Free Faction Logic...');
+
+        // Update traveling NPC positions periodically
+        this.updateTravelingPositions();
+
         // Join users with factions to get only Free Faction Leaders (Rank 2)
         const npcs = db.prepare(`
             SELECT u.*, f.name as faction_name 
@@ -26,6 +34,52 @@ class FreeNpcManager {
                 this.decideNextAction(npc);
             } else {
                 console.log(`[FreeNPC] ${npc.faction_name} is already moving to ${npc.destination_pos}`);
+            }
+        });
+    }
+
+    updateTravelingPositions() {
+        const now = Date.now();
+
+        // Get update interval from server config (in seconds)
+        const updateInterval = (global.SYSTEM_CONFIG?.npc_position_update_interval || 30) * 1000;
+
+        if (this.lastPositionUpdate && (now - this.lastPositionUpdate) < updateInterval) {
+            return; // Not time yet
+        }
+
+        this.lastPositionUpdate = now;
+
+        // Get all traveling NPCs
+        const traveling = db.prepare(`
+            SELECT id, current_pos, start_pos, destination_pos, departure_time, arrival_time
+            FROM users 
+            WHERE destination_pos IS NOT NULL 
+            AND arrival_time > datetime('now')
+            AND npc_type = 'FREE'
+        `).all();
+
+        if (traveling.length === 0) return;
+
+        console.log(`[FreeNPC] Updating positions for ${traveling.length} traveling NPCs`);
+
+        traveling.forEach(npc => {
+            try {
+                const start = new Date(npc.departure_time).getTime();
+                const end = new Date(npc.arrival_time).getTime();
+                const progress = Math.min(Math.max((now - start) / (end - start), 0), 1);
+
+                const [startLat, startLng] = npc.start_pos.split('_').map(Number);
+                const [destLat, destLng] = npc.destination_pos.split('_').map(Number);
+
+                const currentLat = startLat + (destLat - startLat) * progress;
+                const currentLng = startLng + (destLng - startLng) * progress;
+
+                // Update current position
+                db.prepare('UPDATE users SET current_pos = ? WHERE id = ?')
+                    .run(`${currentLat}_${currentLng}`, npc.id);
+            } catch (err) {
+                console.error(`[FreeNPC] Error updating position for NPC ${npc.id}:`, err);
             }
         });
     }

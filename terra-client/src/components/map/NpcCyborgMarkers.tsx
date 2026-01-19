@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 
@@ -70,7 +70,7 @@ export default function NpcCyborgMarkers({
             const dist = calculateDistance(npc.lat, npc.lng, playerPosition[0], playerPosition[1]);
             return dist <= viewRangeKm;
         });
-    }, [npcs, playerPosition, viewRangeKm, calculateDistance]);
+    }, [npcs, playerPosition, viewRangeKm]); // Remove calculateDistance from deps
 
     // Create custom icon for NPC
     const createNpcIcon = (color: string, npcType: string) => {
@@ -111,9 +111,6 @@ export default function NpcCyborgMarkers({
 
     if (loading || visibleNpcs.length === 0) return null;
 
-    console.log('[NPC MARKERS] Rendering', visibleNpcs.length, 'NPCs:',
-        visibleNpcs.map(n => ({ type: n.npc_type, name: n.cyborg_name })));
-
     return (
         <>
             {visibleNpcs.map(npc => (
@@ -130,38 +127,62 @@ export default function NpcCyborgMarkers({
 
 // Separate component for interpolated movement
 function InterpolatedNpcMarker({ npc, createIcon, onClick }: { npc: Npc, createIcon: (c: string, t: string) => L.DivIcon, onClick?: (n: Npc) => void }) {
-    const [position, setPosition] = useState<[number, number]>([npc.lat, npc.lng]);
+    // Calculate position using useMemo instead of requestAnimationFrame
+    const position = useMemo(() => {
+        // Validate position data first
+        if (!npc.lat || !npc.lng || isNaN(npc.lat) || isNaN(npc.lng)) {
+            console.error('[NPC MARKER] Invalid position data for', npc.cyborg_name);
+            return [36.0, 127.0] as [number, number]; // Fallback to Seoul
+        }
 
-    useEffect(() => {
+        // Default to current position
+        const defaultPos: [number, number] = [npc.lat, npc.lng];
+
+        // Check if NPC has valid movement data
         if (!npc.destination || !npc.start_pos || !npc.departure_time || !npc.arrival_time) {
-            setPosition([npc.lat, npc.lng]);
-            return;
+            return defaultPos;
+        }
+
+        // Validate destination and start_pos
+        if (isNaN(npc.destination.lat) || isNaN(npc.destination.lng) ||
+            isNaN(npc.start_pos.lat) || isNaN(npc.start_pos.lng)) {
+            return defaultPos;
         }
 
         const start = new Date(npc.departure_time).getTime();
         const end = new Date(npc.arrival_time).getTime();
-        const duration = end - start;
+        const now = Date.now();
 
-        const animate = () => {
-            const now = Date.now();
-            const elapsed = now - start;
-            const progress = Math.min(Math.max(elapsed / duration, 0), 1);
+        // Validate timestamps
+        if (isNaN(start) || isNaN(end) || start >= end) {
+            return defaultPos;
+        }
 
-            if (progress >= 1) {
-                setPosition([npc.destination!.lat, npc.destination!.lng]);
-                return;
-            }
+        // If journey hasn't started yet
+        if (now < start) {
+            return [npc.start_pos.lat, npc.start_pos.lng];
+        }
 
-            const lat = npc.start_pos!.lat + (npc.destination!.lat - npc.start_pos!.lat) * progress;
-            const lng = npc.start_pos!.lng + (npc.destination!.lng - npc.start_pos!.lng) * progress;
+        // If journey has ended
+        if (now >= end) {
+            return [npc.destination.lat, npc.destination.lng];
+        }
 
-            setPosition([lat, lng]);
-            requestAnimationFrame(animate);
-        };
+        // Calculate interpolated position
+        const progress = (now - start) / (end - start);
+        const lat = npc.start_pos.lat + (npc.destination.lat - npc.start_pos.lat) * progress;
+        const lng = npc.start_pos.lng + (npc.destination.lng - npc.start_pos.lng) * progress;
 
-        const animationId = requestAnimationFrame(animate);
-        return () => cancelAnimationFrame(animationId);
-    }, [npc]);
+        // Validate calculated position
+        if (isNaN(lat) || isNaN(lng)) {
+            console.error('[NPC MARKER] Calculation produced NaN for', npc.cyborg_name);
+            return defaultPos;
+        }
+
+        return [lat, lng] as [number, number];
+    }, [npc.lat, npc.lng, npc.destination, npc.start_pos, npc.departure_time, npc.arrival_time]);
+
+
 
     return (
         <Marker
@@ -169,8 +190,17 @@ function InterpolatedNpcMarker({ npc, createIcon, onClick }: { npc: Npc, createI
             icon={createIcon(npc.faction_color, npc.npc_type)}
             zIndexOffset={1000000}
             eventHandlers={{
-                click: () => {
+                click: (e) => {
                     console.log('[MARKER CLICK]', npc.npc_type, npc.cyborg_name);
+                    // Stop ALL event propagation immediately
+                    if (e.originalEvent) {
+                        e.originalEvent.preventDefault();
+                        e.originalEvent.stopPropagation();
+                        e.originalEvent.stopImmediatePropagation();
+                    }
+                    L.DomEvent.stopPropagation(e as any);
+                    L.DomEvent.preventDefault(e as any);
+
                     if (onClick) {
                         onClick(npc);
                     }

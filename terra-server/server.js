@@ -429,16 +429,20 @@ const MARKET_UPDATE_INTERVAL = 60000; // 1 minute (Legacy constant, kept for ref
 
 // Global System Configuration
 let SYSTEM_CONFIG = {
-    market_fluctuation: false, // Default OFF
-    market_interval: 60000,    // Default 1 min
-    production_active: false,  // Default OFF
-    production_interval: 60000,// Default 1 min
-    npc_activity: false,       // Default OFF (Minion AI)
-    npc_interval: 60000,       // Default 1 min
-    faction_active: false,     // Default OFF (Absolute & Free Faction AI)
-    faction_interval: 60000,   // Default 1 min
-    client_poll_interval: 60000 // Global setting for client UI polling (1 min)
+    market_fluctuation: true,
+    market_interval: 60000,         // 60s
+    production_active: true,
+    production_interval: 30000,      // 30s
+    npc_activity: true,
+    npc_interval: 5000,              // 5s
+    npc_position_update_interval: 30, // NEW: 30s (in seconds, not ms)
+    faction_active: true,
+    faction_interval: 60000,         // 60s
+    client_poll_interval: 5000       // Client auto-refresh interval
 };
+
+// Export config globally for NPC managers
+global.SYSTEM_CONFIG = SYSTEM_CONFIG;
 
 function updateMarketPrices() {
     // Schedule next run
@@ -715,7 +719,8 @@ app.post('/api/admin/system/config', (req, res) => {
         npc_activity, npc_interval,
         production_active, production_interval,
         faction_active, faction_interval,
-        client_poll_interval
+        client_poll_interval,
+        npc_position_update_interval
     } = req.body;
 
     if (market_fluctuation !== undefined) SYSTEM_CONFIG.market_fluctuation = market_fluctuation;
@@ -731,6 +736,8 @@ app.post('/api/admin/system/config', (req, res) => {
     if (faction_interval !== undefined) SYSTEM_CONFIG.faction_interval = Number(faction_interval);
 
     if (client_poll_interval !== undefined) SYSTEM_CONFIG.client_poll_interval = Number(client_poll_interval);
+
+    if (npc_position_update_interval !== undefined) SYSTEM_CONFIG.npc_position_update_interval = Number(npc_position_update_interval);
 
     console.log('[System] Config Updated:', SYSTEM_CONFIG);
     res.json({ success: true, config: SYSTEM_CONFIG });

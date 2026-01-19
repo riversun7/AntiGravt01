@@ -16,6 +16,7 @@ interface SystemConfig {
     faction_active: boolean;
     faction_interval: number;
     client_poll_interval: number;
+    npc_position_update_interval: number;
 }
 
 export default function AdminSystemPage() {
@@ -149,6 +150,41 @@ export default function AdminSystemPage() {
                     </div>
                     <div className="w-full py-3 rounded font-bold tracking-wider text-center bg-gray-900/20 text-green-600 border border-green-800/50">
                         CLIENT SYNC ACTIVE
+                    </div>
+                </div>
+
+                {/* NPC Position Update Interval */}
+                <div className="border border-green-900/50 bg-green-900/5 p-6 rounded-lg">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 bg-gray-900 rounded-lg text-green-500 border border-green-800">
+                            <Activity size={24} />
+                        </div>
+                        <span className="px-2 py-1 bg-blue-900/30 text-blue-400 text-xs rounded border border-blue-800">NPC SYSTEM</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-green-100 mb-2">NPC Position Update</h3>
+                    <p className="text-green-700/80 text-sm mb-6 min-h-[60px]">
+                        이동 중인 NPC의 실제 위치를 업데이트하는 주기입니다. 짧을수록 정확하지만 서버 부하가 증가합니다. (10~120초 권장)
+                    </p>
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className="text-sm text-gray-400">Interval (sec):</span>
+                        <BufferedInput
+                            className="bg-black border border-green-800 text-green-400 p-1 w-20 text-center rounded"
+                            value={config?.npc_position_update_interval || 30}
+                            min="10"
+                            onCommit={(val) => {
+                                if (!config) return;
+                                const newConfig = { ...config, npc_position_update_interval: val };
+                                setConfig(newConfig);
+                                fetch(`/api/admin/system/config`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ npc_position_update_interval: val })
+                                }).catch(err => console.error("Failed to update config", err));
+                            }}
+                        />
+                    </div>
+                    <div className="w-full py-3 rounded font-bold tracking-wider text-center bg-gray-900/20 text-blue-600 border border-blue-800/50">
+                        POSITION TRACKING ACTIVE
                     </div>
                 </div>
 

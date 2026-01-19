@@ -7,10 +7,15 @@ class AbsoluteNpcManager {
             { input: { code: 'WOOD', qty: 3 }, output: { code: 'LUMBER', qty: 2 } },
             { input: { code: 'FOOD', qty: 5 }, output: { code: 'RATIONS', qty: 5 } }
         ];
+        this.lastPositionUpdate = null;
     }
 
     run() {
         console.log('[AbsoluteNPC] Running Absolute Faction Logic...');
+
+        // Update traveling NPC positions periodically
+        this.updateTravelingPositions();
+
         const npcs = db.prepare(`
             SELECT u.*, f.name as faction_name 
             FROM users u
@@ -19,10 +24,74 @@ class AbsoluteNpcManager {
         `).all();
 
         npcs.forEach(npc => {
+            this.checkArrival(npc); // Update position if arrived
             this.manageDefense(npc);
             this.manageEconomy(npc);
             this.processMovement(npc);
         });
+    }
+
+    updateTravelingPositions() {
+        const now = Date.now();
+
+        // Get update interval from server config (in seconds)
+        const updateInterval = (global.SYSTEM_CONFIG?.npc_position_update_interval || 30) * 1000;
+
+        if (this.lastPositionUpdate && (now - this.lastPositionUpdate) < updateInterval) {
+            return; // Not time yet
+        }
+
+        this.lastPositionUpdate = now;
+
+        // Get all traveling NPCs
+        const traveling = db.prepare(`
+            SELECT id, current_pos, start_pos, destination_pos, departure_time, arrival_time
+            FROM users 
+            WHERE destination_pos IS NOT NULL 
+            AND arrival_time > datetime('now')
+            AND npc_type = 'ABSOLUTE'
+        `).all();
+
+        if (traveling.length === 0) return;
+
+        console.log(`[AbsoluteNPC] Updating positions for ${traveling.length} traveling NPCs`);
+
+        traveling.forEach(npc => {
+            try {
+                const start = new Date(npc.departure_time).getTime();
+                const end = new Date(npc.arrival_time).getTime();
+                const progress = Math.min(Math.max((now - start) / (end - start), 0), 1);
+
+                const [startLat, startLng] = npc.start_pos.split('_').map(Number);
+                const [destLat, destLng] = npc.destination_pos.split('_').map(Number);
+
+                const currentLat = startLat + (destLat - startLat) * progress;
+                const currentLng = startLng + (destLng - startLng) * progress;
+
+                // Update current position
+                db.prepare('UPDATE users SET current_pos = ? WHERE id = ?')
+                    .run(`${currentLat}_${currentLng}`, npc.id);
+            } catch (err) {
+                console.error(`[AbsoluteNPC] Error updating position for NPC ${npc.id}:`, err);
+            }
+        });
+    }
+
+    checkArrival(npc) {
+        if (!npc.arrival_time || !npc.destination_pos) return;
+
+        const now = Date.now();
+        const arrivalTime = new Date(npc.arrival_time).getTime();
+
+        if (now >= arrivalTime) {
+            // Arrived at destination - update current position
+            console.log(`[AbsoluteNPC] ${npc.username} arrived at destination`);
+            db.prepare(`
+                UPDATE users 
+                SET current_pos = ?, destination_pos = NULL, start_pos = NULL, arrival_time = NULL, departure_time = NULL 
+                WHERE id = ?
+            `).run(npc.destination_pos, npc.id);
+        }
     }
 
     manageDefense(npc) {
@@ -126,11 +195,14 @@ class AbsoluteNpcManager {
         const [currentLat, currentLng] = currentPos;
         const distanceKm = this.getDistanceFromLatLonInKm(currentLat, currentLng, destLat, destLng);
 
-        // Dynamic speed from DB
+        // Dynamic speed from DB (in km/h)
         const cyborg = db.prepare('SELECT movement_speed FROM character_cyborg WHERE user_id = ?').get(npc.id);
-        const speedKmPerSec = cyborg ? (cyborg.movement_speed || 0.1) : 0.1; // Default 0.1 km/s if not set
+        const speedKmh = cyborg ? (cyborg.movement_speed || 180) : 180; // Default 180 km/h
+        const speedKms = speedKmh / 3600; // Convert km/h to km/s
 
-        const travelTimeSec = distanceKm / speedKmPerSec;
+        let travelTimeSec = distanceKm / speedKms;
+        if (travelTimeSec < 1) travelTimeSec = 1; // Minimum 1 second
+
         const arrivalTime = new Date(Date.now() + travelTimeSec * 1000);
 
         db.prepare(`

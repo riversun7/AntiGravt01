@@ -414,7 +414,7 @@ export default function TerrainMapPage() {
             }
 
             // Load territories (Spatial Query)
-            let territoryUrl = `${API_BASE_URL}/api/territories`;
+            const territoryUrl = `${API_BASE_URL}/api/territories`;
             // Use fetched position if available (fetchedPos), else current state
             const targetPos = fetchedPos || { x: playerPosition[0], y: playerPosition[1] };
 
@@ -889,7 +889,15 @@ export default function TerrainMapPage() {
                 const lat = p1.lat + (p2.lat - p1.lat) * segProgress;
                 const lng = p1.lng + (p2.lng - p1.lng) * segProgress;
 
-                setPlayerPosition([lat, lng]);
+                // Only update if position changed significantly (>1m)
+                setPlayerPosition(prev => {
+                    const latDiff = Math.abs(prev[0] - lat);
+                    const lngDiff = Math.abs(prev[1] - lng);
+                    if (latDiff > 0.00001 || lngDiff > 0.00001) { // ~1m
+                        return [lat, lng];
+                    }
+                    return prev;
+                });
             }
 
             animationFrameId = requestAnimationFrame(animate);
@@ -898,7 +906,7 @@ export default function TerrainMapPage() {
         animationFrameId = requestAnimationFrame(animate);
 
         return () => cancelAnimationFrame(animationFrameId);
-    }, [isMoving, moveStartTime, moveArrivalTime, activePath, moveStartPos]);
+    }, [isMoving, activePath, moveStartTime, moveArrivalTime, moveStartPos]);
 
 
     const cancelPlanning = () => {
@@ -1013,6 +1021,7 @@ export default function TerrainMapPage() {
                         path={isMoving ? activePath : plannedPath} // Show active path while moving
                         waypoints={isMoving ? [] : waypoints} // Hide waypoints while moving
                         onWaypointRemove={removeWaypoint}
+                        selectedNpc={selectedNpc}
                         setSelectedNpc={setSelectedNpc}
                         npcRefreshKey={npcRefreshKey}
                     />
