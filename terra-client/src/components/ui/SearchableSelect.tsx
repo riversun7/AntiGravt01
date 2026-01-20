@@ -18,7 +18,19 @@ interface SearchableSelectProps {
     label?: string;
 }
 
-export default function SearchableSelect({ options, value, onChange, placeholder = "Select...", label }: SearchableSelectProps) {
+/**
+ * @file SearchableSelect.tsx
+ * @description 검색 가능한 드롭다운 선택 컴포넌트
+ * @role 많은 수의 옵션 중 검색을 통해 원하는 항목을 빠르게 선택
+ * @dependencies react, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - 카테고리별 그룹화(Group by Category) 기능을 지원하여 옵션 목록을 체계적으로 보여줌.
+ * - 키보드 내비게이션은 아직 구현되지 않음 (추후 개선 가능).
+ * - 모바일 환경에서의 터치 사용성 고려 필요 (현재는 클릭 기반).
+ */
+export default function SearchableSelect({ options, value, onChange, placeholder = "선택하세요...", label }: SearchableSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState("");
     const containerRef = useRef<HTMLDivElement>(null);
@@ -84,7 +96,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
                                 type="text"
                                 autoFocus
                                 className="w-full bg-slate-900 border border-slate-700 rounded pl-9 pr-3 py-2 text-sm text-white focus:border-cyan-500 outline-none"
-                                placeholder="Type to filter..."
+                                placeholder="검색어 입력..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
@@ -99,7 +111,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
                     {/* Options List */}
                     <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
                         {Object.keys(groupedOptions).length === 0 ? (
-                            <div className="p-4 text-center text-gray-500 text-sm">No results found.</div>
+                            <div className="p-4 text-center text-gray-500 text-sm">검색 결과가 없습니다.</div>
                         ) : (
                             Object.entries(groupedOptions).map(([category, opts]) => (
                                 <div key={category}>

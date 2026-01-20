@@ -1,3 +1,15 @@
+/**
+ * @file verify_setup.js
+ * @description 서버 환경 설정(.env, DB 파일, 테이블 존재 여부)을 검증하는 진단 스크립트
+ * @role 배포 전/후 환경 점검 (Health Check)
+ * @dependencies fs, path, database.js
+ * @status Maintenance
+ * 
+ * @analysis
+ * - .env 로드 확인, DB 파일 권한 및 경로 확인, 필수 테이블(admin_tasks 등) 존재 여부를 체크합니다.
+ * - 서버 실행 전 `node verify_setup.js`로 환경 문제를 미리 파악할 수 있습니다.
+ */
+
 const fs = require('fs');
 const path = require('path');
 

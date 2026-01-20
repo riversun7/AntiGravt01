@@ -1,3 +1,25 @@
+/**
+ * @file admin/page.tsx
+ * @description 관리자 대시보드 메인 페이지
+ * @role 시스템 상태, 사용자 통계, 관리 도구 링크를 제공하는 허브
+ * @dependencies lucide-react (아이콘), Link (Next.js)
+ * @status Active
+ * 
+ * @analysis
+ * **주요 기능:**
+ * - 시스템 상태 카드 (사용자 수, 서버 상태, DB 연결, 부하)
+ * - 관리 도구 바로가기 (Mail, System, DB Inspector, Planning 등)
+ * - 최근 활동 로그 (향후 구현 예정)
+ * 
+ * **바로가기 링크:**
+ * - Mail Console: 아이템/메시지 발송
+ * - Server Control: 서버 프로세스 관리
+ * - DB Inspector: 테이블 조회/수정
+ * - Planning Board: 작업 관리 (Kanban)
+ * - User Manager: 유저 역할 관리
+ * - DB Designer: 스키마 편집기
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";

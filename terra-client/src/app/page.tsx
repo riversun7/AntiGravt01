@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { ArrowRight, Zap, Globe, Shield } from "lucide-react";
 
+/**
+ * @file page.tsx
+ * @description 게임의 랜딩 페이지 (Landing Page)
+ * @role 게임 소개, 로그인/대시보드 진입점 제공, 주요 기능 홍보
+ * @dependencies next/link, lucide-react
+ * @status Active
+ */
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)] relative overflow-hidden">

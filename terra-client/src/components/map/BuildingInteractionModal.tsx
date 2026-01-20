@@ -35,6 +35,13 @@ interface BuildingInteractionModalProps {
     onDestroyBuilding: () => void;
 }
 
+/**
+ * @file BuildingInteractionModal.tsx
+ * @description 배치된 유닛을 관리하고 생산된 자원을 수집하는 건물 상호작용 모달
+ * @role 배치 유닛 목록 표시, 유닛 회수, 누적 자원 수집, 건물 파괴
+ * @dependencies react, lucide-react, API_BASE_URL
+ * @status Active
+ */
 export default function BuildingInteractionModal({
     building,
     isOpen,
@@ -65,17 +72,18 @@ export default function BuildingInteractionModal({
                 const data = await response.json();
                 setAssignments(data);
 
-                // Calculate total resources
+                // 누적 생산량 총합 계산
                 const total = data.reduce((sum: number, a: Assignment) => sum + a.resources_collected, 0);
                 setTotalResources(total);
             }
         } catch (error) {
-            console.error('Failed to load assignments:', error);
+            console.error('Assignments 로드 실패:', error);
         } finally {
             setIsLoading(false);
         }
     };
 
+    // 유닛 작업 해제 (회수)
     const handleRemoveUnit = async (minionId: number) => {
         try {
             const response = await fetch(
@@ -86,14 +94,15 @@ export default function BuildingInteractionModal({
             if (response.ok) {
                 const result = await response.json();
                 alert(`유닛 회수 완료! ${result.collectedResources} 골드 획득`);
-                loadAssignments(); // Reload
+                loadAssignments(); // 목록 갱신
             }
         } catch (error) {
-            console.error('Failed to remove unit:', error);
+            console.error('유닛 회수 실패:', error);
             alert('유닛 회수 실패');
         }
     };
 
+    // 자원 수집
     const handleCollect = async () => {
         try {
             const response = await fetch(
@@ -104,11 +113,11 @@ export default function BuildingInteractionModal({
             if (response.ok) {
                 const result = await response.json();
                 alert(`${result.gold} 골드 수집 완료!`);
-                onCollectResources(); // Notify parent
-                loadAssignments(); // Reload
+                onCollectResources(); // 부모 컴포넌트에 알림
+                loadAssignments(); // 목록 갱신
             }
         } catch (error) {
-            console.error('Failed to collect resources:', error);
+            console.error('자원 수집 실패:', error);
             alert('자원 수집 실패');
         }
     };

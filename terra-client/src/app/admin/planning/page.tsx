@@ -1,42 +1,106 @@
+/**
+ * @file admin/planning/page.tsx
+ * @description 관리자용 고급 작업 계획 보드 (Kanban 스타일)
+ * @role 개발 작업을 카테고리별, 상태별로 관리하는 프로젝트 관리 도구
+ * @dependencies lucide-react (아이콘), config (API URL)
+ * @status Active
+ * 
+ * @analysis
+ * **기능:**
+ * - TODO, IN_PROGRESS, DONE 3단계 작업 흐름
+ * - 카테고리별 작업 분류 (Admin, Economy, Map 등)
+ * - 색상 커스터마이징 (18가지 프리셋 + 커스텀)
+ * - LocalStorage → DB 자동 마이그레이션
+ * - AI 프롬프트 생성 (작업 컨텍스트 복사)
+ * 
+ * **데이터 저장:**
+ * - 서버 DB 우선 (tasks, categories 테이블)
+ * - LocalStorage 레거시 지원 (자동 마이그레이션)
+ * 
+ * **UI 특징:**
+ * - 3컬럼 Kanban 보드
+ * - 카테고리별 필터링
+ * - 드래그 없이 화살표로 상태 이동
+ * - 색상 팔레트 인라인 에디터
+ */
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, X, ArrowRight, ArrowLeft, Trash2, Save, Copy, Settings, Layout, Palette } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/config';
 
-// --- Types ---
+// ═══════════════════════════════════════════════════════
+// 타입 정의
+// ═══════════════════════════════════════════════════════
+
+/**
+ * @interface TaskCategory
+ * @description 작업 카테고리 (예: Admin, Economy, Map)
+ */
 interface TaskCategory {
-    id: string;
-    label: string;
-    color: string;
+    id: string;        // 고유 ID (예: 'ADMIN', 'MAP')
+    label: string;     // 표시 이름 (예: 'Admin Tools')
+    color: string;     // Hex 색상 코드 (예: '#ef4444')
 }
 
+/**
+ * @interface Task
+ * @description 개별 작업 아이템
+ */
 interface Task {
-    id: string;
-    title: string;
-    description: string;
-    status: 'TODO' | 'IN_PROGRESS' | 'DONE';
-    categoryId: string;
-    createdAt: number;
+    id: string;               // 고유 ID (타임스탬프 기반)
+    title: string;            // 작업 제목
+    description: string;      // 상세 설명 (AI 프롬프트로 사용 가능)
+    status: 'TODO' | 'IN_PROGRESS' | 'DONE';  // 작업 상태
+    categoryId: string;       // 소속 카테고리 ID
+    createdAt: number;        // 생성 타임스탬프
 }
+
+/**
+ * @const DEFAULT_CATEGORIES
+ * @description 기본 카테고리 8개 (색상 프리셋 포함)
+ * 
+ * 카테고리 구성:
+ * - ADMIN: 관리 도구 (빨강)
+ * - ECONOMY: 경제 시스템 (주황)
+ * - ITEM: 아이템/인벤토리 (노랑)
+ * - MAP: 맵/월드 (초록)
+ * - SERVER: 서버/DB (청록)
+ * - USER: 유저 관리 (파랑)
+ * - CHARACTER: 캐릭터 (보라)
+ * - SETTINGS: 설정 (회색)
+ */
 
 const DEFAULT_CATEGORIES: TaskCategory[] = [
-    { id: 'ADMIN', label: 'Admin Tools', color: '#ef4444' }, // Red (Critical)
-    { id: 'ECONOMY', label: 'Economy', color: '#f97316' }, // Orange
-    { id: 'ITEM', label: 'Items & Inv', color: '#eab308' }, // Yellow
-    { id: 'MAP', label: 'Map & World', color: '#22c55e' }, // Green
-    { id: 'SERVER', label: 'Server/DB', color: '#06b6d4' }, // Cyan
-    { id: 'USER', label: 'Users', color: '#3b82f6' }, // Blue
-    { id: 'CHARACTER', label: 'Character', color: '#a855f7' }, // Purple
-    { id: 'SETTINGS', label: 'Settings', color: '#64748b' }, // Slate
+    { id: 'ADMIN', label: 'Admin Tools', color: '#ef4444' }, // 빨강 (긴급)
+    { id: 'ECONOMY', label: 'Economy', color: '#f97316' }, // 주황
+    { id: 'ITEM', label: 'Items & Inv', color: '#eab308' }, // 노랑
+    { id: 'MAP', label: 'Map & World', color: '#22c55e' }, // 초록
+    { id: 'SERVER', label: 'Server/DB', color: '#06b6d4' }, // 청록
+    { id: 'USER', label: 'Users', color: '#3b82f6' }, // 파랑
+    { id: 'CHARACTER', label: 'Character', color: '#a855f7' }, // 보라
+    { id: 'SETTINGS', label: 'Settings', color: '#64748b' }, // 회색
 ];
 
+/**
+ * @const COLUMNS
+ * @description Kanban 보드의 3개 컬럼 정의
+ * 
+ * 작업 흐름: TODO → IN_PROGRESS → DONE
+ */
 const COLUMNS = [
-    { id: 'TODO', title: 'To Do', color: '#ef4444' },
-    { id: 'IN_PROGRESS', title: 'In Progress', color: '#3b82f6' },
-    { id: 'DONE', title: 'Done', color: '#22c55e' },
+    { id: 'TODO', title: 'To Do', color: '#ef4444' },           // 할 일 (빨강)
+    { id: 'IN_PROGRESS', title: 'In Progress', color: '#3b82f6' }, // 진행중 (파랑)
+    { id: 'DONE', title: 'Done', color: '#22c55e' },            // 완료 (초록)
 ];
 
+/**
+ * @const PRESET_COLORS
+ * @description 카테고리 색상 팔레트 (18가지 Tailwind 색상)
+ * 
+ * 사용자가 카테고리 색상 변경 시 이 팔레트에서 선택
+ */
 const PRESET_COLORS = [
     '#64748b', // Slate
     '#ef4444', // Red
@@ -58,6 +122,11 @@ const PRESET_COLORS = [
     '#f43f5e', // Rose
 ];
 
+/**
+ * @function getRandomHexColor
+ * @description 랜덤 Hex 색상 생성 (#000000 ~ #FFFFFF)
+ * @returns {string} Hex 색상 코드
+ */
 const getRandomHexColor = () => {
     const letters = '0123456789ABCDEF';
     let color = '#';
@@ -67,6 +136,13 @@ const getRandomHexColor = () => {
     return color;
 };
 
+/**
+ * @const LEGACY_COLOR_MAP
+ * @description 레거시 Tailwind 클래스 → Hex 색상 매핑
+ * 
+ * 이전 버전에서 'bg-red-500' 형식으로 저장했던 데이터를
+ * Hex 코드로 자동 변환하기 위한 매핑 테이블
+ */
 const LEGACY_COLOR_MAP: Record<string, string> = {
     'bg-emerald-500': '#10b981',
     'bg-purple-500': '#a855f7',
@@ -76,21 +152,44 @@ const LEGACY_COLOR_MAP: Record<string, string> = {
     'bg-red-500': '#ef4444',
     'bg-blue-500': '#3b82f6',
     'bg-slate-500': '#64748b',
-    // Fallbacks
+    // 폴백
     'bg-gray-500': '#64748b',
     'bg-green-500': '#22c55e',
     'bg-indigo-500': '#6366f1',
     'bg-orange-500': '#f97316',
 };
 
+/**
+ * @component PlanningPage
+ * @description 관리자 작업 계획 페이지 메인 컴포넌트
+ * 
+ * 주요 기능:
+ * - Kanban 보드 (TODO/IN_PROGRESS/DONE)
+ * - 카테고리별 필터링
+ * - 작업 CRUD (생성/수정/삭제)
+ * - 카테고리 관리 (색상 변경, 추가/삭제)
+ * - LocalStorage → DB 마이그레이션
+ * - AI 프롬프트 생성
+ */
 export default function PlanningPage() {
-    // --- State ---
+    // ═══════════════════════════════════════════════════════
+    // 상태 관리
+    // ═══════════════════════════════════════════════════════
+
+    // 작업 데이터
     const [tasks, setTasks] = useState<Task[]>([]);
     const [categories, setCategories] = useState<TaskCategory[]>(DEFAULT_CATEGORIES);
 
-    // UI State
-    const [activeTab, setActiveTab] = useState<string>('ALL');
-    const [isLoading, setIsLoading] = useState(true);
+    // UI 상태
+    const [activeTab, setActiveTab] = useState<string>('ALL'); // 현재 선택된 카테고리
+    const [isLoading, setIsLoading] = useState(true);           // 초기 로딩 상태
+
+    /**
+     * @function syncCategories
+     * @description 카테고리 변경사항을 서버에 동기화
+     * 
+     * 모든 카테고리 변경 (추가/삭제/수정) 후 자동 호출
+     */
     const syncCategories = useCallback(async (cats: TaskCategory[]) => {
         try {
             await fetch(`${API_BASE_URL}/api/admin/categories`, {

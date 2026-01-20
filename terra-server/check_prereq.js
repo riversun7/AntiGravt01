@@ -1,3 +1,11 @@
+/**
+ * @file check_prereq.js
+ * @description 특정 건물 타입(AREA_BEACON, CENTRAL_CONTROL_HUB)이 DB에 존재하는지 확인하는 스크립트.
+ * @role 데이터 검증 (건물 타입 테이블)
+ * @dependencies database.js
+ * @status Maintenance (디버깅용)
+ */
+
 const db = require('./database');
 
 console.log('Checking AREA_BEACON...');

@@ -1,3 +1,21 @@
+/**
+ * @file economy/page.tsx
+ * @description 경제 시스템 통합 페이지
+ * @role 창고(Warehouse), 시장(Market), 미니언 상태를 한 화면에 표시
+ * @dependencies WarehousePanel, MarketPanel, MinionStatusPanel
+ * @status Active
+ * 
+ * @analysis
+ * **주요 기능:**
+ * - 창고: 자원 저장 및 관리
+ * - 시장: 아이템 거래
+ * - 미니언 상태: 작업 중인 미니언 현황
+ * 
+ * **레이아웃:**
+ * - 2컬럼 그리드 (lg 이상)
+ * - 미니언 패널은 전체 너비
+ */
+
 'use client';
 
 import React, { useEffect, useState } from 'react';

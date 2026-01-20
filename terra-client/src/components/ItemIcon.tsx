@@ -63,6 +63,18 @@ const ICON_MAP: Record<string, any> = {
     'GOLD': Box
 };
 
+/**
+ * @file ItemIcon.tsx
+ * @description 아이템 코드나 유형에 따라 적절한 아이콘을 렌더링하는 유틸리티 컴포넌트
+ * @role 아이템의 시각적 식별성 강화, 다양한 크기(sm, md, lg, xl) 지원
+ * @dependencies react, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - 아이템 코드(code)를 직접 매핑(`ICON_MAP`)하거나, 부분 일치(includes) 또는 타입(type) 기반으로 폴백 아이콘을 결정하는 3단계 로직을 사용.
+ * - 장비(Equipment)와 자원(Resource)의 색상 테마를 구분(Cyan vs Emerald)하여 시각적 단서를 제공.
+ * - Lucide React 라이브러리를 최대한 활용하여 가벼운 벡터 아이콘 시스템 구축.
+ */
 export default function ItemIcon({ item, size = "md", className = "" }: ItemIconProps) {
     const sizeClasses = {
         sm: "w-8 h-8 p-1.5",

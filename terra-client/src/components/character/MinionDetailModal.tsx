@@ -14,6 +14,17 @@ interface MinionDetailModalProps {
     onFeed: (id: number) => void;
 }
 
+/**
+ * @file MinionDetailModal.tsx
+ * @description 미니언의 상세 정보 확인 및 관리(휴식, 충전, 먹이주기)를 위한 모달
+ * @role 미니언의 전체 스탯, 상세 상태, 장비(예정) 확인 및 상호작용 기능 제공
+ * @dependencies react, lucide-react, dicebear
+ * @status Active
+ * 
+ * @analysis
+ * - 탭(Tab) 기반 UI(Overview, Equipment)를 사용하여 정보 복잡도를 분산시킴.
+ * - 미니언 타입(Android vs Organic)에 따라 사용 가능한 명령어(Recharge vs Feed)가 동적으로 변경됨.
+ */
 export default function MinionDetailModal({ minion, equipment = [], onClose, onRest, onCharge, onFeed }: MinionDetailModalProps) {
     const [tab, setTab] = useState<'overview' | 'loadout'>('overview');
 
@@ -49,13 +60,13 @@ export default function MinionDetailModal({ minion, equipment = [], onClose, onR
                         onClick={() => setTab('overview')}
                         className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${tab === 'overview' ? "border-cyan-500 text-cyan-400 bg-cyan-950/10" : "border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-900"}`}
                     >
-                        <Activity size={16} /> Overview
+                        <Activity size={16} /> 개요 (Overview)
                     </button>
                     <button
                         onClick={() => setTab('loadout')}
                         className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${tab === 'loadout' ? "border-cyan-500 text-cyan-400 bg-cyan-950/10" : "border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-900"}`}
                     >
-                        <Layers size={16} /> Equipment
+                        <Layers size={16} /> 장비 (Equipment)
                     </button>
                 </div>
 
@@ -108,26 +119,26 @@ export default function MinionDetailModal({ minion, equipment = [], onClose, onR
                             <div className="space-y-6">
                                 {/* Actions */}
                                 <div className="bg-slate-950 p-6 rounded-xl border border-slate-800">
-                                    <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-4">Unit Commands</h3>
+                                    <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-4">유닛 명령 (Unit Commands)</h3>
                                     <div className="grid grid-cols-2 gap-3">
                                         <button onClick={() => onRest(minion.id)} className="p-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg flex flex-col items-center gap-2 transition-colors group">
                                             <Activity className="text-emerald-500 group-hover:text-emerald-400" />
-                                            <span className="text-sm font-bold text-slate-300">Rest</span>
+                                            <span className="text-sm font-bold text-slate-300">휴식 (Rest)</span>
                                         </button>
                                         {minion.type === 'android' ? (
                                             <button onClick={() => onCharge(minion.id)} className="p-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg flex flex-col items-center gap-2 transition-colors group">
                                                 <Battery className="text-cyan-500 group-hover:text-cyan-400" />
-                                                <span className="text-sm font-bold text-slate-300">Recharge</span>
+                                                <span className="text-sm font-bold text-slate-300">충전 (Recharge)</span>
                                             </button>
                                         ) : (
                                             <button onClick={() => onFeed(minion.id)} className="p-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg flex flex-col items-center gap-2 transition-colors group">
                                                 <Heart className="text-red-500 group-hover:text-red-400" />
-                                                <span className="text-sm font-bold text-slate-300">Feed</span>
+                                                <span className="text-sm font-bold text-slate-300">먹이주기 (Feed)</span>
                                             </button>
                                         )}
                                         <button className="p-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg flex flex-col items-center gap-2 transition-colors group opacity-50 cursor-not-allowed" title="Coming Soon">
                                             <Play className="text-purple-500" />
-                                            <span className="text-sm font-bold text-slate-300">Train</span>
+                                            <span className="text-sm font-bold text-slate-300">훈련 (Train)</span>
                                         </button>
                                     </div>
                                 </div>

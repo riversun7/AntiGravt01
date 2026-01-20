@@ -30,6 +30,13 @@ interface AssignUnitModalProps {
     onAssigned: () => void;
 }
 
+/**
+ * @file AssignUnitModal.tsx
+ * @description 건물에 유닛(하수인)을 배치하는 모달 컴포넌트
+ * @role 유닛 목록 로드, 배치 적합성(체력, 배터리) 검사, 예상 효율 계산, 배치 실행
+ * @dependencies react, lucide-react, API_BASE_URL
+ * @status Active
+ */
 export default function AssignUnitModal({
     buildingId,
     buildingType,
@@ -76,20 +83,22 @@ export default function AssignUnitModal({
         }
     };
 
+    // 예상 생산 효율 계산 (힘 + 지능 기반)
     const calculateEfficiency = (minion: Minion) => {
         const baseEfficiency = 1.0;
         const statBonus = (minion.strength + minion.intelligence) / 20;
         return baseEfficiency * (1 + statBonus * 0.5);
     };
 
+    // 배치 가능 여부 검사 (중복 배치 방지, 최소 체력/배터리 요구)
     const canAssign = (minion: Minion) => {
-        // Check if already assigned
+        // 이미 배치된 유닛 제외
         if (assignedMinionIds.has(minion.id)) return false;
 
-        // Check health
+        // 최소 체력 30% 이상
         if (minion.hp < 30) return false;
 
-        // Check battery for androids
+        // 안드로이드: 배터리 20% 이상
         if (minion.type === 'android' && minion.battery < 20) return false;
 
         return true;
@@ -100,12 +109,12 @@ export default function AssignUnitModal({
 
         setIsAssigning(true);
         try {
-            // Determine task type based on building type
-            let taskType = 'mining'; // default
+            // 건물 타입에 따른 작업 유형 자동 할당
+            let taskType = 'mining'; // 기본: 채굴
             if (buildingType.toLowerCase() === 'barracks') {
-                taskType = 'resting';
+                taskType = 'resting'; // 숙소: 휴식
             } else if (buildingType.toLowerCase() === 'warehouse') {
-                taskType = 'guarding';
+                taskType = 'guarding'; // 창고: 경비
             }
 
             const response = await fetch(

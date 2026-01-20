@@ -17,10 +17,17 @@ interface Npc {
     faction_id: number;
 }
 
+/**
+ * @file NpcInfoPanel.tsx
+ * @description NPC의 상세 정보와 상태를 표시하는 오버레이 패널
+ * @role NPC 이름, 레벨, 팩션, 현재 활동 상태(이동/대기), 위치 표시 및 관리자 제어 버튼 제공
+ * @dependencies react
+ * @status Active
+ */
 interface NpcInfoPanelProps {
     npc: Npc | null;
     onClose: () => void;
-    onOpenAdminControl: () => void;
+    onOpenAdminControl: () => void; // 관리자 제어 모달 열기 핸들러
 }
 
 export default function NpcInfoPanel({ npc, onClose, onOpenAdminControl }: NpcInfoPanelProps) {

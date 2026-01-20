@@ -1,3 +1,11 @@
+/**
+ * @file debug_npcs.js
+ * @description 실행 중인 서버의 NPC API(/api/npcs)를 호출하여 NPC 상태를 확인하는 외부 테스트 스크립트
+ * @role API 응답 검증 (NPC 생성 여부 확인)
+ * @dependencies fetch (Node.js 18+ Built-in)
+ * @status Maintenance
+ */
+
 // Remote 'require' since Node 18 has native fetch
 async function checkNpcs() {
     try {

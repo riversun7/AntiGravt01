@@ -9,6 +9,18 @@ interface DateTimePickerProps {
     label?: string;
 }
 
+/**
+ * @file DateTimePicker.tsx
+ * @description 날짜 및 시간을 선택하는 캘린더/시계 팝오버 컴포넌트
+ * @role 예약 발송(우편 등)이나 이벤트 일정 설정 시 사용
+ * @dependencies react, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - 커스텀 캘린더 로직(월 이동, 날짜 생성)을 직접 구현하여 라이브러리 의존성을 줄임.
+ * - 시간 선택(시/분)은 드롭다운 방식을 사용하여 모바일에서도 쉽게 선택 가능.
+ * - `value`가 ISO 문자열로 관리되므로 백엔드와의 호환성이 좋음.
+ */
 export default function DateTimePicker({ value, onChange, label }: DateTimePickerProps) {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -82,7 +94,7 @@ export default function DateTimePicker({ value, onChange, label }: DateTimePicke
                             <span className="font-mono text-yellow-400 font-bold">{new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                     ) : (
-                        <span className="text-gray-500">Pick a date & time...</span>
+                        <span className="text-gray-500">날짜 및 시간 선택...</span>
                     )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -139,7 +151,7 @@ export default function DateTimePicker({ value, onChange, label }: DateTimePicke
                     {/* Time Picker */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-gray-400 text-xs">
-                            <Clock size={14} /> Time
+                            <Clock size={14} /> 시간 설정 (Time)
                         </div>
                         <div className="flex items-center gap-2">
                             <select

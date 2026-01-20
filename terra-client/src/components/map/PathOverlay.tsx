@@ -8,10 +8,17 @@ interface PathOverlayProps {
     onWaypointClick?: (index: number) => void;
 }
 
+/**
+ * @file PathOverlay.tsx
+ * @description 지도 상에 이동 경로(Polyline)와 경유지(Waypoint)를 렌더링하는 컴포넌트
+ * @role A* 알고리즘 등으로 계산된 경로를 시각화하고, 경유지 추가/삭제 인터랙션을 제공
+ * @dependencies react-leaflet, leaflet
+ * @status Active
+ */
 const PathOverlay = React.memo(function PathOverlay({ path, waypoints, onWaypointClick }: PathOverlayProps) {
     if (!path || path.length === 0) return null;
 
-    // Convert to Leaflet LatLngExpression
+    // Leaflet 호환 좌표 포맷으로 변환 ([lat, lng])
     const positions = path
         .filter(p => p && typeof p.lat === 'number' && typeof p.lng === 'number')
         .map(p => [p.lat, p.lng] as [number, number]);
@@ -31,7 +38,7 @@ const PathOverlay = React.memo(function PathOverlay({ path, waypoints, onWaypoin
         <>
             <Polyline
                 positions={positions}
-                pathOptions={{ color: '#fbbf24', weight: 4, opacity: 0.8, dashArray: '10, 10' }}
+                pathOptions={{ color: '#fbbf24', weight: 4, opacity: 0.8, dashArray: '10, 10' }} // 노란색 점선 스타일
             />
             {waypoints.map((wp, i) => (
                 <Marker
@@ -43,13 +50,13 @@ const PathOverlay = React.memo(function PathOverlay({ path, waypoints, onWaypoin
                     }}
                 >
                     <Popup>
-                        Waypoint {i + 1}
+                        경유지 {i + 1}
                         <br />
                         <button
                             className="bg-red-500 text-white px-2 py-1 rounded text-xs mt-1"
                             onClick={() => onWaypointClick && onWaypointClick(i)}
                         >
-                            Remove
+                            삭제 (Remove)
                         </button>
                     </Popup>
                 </Marker>

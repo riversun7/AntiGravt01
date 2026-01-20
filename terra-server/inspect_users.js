@@ -1,3 +1,11 @@
+/**
+ * @file inspect_users.js
+ * @description 사용자 테이블(users)의 스키마와 최신 데이터를 확인하는 디버깅 스크립트
+ * @role 데이터 확인, 스키마 검증
+ * @dependencies database.js
+ * @status Maintenance
+ */
+
 const db = require('./database');
 
 console.log("--- Schema Info for users ---");

@@ -13,14 +13,26 @@ import {
     Shield
 } from "lucide-react";
 
+/**
+ * @file AdminSidebar.tsx
+ * @description 관리자 패널의 좌측 사이드바 내비게이션
+ * @role 관리자 기능 페이지(대시보드, 유저 관리, NPC 관리, 우편, DB 검사 등)로의 이동 링크 제공
+ * @dependencies next/link, next/navigation, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - Next.js의 `usePathname`을 사용하여 현재 활성화된 메뉴를 시각적으로 강조(Highlight).
+ * - 일반 사용자가 접근할 수 없는 중요한 관리 기능들로 구성됨.
+ * - 하단의 'EXIT TO MAIN'을 통해 일반 게임 화면으로 복귀 가능.
+ */
 const menuItems = [
-    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { name: "Users", href: "/admin/users", icon: Users },
-    { name: "NPC Factions", href: "/admin/npc", icon: Shield },
-    { name: "Mail Console", href: "/admin/mail", icon: Send },
-    { name: "DB Inspector", href: "/admin/db-inspector", icon: Database },
-    { name: "System Node", href: "/admin/system", icon: Server },
-    { name: "Planning", href: "/admin/planning", icon: ClipboardList },
+    { name: "대시보드 (Dashboard)", href: "/admin", icon: LayoutDashboard },
+    { name: "사용자 관리 (Users)", href: "/admin/users", icon: Users },
+    { name: "NPC 팩션 (NPC Factions)", href: "/admin/npc", icon: Shield },
+    { name: "우편 콘솔 (Mail Console)", href: "/admin/mail", icon: Send },
+    { name: "DB 검사기 (DB Inspector)", href: "/admin/db-inspector", icon: Database },
+    { name: "시스템 노드 (System Node)", href: "/admin/system", icon: Server },
+    { name: "기획/할일 (Planning)", href: "/admin/planning", icon: ClipboardList },
 ];
 
 export default function AdminSidebar() {
@@ -66,7 +78,7 @@ export default function AdminSidebar() {
                     className="flex items-center justify-center gap-2 w-full py-3 rounded-md bg-gradient-to-r from-red-900/50 to-red-800/50 hover:from-red-800 hover:to-red-700 text-red-200 hover:text-white border border-red-500/30 hover:border-red-400 transition-all font-bold shadow-lg shadow-red-900/10"
                 >
                     <ArrowLeft size={18} />
-                    EXIT TO MAIN
+                    메인으로 복귀 (EXIT)
                 </Link>
             </div>
         </aside>

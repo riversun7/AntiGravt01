@@ -1,3 +1,29 @@
+/**
+ * @file dashboard/page.tsx
+ * @description 플레이어의 메인 대시보드 페이지 (Command Center)
+ * @role 유저 정보, 자원, 생산 현황, 스탯 등을 표시하는 허브 페이지
+ * @dependencies framer-motion (애니메이션), lucide-react (아이콘), Mailbox
+ * @status Active
+ * 
+ * @analysis
+ * **주요 기능:**
+ * - 사용자 인증 및 세션 관리 (3시간 TTL)
+ * - 리소스 표시 (Gold, Gem)
+ * - 캐릭터 정보 카드 (Cyborg 모델, 스탯)
+ * - 생산 현황 폴링 (5초마다)
+ * - 장비 보너스 계산 및 표시
+ * 
+ * **네비게이션:**
+ * - 지도 (3D Globe, Terrain Leaflet)
+ * - 경제 (Market, Character)
+ * - 관리자 페이지 (ADMIN 역할만)
+ * 
+ * **세션 관리:**
+ * - LocalStorage: terra_user_id, terra_login_timestamp
+ * - 3시간 후 자동 로그아웃
+ * - Cyborg 미선택 시 캐릭터 생성 페이지로 리다이렉트
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";

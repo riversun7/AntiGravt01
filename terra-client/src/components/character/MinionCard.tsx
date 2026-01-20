@@ -8,6 +8,18 @@ interface MinionCardProps {
     onRest: (id: number) => void;
 }
 
+/**
+ * @file MinionCard.tsx
+ * @description 개별 미니언의 정보를 요약해서 보여주는 카드 컴포넌트
+ * @role 미니언의 생김새(아바타), 레벨, 유형, 상태바(HP, 피로도, 배터리) 표시
+ * @dependencies react, framer-motion, lucide-react, dicebear(외부 API)
+ * @status Active
+ * 
+ * @analysis
+ * - DiceBear API를 사용하여 미니언 이름 기반 아이콘(아바타)을 자동 생성하여 다양성을 시각화함.
+ * - Framer Motion의 `whileHover` 효과로 인터랙티브한 느낌을 제공.
+ * - 미니언 유형(Human, Android, Creature)에 따라 테마 색상(Emerald, Cyan, Orange)이 동적으로 변경됨.
+ */
 export default function MinionCard({ minion, onClick, onRest }: MinionCardProps) {
     const getTypeIcon = (type: MinionType) => {
         switch (type) {
@@ -90,7 +102,7 @@ export default function MinionCard({ minion, onClick, onRest }: MinionCardProps)
                         onClick={(e) => { e.stopPropagation(); onRest(minion.id); }}
                         className="flex-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-white rounded transition-colors flex items-center justify-center gap-1"
                     >
-                        <Activity size={12} /> Rest
+                        <Activity size={12} /> 휴식 (Rest)
                     </button>
                     {/* Add more actions if needed */}
                 </div>

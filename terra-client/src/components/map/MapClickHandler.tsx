@@ -13,6 +13,18 @@ interface MapClickHandlerProps {
     onTileClick?: (lat: number, lng: number, point: { x: number; y: number }) => void;
 }
 
+/**
+ * @file MapClickHandler.tsx
+ * @description 지도상의 클릭/더블클릭 이벤트를 처리하는 핸들러
+ * @role 타일 정보 확인(클릭) 및 플레이어 이동 명령(더블클릭) 처리
+ * @dependencies react, react-leaflet, leaflet
+ * @status Active
+ * 
+ * @analysis
+ * - `click`과 `dblclick` 이벤트를 구분하기 위해 타이머(setTimeout) 로직 사용 (200ms 딜레이).
+ * - 더블클릭 시 작전 반경(`maxMovementRange`) 체크 후 `onMove` 콜백 호출.
+ * - 건설 모드(`isConstructing`)일 때는 이동 명령 무시.
+ */
 export default function MapClickHandler({
     isConstructing,
     geolocation,

@@ -3,6 +3,19 @@
 import React, { useEffect, useState } from 'react';
 import { Store, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 
+/**
+ * @file MarketPanel.tsx
+ * @description 사용자 간 자원을 거래할 수 있는 시장(Market) 패널 컴포넌트
+ * @role 현재 시장 가격 조회, 자원 판매 및 구매(현재는 판매 위주 구현) 기능 제공
+ * @dependencies react, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - 현재 구현은 자원 판매 기능에 집중되어 있으며, 구매 기능은 UI에 노출되지 않음.
+ * - 실시간 가격 변동(소켓 등)은 구현되지 않았으며, 패널 로드 시와 거래 완료 시에만 데이터가 갱신됨.
+ * - UX 개선을 위해 '모두 판매' 또는 수량 직접 입력 기능이 필요할 수 있음.
+ */
+
 interface MarketPrice {
     resource_type: string;
     current_price: number;
@@ -29,6 +42,7 @@ export default function MarketPanel({ userId }: { userId: number }) {
         fetchData();
     }, [userId]);
 
+    // 초기 데이터 로딩 (시장 가격 및 창고 정보 병렬 호출)
     const fetchData = async () => {
         try {
             const [pricesRes, warehouseRes] = await Promise.all([
@@ -48,6 +62,7 @@ export default function MarketPanel({ userId }: { userId: number }) {
         }
     };
 
+    // 자원 판매 핸들러
     const handleSell = async (resourceType: string, quantity: number) => {
         setSelling(resourceType);
         try {
@@ -61,7 +76,7 @@ export default function MarketPanel({ userId }: { userId: number }) {
 
             if (data.success) {
                 alert(`판매 완료! ${data.goldEarned} 골드를 획득했습니다.`);
-                fetchData(); // Refresh data
+                fetchData(); // 데이터 갱신 (잔액 및 창고 현황 업데이트)
             } else {
                 alert(`판매 실패: ${data.error}`);
             }

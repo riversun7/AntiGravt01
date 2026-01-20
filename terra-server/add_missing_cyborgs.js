@@ -1,3 +1,16 @@
+/**
+ * @file add_missing_cyborgs.js
+ * @description 기존 NPC 사용자들에게 사이보그 캐릭터가 누락된 경우 생성해주는 마이그레이션 스크립트
+ * @role 데이터 마이그레이션, 레거시 호환성 확보
+ * @dependencies database.js
+ * @status Maintenance (1회성 실행 권장)
+ * 
+ * @analysis
+ * - NPC(ABSOLUTE, FREE) 중 `character_cyborg` 레코드가 없는 경우 기본 스탯으로 생성합니다.
+ * - 또한 위치(GPS) 정보가 없으면 첫 번째 건물 위치로 동기화합니다.
+ * - FREE NPC의 경우 자원 밸런싱(Gold 50,000)도 수행합니다.
+ */
+
 const db = require('./database');
 
 console.log('=== Adding Cyborg Characters to Existing NPCs ===\n');

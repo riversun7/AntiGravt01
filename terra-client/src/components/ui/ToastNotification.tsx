@@ -7,6 +7,17 @@ interface ToastNotificationProps {
     onClose: () => void;
 }
 
+/**
+ * @file ToastNotification.tsx
+ * @description 개별 토스트 알림 메시지를 표시하는 단일 컴포넌트 (레거시/개별 사용)
+ * @role 단순 메시지 표시 및 자동 닫힘 타이머 처리
+ * @dependencies react
+ * @status Deprecated (System-wide toast preferred)
+ * 
+ * @analysis
+ * - `ToastSystem`이 도입되면서 직접 사용 빈도는 줄었으나, 간단한 로컬 알림이 필요할 때 사용 가능.
+ * - 3초 후 자동 닫힘(setTimeout) 로직 포함.
+ */
 export default function ToastNotification({ message, type = 'info', show, onClose }: ToastNotificationProps) {
     useEffect(() => {
         if (show) {

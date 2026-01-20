@@ -8,6 +8,18 @@ interface StatBarProps {
     color?: string;
 }
 
+/**
+ * @file StatBar.tsx
+ * @description 캐릭터 스탯(능력치)을 막대 그래프 형태로 표시하는 컴포넌트
+ * @role 기본 스탯과 장비로 인한 추가 보너스 스탯을 구분하여 시각화
+ * @dependencies react, framer-motion
+ * @status Active
+ * 
+ * @analysis
+ * - Framer Motion을 사용하여 스탯 변화 시 애니메이션 효과 제공.
+ * - 기본 스탯(회색) 위에 보너스 스탯(컬러)을 덧그리는 방식으로 직관적인 비교 가능.
+ * - 최대값(max)을 props로 받아 비율을 계산하므로 다양한 범위의 스탯에 재사용 가능.
+ */
 export default function StatBar({ label, value, base, max = 20, color = "bg-cyan-500" }: StatBarProps) {
     const bonus = value - base;
     const percentage = Math.min((base / max) * 100, 100);

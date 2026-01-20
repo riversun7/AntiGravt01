@@ -8,8 +8,15 @@ interface ZoomLevelDisplayProps {
 }
 
 /**
- * Display current zoom level with min/max bounds
- * Updates in real-time as user zooms
+ * @file ZoomLevelDisplay.tsx
+ * @description 현재 지도의 줌 레벨을 표시하는 UI 컴포넌트
+ * @role 줌 레벨 실시간 감지 및 시각화 (프로그레스 바 포함)
+ * @dependencies react-leaflet, react
+ * @status Active
+ * 
+ * @analysis
+ * - 맵 이벤트를 리스닝하여 줌 변경 시 즉각적으로 UI 업데이트.
+ * - 프로그레스 바(progress bar)를 통해 현재 줌 수준을 시각적으로 직관적으로 표현.
  */
 export default function ZoomLevelDisplay({ onZoomChange }: ZoomLevelDisplayProps) {
     const map = useMap();
@@ -40,7 +47,7 @@ export default function ZoomLevelDisplay({ onZoomChange }: ZoomLevelDisplayProps
     return (
         <div className="absolute top-4 right-4 z-[1000] pointer-events-none">
             <div className="bg-black/80 border border-cyan-500/50 rounded px-3 py-2 backdrop-blur-sm">
-                <div className="text-xs text-gray-400 font-mono mb-1">ZOOM LEVEL</div>
+                <div className="text-xs text-gray-400 font-mono mb-1">줌 레벨 (ZOOM)</div>
                 <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-cyan-400 font-mono">
                         {zoom}

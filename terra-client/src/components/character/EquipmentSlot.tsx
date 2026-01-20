@@ -10,6 +10,18 @@ interface EquipmentSlotProps {
     onClick: () => void;
 }
 
+/**
+ * @file EquipmentSlot.tsx
+ * @description 장비 슬롯 렌더링 컴포넌트
+ * @role 장착된 아이템 아이콘 표시, 빈 슬롯 표시, 클릭 이벤트 처리
+ * @dependencies react, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - 아이템이 없을 경우 Lucide 아이콘(Box)으로 빈 상태를 표시.
+ * - `align` prop을 통해 텍스트 위치(좌/우/중앙)를 유연하게 조정 가능하여 인체 모형 주변 배치에 적합.
+ * - 아이템 존재 여부에 따라 시각적 스타일(테두리, 그림자 등)이 동적으로 변경됨.
+ */
 export default function EquipmentSlot({ slot, label, item, align = 'left', onClick }: EquipmentSlotProps) {
     return (
         <div

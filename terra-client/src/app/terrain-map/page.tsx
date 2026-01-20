@@ -1,3 +1,33 @@
+/**
+ * @file terrain-map/page.tsx
+ * @description Leaflet 기반 실시간 지형 지도 게임 페이지
+ * @role 메인 게임 플레이 화면 - 지도, 건물, 유닛, 영토 등 모든 게임 요소 통합
+ * @dependencies react-leaflet, @turf/turf, GeolocationAPI, 다수의 맵 컴포넌트
+ * @status Active (주요 게임 화면)
+ * 
+ * @analysis
+ * **핵심 기능:**
+ * - 실시간 GPS 위치 추적
+ * - Leaflet 지도 렌더링 (여러 타일 제공자)
+ * - 건물 건설 및 관리
+ * - 유닛 이동 및 할당
+ * - 영토 표시 및 충돌 감지
+ * - NPC 표시
+ * 
+ * **상태 관리 (1169줄의 대형 컴포넌트):**
+ * - 플레이어 위치, 건물, 유닛, 영토 등 다수 상태
+ * - 5초마다 데이터 폴링
+ * - 클릭/이동 이벤트 처리
+ * 
+ * **최적화:**
+ * - dynamic import로 SSR 방지 (Leaflet은 브라우저 전용)
+ * - useMemo/useCallback으로 불필요한 리렌더 방지
+ * 
+ * **향후 개선:**
+ * - 상태 관리 라이브러리 도입 (Zustand/Jotai)
+ * - 컴포넌트 분리 (현재 너무 많은 책임)
+ */
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -71,6 +101,17 @@ function MapResizer() {
     return null;
 }
 
+/**
+ * @file terrain-map/page.tsx
+ * @description 게임의 메인 지도 화면 (Terrain Map) 페이지
+ * @role 게임의 핵심 루프 처리 (이동, 건설, 채집, 정찰), 지도 렌더링, 게임 상태 동기화
+ * @dependencies react, next/dynamic, leaflet, turf.js, API_BASE_URL
+ * @status Active
+ * @analysis
+ * 1. 이 파일은 게임의 "Main Controller" 역할을 수행하며, 로직이 매우 방대해짐 (1000줄 이상).
+ * 2. 추후 MovementLogic, BuildingLogic, GameStateLoader 등으로 로직 분리가 필요함.
+ * 3. `useEffect`가 많아 상태 동기화 순서가 복잡함.
+ */
 export default function TerrainMapPage() {
     const router = useRouter();
 
@@ -88,32 +129,28 @@ export default function TerrainMapPage() {
     const [npcRefreshKey, setNpcRefreshKey] = useState(0);
     const [showNpcAdminModal, setShowNpcAdminModal] = useState(false);
 
+    // --- 타일 클릭 핸들러 ---
+    // 지도상의 빈 땅이나 건물을 클릭했을 때 호출됨
     const handleTileClick = async (lat: number, lng: number, point?: { x: number; y: number }) => {
-        // If in Path Planning mode, add/remove waypoint
+        // 경로 계획 모드일 경우: 웨이포인트 추가
         if (isPathPlanning) {
-            // Append new waypoint to the end (Extend path)
-            // Logic: Start -> Point 1 -> Point 2 ... -> New Point
+            // 현재 경로 끝에 새로운 지점을 추가 (Start -> Point 1 -> Point 2 ... -> New Point)
             const newWaypoints = [...waypoints, { lat, lng }];
             setWaypoints(newWaypoints);
             calculatePath(newWaypoints);
             return;
         }
 
-        setSelectedTerritory(null); // Clear territory selection
-        // Grid calculation removed as per user request (Grid-less system)
-        // const x = Math.floor((lng + 180) / 360 * 160);
-        // const y = Math.floor((90 - lat) / 180 * 80);
-        // const tileId = `${x}_${y}`;
+        setSelectedTerritory(null); // 영토 선택 해제
 
         if (point) {
-            setPopupPosition(point);
+            setPopupPosition(point); // 팝업 위치 설정
         }
 
-        // Find ALL overlapping territories (for debugging overlaps)
-        // This includes both circle-based (individual buildings) and Hull-based (connected territories)
+        // 겹치는 영토 찾기 (원형 및 Hull 기반 모두 포함)
         const overlappingTerritories: any[] = [];
 
-        // Group territories by user to build Hulls (same logic as TerritoryOverlay)
+        // 유저별 영토 그룹화 (TerritoryOverlay와 동일 로직)
         const userTerritoryGroups = new Map<string, any[]>();
         territories.forEach(t => {
             const key = String(t.user_id);
@@ -121,7 +158,7 @@ export default function TerrainMapPage() {
             userTerritoryGroups.get(key)!.push(t);
         });
 
-        // Check each user's territories
+        // 각 유저의 영토 검사
         userTerritoryGroups.forEach((userTerritories, userId) => {
             const first = userTerritories[0];
             const territoryCenters = userTerritories.filter((t: any) => t.is_territory_center === 1);
@@ -129,7 +166,7 @@ export default function TerrainMapPage() {
                 t.type === 'AREA_BEACON' || t.building_type_code === 'AREA_BEACON'
             );
 
-            // Check if point is inside beacon Hull (if 3+ beacons)
+            // 1. 비콘 3개 이상일 경우 Hull(다각형) 내부 검사 (turf.js 사용)
             if (beacons.length >= 3) {
                 try {
                     const beaconPoints = beacons
@@ -165,7 +202,7 @@ export default function TerrainMapPage() {
                 }
             }
 
-            // Also check individual territory circles
+            // 2. 개별 영토(원형) 검사
             for (const t of userTerritories) {
                 const dist = calculateDistance(lat, lng, t.x, t.y);
                 if (dist <= (t.territory_radius || 5.0)) {
@@ -180,39 +217,26 @@ export default function TerrainMapPage() {
             }
         });
 
-        // Create virtual tile object from Lat/Lng (No grid fetch)
+        // 클릭한 위치에 대한 가상 타일 객체 생성 (그리드 API 호출 제거됨)
         setSelectedTile({
             id: `loc_${lat.toFixed(4)}_${lng.toFixed(4)}`,
             x: 0,
             y: 0,
-            type: 'TERRAIN',
+            type: 'TERRAIN', // 기본값 지형
             name: null,
             owner_id: overlappingTerritories.length > 0 ? overlappingTerritories[0].user_id : null,
-            overlappingTerritories: overlappingTerritories, // All territories at this point
+            overlappingTerritories: overlappingTerritories,
             clickLat: lat,
             clickLng: lng,
             isTerritoryCenter: false,
-            // displayX: x, // Removed
-            // displayY: y  // Removed
         });
 
-        // Buildings are now loaded via global state or could be fetched by region if needed.
-        // For now, we don't clear/set tileBuildings specific to this point unless we filter the global list.
-        // setTileBuildings([]); // Or filter `buildings` state by distance?
-
-        // Simple filter of global buildings near click (e.g. 100m)
+        // 클릭 위치 주변 건물 간단 필터링 (예: 100m 이내)
         const nearbyBuildings = buildings.filter(b => calculateDistance(lat, lng, b.lat, b.lng) < 0.1);
         setTileBuildings(nearbyBuildings);
 
-        // Clear building selection to focus on updated tile info
+        // 건물 선택 해제 (타일 정보에 집중)
         setSelectedBuilding(null);
-
-        /* Legacy Fetch Removed
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/tiles/${tileId}`);
-            ...
-        } catch (error) { ... }
-        */
     };
 
     const handleTerritoryClick = (t: any, e: any) => {
@@ -353,6 +377,8 @@ export default function TerrainMapPage() {
         }
     }, []);
 
+    // --- 게임 상태 로딩 (Game State Loading) ---
+    // 유저 정보, 건물 목록, 소유 타일, 영토 정보 등을 서버에서 가져와 초기화
     const loadGameState = useCallback(async () => {
         try {
             const userId = localStorage.getItem('terra_user_id');
@@ -364,19 +390,22 @@ export default function TerrainMapPage() {
 
             console.log(`[GameState] Loading for user ${userId}...`);
             let fetchedPos: { x: number, y: number } | null = null;
+
+            // 1. 게임 기본 상태 (건물, 위치) 로드
             const response = await fetch(`${API_BASE_URL}/api/game/state?userId=${userId}`);
 
             if (response.ok) {
                 const data = await response.json();
                 console.log('[GameState] Loaded:', data);
 
+                // 건물 매핑
                 if (data.buildings && data.buildings.length > 0) {
                     const mappedBuildings = data.buildings.map((b: { id: number; type: string; x: number; y: number; level?: number }) => ({
                         id: b.id,
                         type: b.type,
-                        lat: b.x, // Assuming x is lat for now
+                        lat: b.x, // Assuming x is lat for now (DB Schema Check Required)
                         lng: b.y, // Assuming y is lng for now
-                        level: b.level || 1, // Default to level 1
+                        level: b.level || 1,
                     }));
                     setBuildings(mappedBuildings);
                     console.log(`[GameState] Loaded ${mappedBuildings.length} buildings`);
@@ -384,7 +413,7 @@ export default function TerrainMapPage() {
                     setBuildings([]);
                 }
 
-                // Load player position if available
+                // 플레이어 위치 로드
                 if (data.playerPosition) {
                     const { x, y } = data.playerPosition;
                     if (x && y) {
@@ -396,24 +425,24 @@ export default function TerrainMapPage() {
                 console.error('[GameState] Failed to load:', response.status);
             }
 
-            // Load player resources (Gold/Gem)
+            // 2. 자원 정보 로드
             await loadPlayerResources();
 
-            // Load minions separately
+            // 3. 미니언(유닛) 정보 로드
             const minionsResponse = await fetch(`${API_BASE_URL}/api/characters/minions?userId=${userId}`);
             if (minionsResponse.ok) {
                 const minionsData = await minionsResponse.json();
                 setMinions(minionsData);
             }
 
-            // Load owned tiles for overlay (Legacy)
+            // 4. 소유 타일 로드 (Legacy, 오버레이용)
             const tilesResponse = await fetch(`${API_BASE_URL}/api/tiles/user/${userId}`);
             if (tilesResponse.ok) {
                 const tilesData = await tilesResponse.json();
                 setOwnedTiles(tilesData.tiles || []);
             }
 
-            // Load territories (Spatial Query)
+            // 5. 주변 영토 정보 로드 (Spatial Query)
             const territoryUrl = `${API_BASE_URL}/api/territories`;
             // Use fetched position if available (fetchedPos), else current state
             const targetPos = fetchedPos || { x: playerPosition[0], y: playerPosition[1] };
@@ -448,10 +477,10 @@ export default function TerrainMapPage() {
     }, [geolocation.position, playerPosition, defaultPosition]);
 
     // --- Movement Logic ---
+    // --- 플레이어 이동 로직 ---
     const handlePlayerMove = async (position: [number, number]) => {
-        // This is called from GameControlPanel or MapClickHandler
-        // But for pathfinding, we need to call the API and get the path.
-        // We will assume 'position' is the target.
+        // GameControlPanel 또는 MapClickHandler에서 호출됨
+        // 여기서는 직접 API를 호출하여 경로를 계산하고 이동을 시작함
 
         try {
             const userId = localStorage.getItem('terra_user_id');
@@ -467,26 +496,24 @@ export default function TerrainMapPage() {
             const data = await response.json();
 
             if (response.ok && data.success) {
-                // Determine Start/End Times
+                // 시작/도착 시간 결정
                 const now = Date.now();
                 const arrival = new Date(data.arrivalTime).getTime();
 
-                console.log(`[Move] Path received:`, data.path); // Debug log
+                console.log(`[Move] Path received:`, data.path); // 디버그 로그
 
-                // Update Local State for Animation
+                // 클라이언트 애니메이션 상태 업데이트
                 setIsMoving(true);
                 setMoveStartTime(now);
                 setMoveArrivalTime(arrival);
                 setMoveStartPos(playerPosition);
-                setActivePath(data.path); // Path from server
+                setActivePath(data.path); // 서버로부터 받은 경로
 
-                // Clear any previous planned path/waypoints to prevent visual confusion
+                // 이전 경로 계획 상태 초기화
                 setWaypoints([]);
                 setPlannedPath([]);
                 setPathDistance(0);
 
-                // Set final position immediately? No, animate.
-                // But we can update the 'target' visuals if needed.
                 showToast(`이동 시작! (예상 시간: ${data.durationSeconds.toFixed(1)}초)`, 'success');
             } else {
                 showToast(`이동 실패: ${data.error}`, 'error');
@@ -498,14 +525,15 @@ export default function TerrainMapPage() {
     };
 
     // --- Movement Synchronization (Polling) ---
-    // --- Movement Synchronization (Polling) ---
+    // --- 위치 동기화 (폴링) ---
+    // 이동 중이거나 주기적으로 서버와 위치를 동기화하여 오차 보정
     useEffect(() => {
         if (!isMoving) return;
 
         const userId = localStorage.getItem('terra_user_id');
         if (!userId) return;
 
-        // Use a flag to prevent state updates if the effect has been cleaned up (component unmounted or isMoving changed)
+        // 컴포넌트 언마운트 시 상태 업데이트 방지
         let isActive = true;
 
         const syncInterval = setInterval(async () => {
@@ -516,15 +544,12 @@ export default function TerrainMapPage() {
                 if (res.ok) {
                     const data = await res.json();
 
-                    // Double check if we are still active before updating state
+                    // 여전히 active 상태인지 확인
                     if (!isActive) return;
 
                     if (data.isMoving === false) {
-                        // Movement finished on server
-                        // Only act if we haven't already finished locally (which sets isMoving=false)
-                        // But wait, if isMoving=false, this effect unmounts.
-                        // So if we are here, isMoving IS true.
-
+                        // 서버에서 이동이 완료된 경우 클라이언트 상태 강제 종료
+                        // (원래는 도착 시간 기반으로 자동 종료되지만, 네트워크 지연 등 대비)
                         setIsMoving(false);
                         setPlayerPosition(data.position);
                         setActivePath([]);
@@ -536,7 +561,7 @@ export default function TerrainMapPage() {
             } catch (e) {
                 console.error("Sync error", e);
             }
-        }, 2000); // Check every 2 seconds
+        }, 2000); // 2초마다 동기화
 
         return () => {
             isActive = false;
@@ -544,14 +569,15 @@ export default function TerrainMapPage() {
         };
     }, [isMoving]);
 
+    // --- 건물 건설 핸들러 ---
     const handleBuildingConstruct = async (buildingId: string) => {
         if (isConstructing) return;
 
-        // Check if user is admin
+        // 관리자 권한 확인 (관리자는 건설 시간 단축)
         const userId = localStorage.getItem('terra_user_id');
         const isAdmin = userId === '1'; // User ID 1 is admin
 
-        // Legacy Fallback
+        // 레거시 건물 정의 (서버 타입을 못 찾을 경우 대비)
         const buildingDefs: Record<string, { name: string; buildTime: number; adminBuildTime: number; cost: { gold: number; gem: number } }> = {
             COMMAND_CENTER: { name: '사령부', buildTime: 60, adminBuildTime: 5, cost: { gold: 500, gem: 5 } },
             mine: { name: '자원 채굴장', buildTime: 30, adminBuildTime: 3, cost: { gold: 100, gem: 0 } },
@@ -561,11 +587,11 @@ export default function TerrainMapPage() {
             FACTORY: { name: '공장', buildTime: 120, adminBuildTime: 5, cost: { gold: 500, gem: 5 } },
         };
 
-        // Try to find in server types first
+        // 서버에서 받아온 건물 타입 목록에서 찾기
         let building: any = serverBuildingTypes.find(b => b.code === buildingId || b.code === buildingId.toUpperCase());
 
         if (building) {
-            // Adapt server data to client structure
+            // 서버 데이터를 클라이언트 형식으로 변환
             building = {
                 name: building.name,
                 buildTime: building.tier * 30,
@@ -631,13 +657,13 @@ export default function TerrainMapPage() {
         }
     };
 
-    // --- Demolition Logic ---
+    // --- 건물 파괴(철거) 로직 ---
     const [demolitionStates, setDemolitionStates] = useState<Record<number, number>>({});
 
     useEffect(() => {
         const interval = setInterval(() => {
             const now = Date.now();
-            setCurrentTick(now); // Update tick for UI sync
+            setCurrentTick(now); // UI 동기화를 위한 틱 업데이트
             setDemolitionStates(prev => {
                 const next = { ...prev };
                 let changed = false;
@@ -712,19 +738,14 @@ export default function TerrainMapPage() {
         }
     };
 
+    // --- 경로 계산 (Path Calculation) ---
     const calculatePath = async (currentWaypoints: Array<{ lat: number; lng: number }>) => {
         if (currentWaypoints.length === 0) return;
 
         const startPos = playerPosition;
         const endPos = currentWaypoints[currentWaypoints.length - 1];
-        // Intermediaries are strictly between start and end?
-        // Actually, if we just append clicks, they are waypoints.
-        // But backend expects Start -> End, with waypoints in between.
-        // If I click 3 times: [A, B, C]. 
-        // Logic: Start -> A -> B -> C.
-        // So user clicks are effectively a sequence of destinations.
-        // The last one is the "End", others are "Waypoints".
 
+        // 경유지 (Start와 End 제외)
         const intermediaries = currentWaypoints.slice(0, currentWaypoints.length - 1);
 
         try {
@@ -815,7 +836,8 @@ export default function TerrainMapPage() {
         }
     };
 
-    // Animation Loop using requestAnimationFrame for smoothness (60fps)
+    // --- 이동 애니메이션 루프 (requestAnimationFrame) ---
+    // 60fps 부드러운 이동 처리를 위해 매 프레임마다 위치 보간
     useEffect(() => {
         if (!isMoving || !moveStartTime || !moveArrivalTime || !activePath.length) return;
 
@@ -824,7 +846,7 @@ export default function TerrainMapPage() {
         const animate = () => {
             const now = Date.now();
             if (now >= moveArrivalTime) {
-                // Arrival Logic
+                // 도착 처리
                 setIsMoving(false);
                 setMoveStartTime(null);
                 setMoveArrivalTime(null);
@@ -837,8 +859,7 @@ export default function TerrainMapPage() {
                 setPlayerPosition([end.lat, end.lng]);
                 showToast("목적지 도착!", 'success');
 
-                // FORCE SYNC: Notify server of arrival to update DB `current_pos`
-                // This prevents "detours" on next move caused by stale DB position.
+                // 강제 동기화: DB 위치 업데이트 보장을 위해 서버에 도착 알림(fetch)
                 const userId = localStorage.getItem('terra_user_id');
                 if (userId) {
                     fetch(`${API_BASE_URL}/api/game/position/${userId}`).catch(console.error);
@@ -847,27 +868,20 @@ export default function TerrainMapPage() {
                 return;
             }
 
-            // Interpolate
+            // 위치 보간 (Interpolation)
             const totalDuration = moveArrivalTime - moveStartTime;
             const elapsed = now - moveStartTime;
             const progress = Math.min(elapsed / totalDuration, 1.0);
 
-            // Create full path for interpolation
+            // 애니메이션용 경로 생성
             let pathForAnim = activePath;
 
-            // Smooth start: If moveStartPos is very close to the first point of activePath, skip the first point of activePath
-            // to avoid a tiny "zig-zag" segment if there is slight drift.
+            // 부드러운 시작 처리: 시작점과 첫 번째 경로점이 매우 가까우면 끊김 방지를 위해 첫 점 생략
             if (moveStartPos && activePath.length > 0) {
                 const firstPoint = activePath[0];
                 const dist = calculateDistance(moveStartPos[0], moveStartPos[1], firstPoint.lat, firstPoint.lng);
 
-                // If distance is small (< 100m) but not zero, and we include BOTH, we get a stutter.
-                // If distance is large, we NEED both to show the travel.
-                // But typically activePath[0] IS the start position according to server.
-                // So we usually want to animate from moveStartPos -> activePath[0] -> ...
-                // UNLESS they are practically the same.
-
-                if (dist < 0.1) { // less than 100m
+                if (dist < 0.1) { // 100m 미만이면 첫 점 생략
                     pathForAnim = activePath.slice(1);
                 }
             }
@@ -876,24 +890,23 @@ export default function TerrainMapPage() {
 
             if (fullPath.length >= 2) {
                 const totalSegments = fullPath.length - 1;
-                // Calculate current segment based on progress
-                // Improve smoothness: Map progress 0..1 to total distance if possible, but segment index is okay if segments are roughly equal or we account for distance.
-                // For now, linear index interpolation is better than nothing, but let's stick to the previous segment logic which was 'okay' but update it faster.
 
+                // 현재 진행률에 해당하는 세그먼트 인덱스 계산
                 const currentSegIndex = Math.min(Math.floor(progress * totalSegments), totalSegments - 1);
                 const segProgress = (progress * totalSegments) - currentSegIndex;
 
                 const p1 = fullPath[currentSegIndex];
                 const p2 = fullPath[currentSegIndex + 1];
 
+                // 선형 보간 (Linear Interpolation)
                 const lat = p1.lat + (p2.lat - p1.lat) * segProgress;
                 const lng = p1.lng + (p2.lng - p1.lng) * segProgress;
 
-                // Only update if position changed significantly (>1m)
+                // 위치 변화가 유의미할 때만 상태 업데이트 (>1m)
                 setPlayerPosition(prev => {
                     const latDiff = Math.abs(prev[0] - lat);
                     const lngDiff = Math.abs(prev[1] - lng);
-                    if (latDiff > 0.00001 || lngDiff > 0.00001) { // ~1m
+                    if (latDiff > 0.00001 || lngDiff > 0.00001) { // 약 1m
                         return [lat, lng];
                     }
                     return prev;

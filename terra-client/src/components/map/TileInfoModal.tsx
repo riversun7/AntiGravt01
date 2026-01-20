@@ -3,6 +3,13 @@
 import React from 'react';
 import { X, MapPin, Building, User } from 'lucide-react';
 
+/**
+ * @file TileInfoModal.tsx
+ * @description 지도상의 타일 또는 영토 클릭 시 상세 정보를 보여주는 모달
+ * @role 타일 속성(좌표, 타입, 소유자) 표시, 건물 건설 및 유닛 이동 명령 인터페이스 제공
+ * @dependencies react, lucide-react
+ * @status Active
+ */
 interface Building {
     id: number;
     type: string;
@@ -30,15 +37,15 @@ export interface Tile {
 }
 
 interface TileInfoModalProps {
-    tile?: Tile | null; // Make optional if territoryInfo is primary
+    tile?: Tile | null; // territoryInfo가 주어지면 선택사항
     buildings?: Building[];
-    territoryInfo?: TerritoryInfo;
+    territoryInfo?: TerritoryInfo; // 영토 정보 (타일보다 우선순위 높음)
     onClose: () => void;
     onClaim?: () => void;
     onBuild?: (buildingType: string) => void;
     onMove?: (lat: number, lng: number) => void;
     userId: number | null;
-    position: { x: number; y: number };
+    position: { x: number; y: number }; // 모달 표시 위치 (화면 좌표)
 }
 
 // ... (Imports)
@@ -228,24 +235,24 @@ export default function TileInfoModal({ tile, buildings = [], territoryInfo, onC
                 (isOwnedByMe || !isOwned) && (
                     <div className="mt-3 pt-3 border-t border-gray-700">
                         <h4 className="text-[10px] font-bold text-amber-400 mb-2 flex items-center gap-1">
-                            CONSTRUCTION
+                            건설 메뉴 (CONSTRUCTION)
                         </h4>
                         <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
                             {!isOwned && (
                                 <ConstructionButton
                                     icon="🏰"
-                                    label="Base"
+                                    label="기지 (Base)"
                                     cost="500G"
                                     onClick={() => onBuild('COMMAND_CENTER')}
                                 />
                             )}
                             {isOwnedByMe && (
                                 <>
-                                    <ConstructionButton icon="📦" label="Storage" cost="50G" onClick={() => onBuild('WAREHOUSE')} />
-                                    <ConstructionButton icon="⛏️" label="Mine" cost="100G" onClick={() => onBuild('MINE')} />
-                                    <ConstructionButton icon="⚔️" label="Barracks" cost="150G" onClick={() => onBuild('BARRACKS')} />
-                                    <ConstructionButton icon="🌾" label="Farm" cost="75G" onClick={() => onBuild('FARM')} />
-                                    <ConstructionButton icon="🏭" label="Factory" cost="200G" onClick={() => onBuild('FACTORY')} />
+                                    <ConstructionButton icon="📦" label="창고" cost="50G" onClick={() => onBuild('WAREHOUSE')} />
+                                    <ConstructionButton icon="⛏️" label="광산" cost="100G" onClick={() => onBuild('MINE')} />
+                                    <ConstructionButton icon="⚔️" label="병영" cost="150G" onClick={() => onBuild('BARRACKS')} />
+                                    <ConstructionButton icon="🌾" label="농장" cost="75G" onClick={() => onBuild('FARM')} />
+                                    <ConstructionButton icon="🏭" label="공장" cost="200G" onClick={() => onBuild('FACTORY')} />
                                 </>
                             )}
                         </div>

@@ -5,44 +5,51 @@ import { useState, useEffect } from 'react';
 import L from 'leaflet';
 
 interface PlayerMarkerProps {
-    initialPosition: [number, number];
-    maxDistanceKm: number;
-    onMove: (position: [number, number]) => void;
-    isConstructing?: boolean;
-    constructionTimeLeft?: number;
-    isAdmin?: boolean; // Admin moves at 100km/s
+  initialPosition: [number, number];
+  maxDistanceKm: number;
+  onMove: (position: [number, number]) => void;
+  isConstructing?: boolean;
+  constructionTimeLeft?: number;
+  isAdmin?: boolean; // Admin moves at 100km/s
 }
 
 // Calculate distance between two points in km (Haversine formula)
 
 
+/**
+ * @file PlayerMarker.tsx
+ * @description 플레이어 위치를 지도에 표시하는 마커 컴포넌트
+ * @role 커스텀 아이콘(사이보그) 렌더링, 현재 상태(건설 중 등) 시각화
+ * @dependencies react-leaflet, leaflet
+ * @status Active
+ */
 export default function PlayerMarker({
-    initialPosition,
-    // maxDistanceKm, // unused in logic but kept for interface consistency or future
-    // onMove, // unused locally because animation is disabled
-    isConstructing = false,
-    constructionTimeLeft = 0,
-    // isAdmin = false, // unused
+  initialPosition,
+  // maxDistanceKm, // 현재 로직에서 미사용 (인터페이스 호환성 유지)
+  // onMove, // 로컬 애니메이션 비활성화로 미사용
+  isConstructing = false,
+  constructionTimeLeft = 0,
+  // isAdmin = false, // 미사용
 }: PlayerMarkerProps) {
-    const [position, setPosition] = useState<[number, number]>(initialPosition);
+  const [position, setPosition] = useState<[number, number]>(initialPosition);
 
-    // Update position when initialPosition changes
-    useEffect(() => {
-        setPosition(initialPosition);
-    }, [initialPosition]);
+  // Update position when initialPosition changes
+  useEffect(() => {
+    setPosition(initialPosition);
+  }, [initialPosition]);
 
-    // Create custom cyborg icon
-    const getCyborgIcon = () => {
-        let statusColor = '#6366f1'; // Default blue
-        let statusText = '';
+  // Create custom cyborg icon
+  const getCyborgIcon = () => {
+    let statusColor = '#6366f1'; // Default blue
+    let statusText = '';
 
-        if (isConstructing) {
-            statusColor = '#f59e0b'; // Orange for construction
-            statusText = `⏱ ${constructionTimeLeft}s`;
-        }
+    if (isConstructing) {
+      statusColor = '#f59e0b'; // Orange for construction
+      statusText = `⏱ ${constructionTimeLeft}s`;
+    }
 
-        return L.divIcon({
-            html: `
+    return L.divIcon({
+      html: `
         <div style="position: relative;">
           <div style="
             width: 40px;
@@ -78,19 +85,19 @@ export default function PlayerMarker({
           ` : ''}
         </div>
       `,
-            className: 'player-marker',
-            iconSize: [40, 40],
-            iconAnchor: [20, 20],
-        });
-    };
+      className: 'player-marker',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+    });
+  };
 
-    return (
-        <Marker position={position} icon={getCyborgIcon()}>
-            <Popup>
-                <b>Your Cyborg</b><br />
-                Position: ({position[0].toFixed(4)}, {position[1].toFixed(4)})<br />
-                {isConstructing && <span className="text-orange-500">🏗️ Constructing... {constructionTimeLeft}s</span>}
-            </Popup>
-        </Marker>
-    );
+  return (
+    <Marker position={position} icon={getCyborgIcon()}>
+      <Popup>
+        <b>나의 사이보그 (Cyborg)</b><br />
+        위치: ({position[0].toFixed(4)}, {position[1].toFixed(4)})<br />
+        {isConstructing && <span className="text-orange-500">🏗️ 건설 중... {constructionTimeLeft}초</span>}
+      </Popup>
+    </Marker>
+  );
 }

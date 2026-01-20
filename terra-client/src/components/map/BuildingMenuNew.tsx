@@ -17,6 +17,18 @@ export interface BuildingDef {
     unlocked: boolean;
 }
 
+/**
+ * @file BuildingMenuNew.tsx
+ * @description 신규 건물 건설 메뉴 컴포넌트
+ * @role 자원, 저장, 생활 카테고리별로 건물 목록을 보여주고 선택하여 건설
+ * @dependencies react, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - `INITIAL_BUILDINGS` 배열에 건물 정의가 포함되어 있음 (추후 API 로딩 방식으로 변경 권장).
+ * - 자원 보유량(`playerResources`)을 실시간으로 체크하여 건설 가능 여부를 시각적으로 표시.
+ * - 모달 형태의 UI로, 배경 클릭 시 닫힘 처리.
+ */
 const INITIAL_BUILDINGS: BuildingDef[] = [
     {
         id: 'mine',
@@ -154,7 +166,7 @@ export default function BuildingMenu({
                                                                     💎 {building.cost.gem}
                                                                 </span>
                                                             )}
-                                                            <span className="text-purple-400">⏱ {building.buildTime}s</span>
+                                                            <span className="text-purple-400">⏱ {building.buildTime}초</span>
                                                         </div>
                                                     </div>
                                                 </div>

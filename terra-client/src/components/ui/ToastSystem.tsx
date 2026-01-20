@@ -19,6 +19,13 @@ const styles = {
     error: "bg-red-950/90 border-red-500/50 text-red-100"
 };
 
+/**
+ * @file ToastSystem.tsx
+ * @description 전역 알림(Toast) 메시지를 표시하는 컨테이너 컴포넌트
+ * @role 알림 목록 렌더링, 애니메이션 처리, 사운드 효과 재생 관리
+ * @dependencies ToastContext, framer-motion, lucide-react
+ * @status Active
+ */
 export default function ToastSystem() {
     const { toasts, removeToast } = useToast();
 
@@ -33,8 +40,13 @@ export default function ToastSystem() {
     );
 }
 
+/**
+ * @component ToastItem
+ * @description 개별 알림 메시지 컴포넌트
+ * @role 등장/퇴장 애니메이션, 타입별 스타일/사운드 적용, 클릭 액션 처리
+ */
 function ToastItem({ toast, onClose }: { toast: Toast, onClose: () => void }) {
-    // Sound Effect on Mount
+    // 마운트 시 효과음 재생
     useEffect(() => {
         playSound(toast.type);
     }, [toast.type]);
@@ -42,12 +54,9 @@ function ToastItem({ toast, onClose }: { toast: Toast, onClose: () => void }) {
     const handleClick = () => {
         if (toast.action?.onClick) {
             toast.action.onClick();
-            onClose(); // Optional: close on action? Yes usually.
+            onClose(); // 액션 수행 후 닫기
         } else {
-            // Default behavior if no action? Maybe just close? 
-            // Or do nothing? The 'X' closes it.
-            // Let's keep specific close button for closing, 
-            // and main click for action if exists.
+            // 액션이 없으면 클릭해도 닫히지 않고 X 버튼으로만 닫힘 (의도된 동작)
         }
     };
 
@@ -67,10 +76,10 @@ function ToastItem({ toast, onClose }: { toast: Toast, onClose: () => void }) {
                 <h4 className="font-bold text-sm">{toast.title}</h4>
                 {toast.message && <p className="text-xs opacity-80 mt-1 whitespace-pre-wrap">{toast.message}</p>}
 
-                {/* Visual Hint for Action */}
+                {/* 액션 힌트 표시 */}
                 {toast.action && (
                     <div className="mt-2 text-xs font-bold underline opacity-90">
-                        {toast.action.label || "Click to Open"}
+                        {toast.action.label || "클릭하여 확인"}
                     </div>
                 )}
             </div>
@@ -96,6 +105,11 @@ function getAudioContext() {
     return audioCtx;
 }
 
+/**
+ * @function playSound
+ * @description 토스트 타입(성공, 에러 등)에 따라 Web Audio API로 효과음 재생
+ * @note 브라우저의 오디오 정책(AudioContext suspended)에 대응하기 위해 사용자 인터랙션 후 resume() 시도 로직 포함.
+ */
 function playSound(type: ToastType) {
     try {
         const ctx = getAudioContext();
@@ -117,7 +131,7 @@ function playSound(type: ToastType) {
         const now = ctx.currentTime;
 
         if (type === 'success') {
-            // High Ding
+            // 성공: 높은 딩 소리 (High Ding)
             osc.frequency.setValueAtTime(880, now); // A5
             osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1); // A6
             gain.gain.setValueAtTime(0.1, now);
@@ -125,7 +139,7 @@ function playSound(type: ToastType) {
             osc.start();
             osc.stop(now + 0.5);
         } else if (type === 'error') {
-            // Low Buzz
+            // 에러: 낮은 버즈 소리 (Low Buzz)
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(150, now);
             osc.frequency.linearRampToValueAtTime(100, now + 0.3);
@@ -134,7 +148,7 @@ function playSound(type: ToastType) {
             osc.start();
             osc.stop(now + 0.3);
         } else {
-            // Info/Warning Beep (Original)
+            // 정보/경고: 일반 비프음 (Beep)
             osc.type = 'sine';
             osc.frequency.setValueAtTime(523.25, now); // C5
             osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.1); // C6

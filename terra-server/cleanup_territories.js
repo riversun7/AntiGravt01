@@ -1,3 +1,15 @@
+/**
+ * @file cleanup_territories.js
+ * @description 중복되거나 너무 가까운 커맨드 센터(영토 중심)를 정리하는 유틸리티 스크립트
+ * @role 데이터 무결성 유지, 버그 수정 (중복 생성된 영토 제거)
+ * @dependencies database.js
+ * @status Maintenance (수동 실행용)
+ * 
+ * @analysis
+ * - 5km 반경 내에 다른 유저의 커맨드 센터가 있으면 나중에 생성된 것을 제거합니다.
+ * - 초기 개발 단계에서 중복 생성 버그로 인해 발생한 데이터를 정리할 때 사용합니다.
+ */
+
 const db = require('./database');
 
 console.log('=== Territory Cleanup Script ===\n');

@@ -30,40 +30,47 @@ interface Building {
 
 // Territory interface imported from TerritoryOverlay
 
+/**
+ * @file TerrainMapContent.tsx
+ * @description Leaflet 지도의 실제 콘텐츠를 렌더링하는 핵심 컴포넌트
+ * @role 지도 레이어, 마커(플레이어, NPC, 건물), 오버레이(영토, 경로) 등을 조합하여 표시
+ * @dependencies react-leaflet, leaflet, 그리고 다수의 하위 맵 컴포넌트들
+ * @status Active
+ */
 interface TerrainMapContentProps {
-    mapCenter: [number, number];
-    currentZoom: number;
-    tileProvider: {
+    mapCenter: [number, number];       // 지도 초기 중심 좌표
+    currentZoom: number;               // 현재 줌 레벨
+    tileProvider: {                    // 타일 레이어 설정
         id: string;
         name: string;
         url: string;
         attribution: string;
         maxZoom?: number;
     };
-    maxMovementRange: number;
-    geolocation: GeolocationState;
-    userId: string | null;
-    playerPosition: [number, number];
-    setPlayerPosition: (pos: [number, number]) => void;
-    showToast: (msg: string, type: 'info' | 'error' | 'success') => void;
-    handleTileClick: (lat: number, lng: number, point?: { x: number; y: number }) => void;
-    handleTerritoryClick?: (t: Territory, e: any) => void;
-    selectedNpc?: any;
-    setSelectedNpc?: (npc: any) => void;
-    isConstructing: boolean;
-    constructionTimeLeft: number;
-    isAdmin: boolean;
-    calculateDistance: (lat1: number, lon1: number, lat2: number, lon2: number) => number;
-    buildings: Building[];
-    setSelectedBuilding: (b: Building | null) => void;
-    selectedTile: any;
-    setSelectedTile: (t: unknown) => void; // Keeping unknown for selectedTile as it has complex structure
-    setMap: (map: L.Map | null) => void;
-    territories: Territory[];
-    path?: Array<{ lat: number; lng: number }>;
-    waypoints?: Array<{ lat: number; lng: number }>;
-    onWaypointRemove?: (index: number) => void;
-    npcRefreshKey?: number;
+    maxMovementRange: number;          // 이동 가능 반경 (km)
+    geolocation: GeolocationState;     // GPS 상태
+    userId: string | null;             // 현재 로그인한 사용자 ID
+    playerPosition: [number, number];  // 플레이어 현재 위치
+    setPlayerPosition: (pos: [number, number]) => void; // 위치 업데이트 함수
+    showToast: (msg: string, type: 'info' | 'error' | 'success') => void; // 토스트 메시지 함수
+    handleTileClick: (lat: number, lng: number, point?: { x: number; y: number }) => void; // 타일 클릭 핸들러
+    handleTerritoryClick?: (t: Territory, e: any) => void; // 영토 클릭 핸들러
+    selectedNpc?: any;                 // 선택된 NPC 정보
+    setSelectedNpc?: (npc: any) => void; // NPC 선택 함수
+    isConstructing: boolean;           // 건설 중 여부
+    constructionTimeLeft: number;      // 건설 남은 시간
+    isAdmin: boolean;                  // 관리자 여부
+    calculateDistance: (lat1: number, lon1: number, lat2: number, lon2: number) => number; // 거리 계산 함수
+    buildings: Building[];             // 렌더링할 건물 목록
+    setSelectedBuilding: (b: Building | null) => void; // 건물 선택 함수
+    selectedTile: any;                 // 선택된 타일 정보
+    setSelectedTile: (t: unknown) => void; // 타일 선택 함수
+    setMap: (map: L.Map | null) => void;   // Leaflet Map 인스턴스 설정
+    territories: Territory[];          // 영토 목록
+    path?: Array<{ lat: number; lng: number }>; // 이동 경로 (애니메이션용)
+    waypoints?: Array<{ lat: number; lng: number }>; // 경유지 목록
+    onWaypointRemove?: (index: number) => void; // 경유지 제거 핸들러
+    npcRefreshKey?: number;            // NPC 새로고침 키 (강제 리렌더링용)
 }
 
 export default function TerrainMapContent({
@@ -96,9 +103,10 @@ export default function TerrainMapContent({
     selectedNpc
 }: TerrainMapContentProps) { // Updated props destructuring
 
-    // Fix Leaflet Icons
+    // --- Leaflet 아이콘 경로 수정 ---
+    // Next.js 환경에서 Leaflet 기본 마커 아이콘이 깨지는 문제를 해결하기 위한 코드
     useEffect(() => {
-        // Only run on client
+        // 클라이언트 사이드에서만 실행
         if (typeof window !== 'undefined') {
             // @ts-expect-error L.Icon.Default.prototype._getIconUrl is private
             delete L.Icon.Default.prototype._getIconUrl;
@@ -227,6 +235,10 @@ export default function TerrainMapContent({
     );
 }
 
+/**
+ * 타 유저/NPC의 건물을 표시하는 컴포넌트
+ * 관리자의 경우 설정된 시야 범위(View Range)를 따르고, 일반 유저는 기본 시야(10km) 적용
+ */
 function ForeignBuildingMarkers({ territories, userId, playerPosition, calculateDistance, showToast, onBuildingClick }: {
     territories: any[],
     userId: string | null,
@@ -235,9 +247,9 @@ function ForeignBuildingMarkers({ territories, userId, playerPosition, calculate
     showToast: any,
     onBuildingClick: (b: any) => void
 }) {
-    const [adminViewRange, setAdminViewRange] = useState(99999.0); // Default: Unlimited
+    const [adminViewRange, setAdminViewRange] = useState(99999.0); // 기본값: 무제한
 
-    // Fetch admin config for dynamic view range
+    // 관리자(ID=1)일 경우 서버 설정에서 동적 시야 범위 가져오기
     useEffect(() => {
         if (String(userId) === '1') { // Admin user
             fetch(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/admin/config`)
@@ -254,11 +266,11 @@ function ForeignBuildingMarkers({ territories, userId, playerPosition, calculate
     const foreignBuildings = useMemo(() => {
         if (!territories || territories.length === 0) return [];
 
-        // Admin gets dynamic view range from config
+        // 관리자는 설정값, 일반 유저는 10km 시야 제한
         const viewRange = String(userId) === '1' ? adminViewRange : 10.0;
 
         return territories
-            .filter(t => String(t.user_id) !== String(userId))
+            .filter(t => String(t.user_id) !== String(userId)) // 본인 영토 제외
             .filter(t => {
                 const dist = calculateDistance(t.x, t.y, playerPosition[0], playerPosition[1]);
                 return dist <= viewRange;

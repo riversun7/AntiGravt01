@@ -11,8 +11,16 @@ interface LocationButtonProps {
 }
 
 /**
- * Button to center map on user's GPS location
- * Shows loading and error states
+ * @file LocationButton.tsx
+ * @description 사용자 GPS 위치로 지도를 이동시키는 버튼 컴포넌트
+ * @role 현재 위치 추적, GPS 상태(로딩, 오차, 활성) 시각화, 지도 센터링 기능 제공
+ * @dependencies react-leaflet, lucide-react, useGeolocation
+ * @status Active
+ * 
+ * @analysis
+ * - `useGeolocation` 훅의 상태(loading, error, position)에 따라 버튼의 아이콘과 색상이 동적으로 변경됨.
+ * - `autoCenter` 옵션을 통해 위치가 파악되면 자동으로 지도를 이동시키는 편의 기능 포함.
+ * - GPS 오차(accuracy)를 미터 단위로 표시하여 신뢰도 정보를 제공.
  */
 export default function LocationButton({ geolocation, autoCenter = true }: LocationButtonProps) {
     const map = useMap();
@@ -39,7 +47,7 @@ export default function LocationButton({ geolocation, autoCenter = true }: Locat
             return (
                 <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-xs">Locating...</span>
+                    <span className="text-xs">위치 확인 중...</span>
                 </>
             );
         }
@@ -48,7 +56,7 @@ export default function LocationButton({ geolocation, autoCenter = true }: Locat
             return (
                 <>
                     <NavigationOff className="w-4 h-4" />
-                    <span className="text-xs">GPS Error</span>
+                    <span className="text-xs">GPS 오류</span>
                 </>
             );
         }
@@ -56,7 +64,7 @@ export default function LocationButton({ geolocation, autoCenter = true }: Locat
         return (
             <>
                 <Navigation className={`w-4 h-4 ${watching ? 'text-green-400' : ''}`} />
-                <span className="text-xs">My Location</span>
+                <span className="text-xs">내 위치 (My Location)</span>
             </>
         );
     };
@@ -84,7 +92,7 @@ export default function LocationButton({ geolocation, autoCenter = true }: Locat
                 {getButtonContent()}
             </button>
 
-            {/* Accuracy indicator */}
+            {/* GPS 정확도 표시 (오차 범위) */}
             {position && geolocation.accuracy && !error && (
                 <div className="mt-2 text-xs text-gray-500 font-mono text-right">
                     ±{Math.round(geolocation.accuracy)}m

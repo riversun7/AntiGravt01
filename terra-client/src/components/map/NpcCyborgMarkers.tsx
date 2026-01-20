@@ -30,6 +30,13 @@ interface NpcCyborgMarkersProps {
     refreshKey?: number;
 }
 
+/**
+ * @file NpcCyborgMarkers.tsx
+ * @description NPC(Non-Player Character) 및 사이보그의 위치를 지도에 표시
+ * @role 서버로부터 NPC 위치를 받아오고, 이동 중인 NPC의 위치를 클라이언트에서 보간(Interpolate)하여 부드럽게 표시
+ * @dependencies react-leaflet, leaflet, fetch API
+ * @status Active
+ */
 export default function NpcCyborgMarkers({
     playerPosition,
     viewRangeKm,
@@ -40,7 +47,7 @@ export default function NpcCyborgMarkers({
     const [npcs, setNpcs] = useState<Npc[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Fetch NPC positions
+    // NPC 위치 데이터 조회
     useEffect(() => {
         const fetchNpcs = async () => {
             try {
@@ -58,9 +65,8 @@ export default function NpcCyborgMarkers({
 
         fetchNpcs();
 
-        // Refresh every 5 seconds to show real-time changes
-        // Refresh every 5 seconds to show real-time changes
-        const interval = setInterval(fetchNpcs, 5000);
+        // 60초마다 데이터 갱신 (서버 AI 틱 주기와 맞춤)
+        const interval = setInterval(fetchNpcs, 60000);
         return () => clearInterval(interval);
     }, [refreshKey]);
 
@@ -125,25 +131,26 @@ export default function NpcCyborgMarkers({
     );
 }
 
-// Separate component for interpolated movement
+// 이동 보간을 처리하는 별도의 컴포넌트
 function InterpolatedNpcMarker({ npc, createIcon, onClick }: { npc: Npc, createIcon: (c: string, t: string) => L.DivIcon, onClick?: (n: Npc) => void }) {
-    // Calculate position using useMemo instead of requestAnimationFrame
+    // requestAnimationFrame 대신 useMemo를 사용하여 위치 계산 (현재는 렌더링 시점에만 계산)
+    // 개선사항: useAnimationFrame을 사용하여 실시간으로 부드럽게 움직이도록 변경 필요
     const position: [number, number] = useMemo(() => {
-        // Validate position data first
+        // 위치 데이터 유효성 검사
         if (!npc.lat || !npc.lng || isNaN(npc.lat) || isNaN(npc.lng)) {
             console.error('[NPC MARKER] Invalid position data for', npc.cyborg_name);
-            return [36.0, 127.0] as [number, number]; // Fallback to Seoul
+            return [36.0, 127.0] as [number, number]; // Fallback (서울)
         }
 
-        // Default to current position
+        // 기본값: 현재(마지막으로 확인된) 위치
         const defaultPos: [number, number] = [npc.lat, npc.lng];
 
-        // Check if NPC has valid movement data
+        // 이동 데이터가 없으면 정지 상태로 간주
         if (!npc.destination || !npc.start_pos || !npc.departure_time || !npc.arrival_time) {
             return defaultPos;
         }
 
-        // Validate destination and start_pos
+        // 목적지 및 출발지 데이터 검증
         if (isNaN(npc.destination.lat) || isNaN(npc.destination.lng) ||
             isNaN(npc.start_pos.lat) || isNaN(npc.start_pos.lng)) {
             return defaultPos;
@@ -153,27 +160,27 @@ function InterpolatedNpcMarker({ npc, createIcon, onClick }: { npc: Npc, createI
         const end = new Date(npc.arrival_time).getTime();
         const now = Date.now();
 
-        // Validate timestamps
+        // 시간 데이터 검증
         if (isNaN(start) || isNaN(end) || start >= end) {
             return defaultPos;
         }
 
-        // If journey hasn't started yet
+        // 출발 전
         if (now < start) {
             return [npc.start_pos.lat, npc.start_pos.lng] as [number, number];
         }
 
-        // If journey has ended
+        // 도착 후
         if (now >= end) {
             return [npc.destination.lat, npc.destination.lng] as [number, number];
         }
 
-        // Calculate interpolated position
+        // 이동 중: 선형 보간 (Linear Interpolation) 계산
         const progress = (now - start) / (end - start);
         const lat = npc.start_pos.lat + (npc.destination.lat - npc.start_pos.lat) * progress;
         const lng = npc.start_pos.lng + (npc.destination.lng - npc.start_pos.lng) * progress;
 
-        // Validate calculated position
+        // 계산된 위치 검증
         if (isNaN(lat) || isNaN(lng)) {
             console.error('[NPC MARKER] Calculation produced NaN for', npc.cyborg_name);
             return defaultPos;

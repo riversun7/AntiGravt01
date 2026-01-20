@@ -1,10 +1,18 @@
 
 import React, { useState } from 'react';
 
+/**
+ * @file NpcControlModal.tsx
+ * @description 관리자가 NPC의 상태를 강제로 변경하거나 명령을 내리는 모달
+ * @role NPC 속성(속도, 시야) 수정, 행동 명령(순찰, 확장, 복귀, 정지) 전송
+ * @dependencies react
+ * @note 관리자(Admin) 권한이 있는 사용자에게만 노출됨
+ * @status Active
+ */
 interface NpcControlModalProps {
     npc: any;
     onClose: () => void;
-    onUpdate?: () => void;
+    onUpdate?: () => void; // 업데이트 후 콜백 (리프레시 등)
 }
 
 export default function NpcControlModal({ npc, onClose, onUpdate }: NpcControlModalProps) {
@@ -13,6 +21,7 @@ export default function NpcControlModal({ npc, onClose, onUpdate }: NpcControlMo
     const [loading, setLoading] = useState(false);
     const [statusMsg, setStatusMsg] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
+    // NPC 스탯 (속도, 시야) 강제 업데이트
     const handleUpdateStats = async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -38,6 +47,7 @@ export default function NpcControlModal({ npc, onClose, onUpdate }: NpcControlMo
         }
     };
 
+    // NPC에게 행동 명령 전송
     const handleCommand = async (command: string, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();

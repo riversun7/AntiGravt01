@@ -4,6 +4,18 @@ import { CyborgData, Equipment, CharacterStats } from "@/types/character";
 import StatBar from "./StatBar";
 import EquipmentSlot from "./EquipmentSlot";
 
+/**
+ * @file CyborgProfile.tsx
+ * @description 사이보그(플레이어 캐릭터)의 상태와 장비를 시각화하는 메인 프로필 컴포넌트
+ * @role 캐릭터 아바타(DiceBear), 장착 장비 슬롯, 주요 스탯(근력, 민첩 등) 및 전투 능력치 표시
+ * @dependencies react, framer-motion, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - 중앙 아바타와 양쪽의 장비 슬롯 배치가 시각적으로 균형을 이룸.
+ * - 장비에 부여된 추가 스탯(JSON 파싱)을 기본 스탯과 합산하여 '유효 스탯(effective)'을 계산하는 로직 포함.
+ * - 모바일 화면에서는 그리드 레이이아웃(grid-cols-1)으로 자동 조정됨.
+ */
 interface CyborgProfileProps {
     cyborg: CyborgData;
     equipment: Equipment[];
@@ -72,15 +84,15 @@ export default function CyborgProfile({ cyborg, equipment, onSlotClick }: Cyborg
 
                 {/* Equipment Slots Positioning */}
                 <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-8 z-20">
-                    <EquipmentSlot slot="HEAD" label="HEAD SENSOR" item={getEquip('HEAD')} align="left" onClick={() => onSlotClick('HEAD')} />
-                    <EquipmentSlot slot="BODY" label="CHASSIS" item={getEquip('BODY')} align="left" onClick={() => onSlotClick('BODY')} />
-                    <EquipmentSlot slot="ARMS" label="MANIPULATOR" item={getEquip('ARMS')} align="left" onClick={() => onSlotClick('ARMS')} />
+                    <EquipmentSlot slot="HEAD" label="헤드 센서 (HEAD)" item={getEquip('HEAD')} align="left" onClick={() => onSlotClick('HEAD')} />
+                    <EquipmentSlot slot="BODY" label="차체 (CHASSIS)" item={getEquip('BODY')} align="left" onClick={() => onSlotClick('BODY')} />
+                    <EquipmentSlot slot="ARMS" label="매니퓰레이터 (ARMS)" item={getEquip('ARMS')} align="left" onClick={() => onSlotClick('ARMS')} />
                 </div>
 
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-8 z-20">
-                    <EquipmentSlot slot="LEGS" label="LOCOMOTION" item={getEquip('LEGS')} align="right" onClick={() => onSlotClick('LEGS')} />
-                    <EquipmentSlot slot="CORE" label="POWER CORE" item={getEquip('CORE')} align="right" onClick={() => onSlotClick('CORE')} />
-                    <EquipmentSlot slot="WEAPON" label="HARDPOINT A" item={getEquip('WEAPON')} align="right" onClick={() => onSlotClick('WEAPON')} />
+                    <EquipmentSlot slot="LEGS" label="구동부 (LEGS)" item={getEquip('LEGS')} align="right" onClick={() => onSlotClick('LEGS')} />
+                    <EquipmentSlot slot="CORE" label="동력원 (CORE)" item={getEquip('CORE')} align="right" onClick={() => onSlotClick('CORE')} />
+                    <EquipmentSlot slot="WEAPON" label="무장 (WEAPON)" item={getEquip('WEAPON')} align="right" onClick={() => onSlotClick('WEAPON')} />
                 </div>
             </div>
 
@@ -89,28 +101,28 @@ export default function CyborgProfile({ cyborg, equipment, onSlotClick }: Cyborg
                 {/* Stats Panel */}
                 <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-800">
                     <h3 className="text-cyan-400 font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <Cpu size={18} /> Core Specifications
+                        <Cpu size={18} /> 핵심 사양 (Core Specifications)
                     </h3>
                     <div className="space-y-4">
-                        <StatBar label="Strength" value={effective.strength} base={cyborg.strength} color="bg-red-500" />
-                        <StatBar label="Dexterity" value={effective.dexterity} base={cyborg.dexterity} color="bg-yellow-500" />
-                        <StatBar label="Constitution" value={effective.constitution} base={cyborg.constitution} color="bg-orange-500" />
-                        <StatBar label="Intelligence" value={effective.intelligence} base={cyborg.intelligence} color="bg-blue-500" />
-                        <StatBar label="Wisdom" value={effective.wisdom} base={cyborg.wisdom} color="bg-purple-500" />
-                        <StatBar label="Agility" value={effective.agility} base={cyborg.agility} color="bg-green-500" />
+                        <StatBar label="근력 (STR)" value={effective.strength} base={cyborg.strength} color="bg-red-500" />
+                        <StatBar label="민첩 (DEX)" value={effective.dexterity} base={cyborg.dexterity} color="bg-yellow-500" />
+                        <StatBar label="체력 (CON)" value={effective.constitution} base={cyborg.constitution} color="bg-orange-500" />
+                        <StatBar label="지능 (INT)" value={effective.intelligence} base={cyborg.intelligence} color="bg-blue-500" />
+                        <StatBar label="지혜 (WIS)" value={effective.wisdom} base={cyborg.wisdom} color="bg-purple-500" />
+                        <StatBar label="기동성 (AGI)" value={effective.agility} base={cyborg.agility} color="bg-green-500" />
                     </div>
                 </div>
 
                 {/* Derived Combat Stats */}
                 <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-800">
                     <h3 className="text-cyan-400 font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <Shield size={18} /> Combat Analytics
+                        <Shield size={18} /> 전투 분석 (Combat Analytics)
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <InfoBox label="HP" value={String(effective.hp)} />
-                        <InfoBox label="MP" value={String(effective.mp)} />
-                        <InfoBox label="Combat Rating" value={String(effective.strength * 2 + effective.intelligence * 2)} />
-                        <InfoBox label="Defense" value={String(effective.constitution * 1.5 + effective.agility * 0.5)} />
+                        <InfoBox label="내구도 (HP)" value={String(effective.hp)} />
+                        <InfoBox label="에너지 (MP)" value={String(effective.mp)} />
+                        <InfoBox label="전투력 (Rating)" value={String(effective.strength * 2 + effective.intelligence * 2)} />
+                        <InfoBox label="방어력 (DEF)" value={String(effective.constitution * 1.5 + effective.agility * 0.5)} />
                     </div>
                 </div>
 

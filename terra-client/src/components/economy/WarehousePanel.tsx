@@ -3,11 +3,23 @@
 import React, { useEffect, useState } from 'react';
 import { Package, TrendingUp, TrendingDown } from 'lucide-react';
 
+/**
+ * @file WarehousePanel.tsx
+ * @description 사용자의 창고 현황을 보여주는 패널 컴포넌트
+ * @role 창고 내 자원 보유량 및 용량(Capacity) 시각화
+ * @dependencies react, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - 용량 초과 시에 대한 시각적 경고(빨간색 막대)는 구현되어 있음.
+ * - 자원 종류가 많아질 경우 스크롤 처리는 상위 컨테이너에 의존하거나 내부적으로 추가해야 함.
+ * - 현재는 읽기 전용 뷰이며, 창고 업그레이드 기능 등은 별도 컴포넌트(BuildingInteractionModal 등)에서 처리됨을 유의.
+ */
 interface WarehouseData {
     id: number;
     user_id: number;
-    capacity: number;
-    stored_resources: Record<string, number>;
+    capacity: number; // 최대 저장 용량
+    stored_resources: Record<string, number>; // 자원 종류별 수량 (JSON 필드)
 }
 
 export default function WarehousePanel({ userId }: { userId: number }) {
@@ -37,6 +49,7 @@ export default function WarehousePanel({ userId }: { userId: number }) {
         return <div className="text-red-400">창고 정보를 불러올 수 없습니다.</div>;
     }
 
+    // 총 저장량 계산 및 시각화용 비율 산출
     const totalStored = Object.values(warehouse.stored_resources).reduce((sum, qty) => sum + qty, 0);
     const usagePercent = (totalStored / warehouse.capacity) * 100;
 

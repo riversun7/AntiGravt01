@@ -28,6 +28,13 @@ interface FloatingGamePanelProps {
 
 type TabType = 'info' | 'units' | 'build' | 'buildings' | 'settings';
 
+/**
+ * @file FloatingGamePanel.tsx
+ * @description 게임 내 주요 정보와 기능을 제공하는 드래그 가능한 플로팅 패널 컴포넌트
+ * @role 플레이어 자원 표시, 유닛/건물 관리, 건물 건설, 지도 설정 및 타일 제공자 변경
+ * @dependencies react, lucide-react, TileProviderSelector
+ * @status Active
+ */
 export default function FloatingGamePanel({
     playerPosition,
     playerResources,
@@ -64,7 +71,7 @@ export default function FloatingGamePanel({
     useEffect(() => {
         const saved = localStorage.getItem('gamePanel_position');
         if (saved && !isMobile) {
-             
+
             setPosition(JSON.parse(saved));
         }
     }, [isMobile]);
@@ -76,9 +83,9 @@ export default function FloatingGamePanel({
         }
     }, [position, isMobile]);
 
-    // Drag handlers
+    // --- 드래그 핸들러 (PC 전용) ---
     const handleMouseDown = (e: React.MouseEvent) => {
-        if (isMobile) return; // Disable drag on mobile
+        if (isMobile) return; // 모바일에서는 드래그 비활성화 (화면 하단 고정)
         if ((e.target as HTMLElement).closest('.drag-handle')) {
             setIsDragging(true);
             setDragOffset({
@@ -90,6 +97,7 @@ export default function FloatingGamePanel({
 
     const handleMouseMove = (e: MouseEvent) => {
         if (isDragging && !isMobile) {
+            // 화면 밖으로 나가지 않도록 제한
             const newX = Math.max(0, Math.min(window.innerWidth - 400, e.clientX - dragOffset.x));
             const newY = Math.max(0, Math.min(window.innerHeight - 500, e.clientY - dragOffset.y));
             setPosition({ x: newX, y: newY });
@@ -100,6 +108,7 @@ export default function FloatingGamePanel({
         setIsDragging(false);
     };
 
+    // 드래그 이벤트 리스너 등록/해제
     useEffect(() => {
         if (isDragging) {
             window.addEventListener('mousemove', handleMouseMove);
@@ -130,16 +139,17 @@ export default function FloatingGamePanel({
             .catch(err => console.error("Failed to load building types:", err));
     }, []);
 
-    // Dynamic Categories Generation
+    // --- 카테고리 매핑 설정 ---
+    // 백엔드 카테고리 코드 또는 임의의 코드를 한글 라벨과 정렬 순서로 매핑
     const categoriesMap: Record<string, { id: string, label: string, order: number }> = {
-        'TERRITORY': { id: 'territory', label: '👑 영토', order: 1 },
-        'ADMIN': { id: 'territory', label: '👑 영토', order: 1 },
-        'RESOURCE': { id: 'resource', label: '🔨 자원', order: 2 },
-        'STORAGE': { id: 'storage', label: '📦 저장', order: 3 },
-        'HOUSING': { id: 'living', label: '🏡 생활', order: 4 },
-        'MILITARY': { id: 'military', label: '⚔️ 군사', order: 5 },
-        'INDUSTRIAL': { id: 'industrial', label: '🏭 산업', order: 6 },
-        'RESEARCH': { id: 'research', label: '🧪 연구', order: 7 },
+        'TERRITORY': { id: 'territory', label: '👑 영토 (Capital)', order: 1 },
+        'ADMIN': { id: 'admin', label: '🛠️ 관리 (Admin)', order: 0 }, // ADMIN 중복 수정 및 우선순위 조정
+        'RESOURCE': { id: 'resource', label: '🔨 자원 (Resource)', order: 2 },
+        'STORAGE': { id: 'storage', label: '📦 저장 (Storage)', order: 3 },
+        'HOUSING': { id: 'living', label: '🏡 생활 (Living)', order: 4 },
+        'MILITARY': { id: 'military', label: '⚔️ 군사 (Military)', order: 5 },
+        'INDUSTRIAL': { id: 'industrial', label: '🏭 산업 (Industrial)', order: 6 },
+        'RESEARCH': { id: 'research', label: '🧪 연구 (Research)', order: 7 },
     };
 
     const buildingCategories = Object.values(categoriesMap)

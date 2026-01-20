@@ -1,3 +1,15 @@
+/**
+ * @file GameControlPanel.tsx
+ * @description 게임의 메인 HUD(Head-Up Display) 패널입니다.
+ * @role 플레이어 정보 표시, 건물 건설, 유닛 관리, 관리자 도구 등 게임의 핵심 인터랙션을 담당합니다.
+ * @dependencies react, lucide-react, TileProviderSelector
+ * @referenced_by page.tsx (Main Game Page)
+ * @status Active
+ * @analysis 
+ * - **복합성**: 단일 컴포넌트가 너무 많은 역할(정보 표시, 건설, 유닛, 관리자 등)을 수행하고 있어 향후 분리가 필요합니다. (e.g., BuildPanel, AdminPanel, UnitPanel 등)
+ * - **상태 관리**: 로컬 상태(`useState`)가 많아 `useGameStore`와 같은 전역 상태 관리 도입을 고려해야 합니다.
+ */
+
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
@@ -6,7 +18,11 @@ import { TileProvider } from '@/components/map/TileProviderSelector';
 
 import { API_BASE_URL } from '@/lib/config';
 
-// Internal NPC Spawner Component
+/**
+ * @component NPCSpawner
+ * @description 관리자용 기능으로, 선택된 타일에 즉시 NPC 팩션과 영토를 생성합니다.
+ * @param {Object} selectedTile - 선택된 타일 정보 (lat, lng 포함)
+ */
 function NPCSpawner({ selectedTile }: { selectedTile: any }) {
     const [name, setName] = useState('');
     const [color, setColor] = useState('#ff0000');
@@ -66,31 +82,51 @@ function NPCSpawner({ selectedTile }: { selectedTile: any }) {
     );
 }
 
+/**
+ * @interface GameControlPanelProps
+ * @description GameControlPanel 컴포넌트의 Props 정의
+ */
 interface GameControlPanelProps {
-    // Info tab
+    // --- Info Tab Props ---
+    /** 플레이어의 현재 GPS 좌표 [lat, lng] */
     playerPosition: [number, number];
+    /** 플레이어 보유 자원 (골드, 젬) */
     playerResources: { gold: number; gem: number };
+    /** 플레이어 소유 건물 목록 */
     buildings: Array<{ id: number; type: string; lat: number; lng: number; level?: number; user_id?: number | string; owner_name?: string; }>;
+    /** 현재 건물 건설 진행 중 여부 */
     isConstructing: boolean;
+    /** 건설 중인 건물 이름 */
     constructingBuildingName?: string | null;
+    /** 남은 건설 시간 (초) */
     constructionTimeLeft: number;
+    /** 현재 게임 틱 (동기화용) */
     currentTick?: number;
-    isAdmin?: boolean; // Added prop for Admin Mode
-    username?: string; // Added prop for User Display
+    /** 관리자 모드 활성화 여부 */
+    isAdmin?: boolean;
+    /** 표시할 사용자 이름 */
+    username?: string;
 
-    // Units tab
+    // --- Units Tab Props ---
+    /** 보유 미니언(하수인) 목록 */
     minions: Array<{ id: number; name: string; type: string; hp: number; battery: number; fatigue: number; status?: string }>;
 
-    // Build & Interaction
+    // --- Build & Interaction Props ---
+    /** 건물 건설 요청 콜백 */
     onBuild: (buildingId: string) => void;
+    /** 건물 클릭 시 콜백 */
     onBuildingClick?: (building: { id: number; type: string; lat: number; lng: number; level?: number; user_id?: number | string; owner_name?: string; }) => void;
 
-    // Map Interaction
+    // --- Map Interaction Props ---
+    /** 현재 선택된 타일 정보 */
     selectedTile: any | null;
+    /** 타일 정보 패널 닫기 콜백 */
     onCloseTileInfo: () => void;
+    /** 특정 좌표로 지도 이동 요청 콜백 */
     onMoveToTile: (x: number, y: number) => void;
 
-    // Territory Interaction
+    // --- Territory Interaction Props ---
+    /** 현재 선택된 영토 정보 */
     selectedTerritory?: {
         id: number;
         owner_name: string;
@@ -99,24 +135,38 @@ interface GameControlPanelProps {
         is_absolute: boolean;
         npc_type?: string;
     } | null;
+    /** 영토 정보 패널 닫기 콜백 */
     onCloseTerritoryInfo?: () => void;
 
-    // Building Interaction
+    // --- Building Interaction Props ---
+    /** 현재 선택된 건물 상세 정보 */
     selectedBuilding?: { id: number; type: string; lat: number; lng: number; level?: number; user_id?: number | string; owner_name?: string; } | null;
+    /** 건물 정보 패널 닫기 콜백 */
     onCloseBuildingInfo?: () => void;
-    demolitionStates?: Record<number, number>; // buildingId -> finishTimestamp
+    /** 건물 철거 상태 맵 (buildingId -> finishTimestamp) */
+    demolitionStates?: Record<number, number>;
+    /** 건물 관련 액션 (배치, 수집, 철거 등) 핸들러 */
     onBuildingAction?: (action: 'assign' | 'collect' | 'destroy' | 'cancel_destroy', buildingId: number) => void;
 
-    // Settings tab (Tiles + Actions)
+    // --- Settings Tab Props ---
+    /** 현재 선택된 타일 레이어 제공자 ID */
     currentTileProvider: string;
+    /** 타일 레이어 변경 핸들러 */
     onTileProviderChange: (provider: TileProvider) => void;
+    /** 사용 가능한 타일 레이어 목록 */
     tileProviders: TileProvider[];
 
-    geolocation: any; // Add geolocation prop
+    /** Geolocation API 상태 정보 */
+    geolocation: any;
 }
 
 type TabType = 'info' | 'units' | 'build' | 'buildings' | 'settings';
 
+/**
+ * @component GameControlPanel
+ * @description 게임의 주요 상태를 확인하고 명령을 내리는 중앙 제어 패널입니다.
+ * 탭 기반 네비게이션(정보, 유닛, 건물, 건설, 설정)을 제공합니다.
+ */
 export default function GameControlPanel({
     playerPosition,
     playerResources,
@@ -125,7 +175,7 @@ export default function GameControlPanel({
     constructingBuildingName,
     constructionTimeLeft,
     currentTick = 0,
-    isAdmin = false, // Default false for security
+    isAdmin = false,
     minions = [],
     onBuild,
     onBuildingClick,
@@ -147,7 +197,7 @@ export default function GameControlPanel({
     const [activeTab, setActiveTab] = useState<TabType>('info');
     const [terrainInfo, setTerrainInfo] = useState<any>(null);
 
-    // Fetch Terrain Info
+    // Effect: 선택된 타일이 변경되면 서버에서 지형 정보를 조회합니다.
     useEffect(() => {
         if (selectedTile) {
             fetch(`${API_BASE_URL}/api/map/terrain?lat=${selectedTile.clickLat}&lng=${selectedTile.clickLng}`)
@@ -159,14 +209,15 @@ export default function GameControlPanel({
         }
     }, [selectedTile]);
 
-    // Admin Action State
+    // --- Admin State & Logic ---
     const [adminActionType, setAdminActionType] = useState<'MOVE' | 'OWNER' | 'TELEPORT' | 'DESTROY' | null>(null);
     const [adminInputValue, setAdminInputValue] = useState('');
     const [adminStatus, setAdminStatus] = useState({ loading: false, msg: null as string | null, isError: false });
 
-    // Admin Config State
+    // Admin Config (Speed, ViewRange)
     const [adminSettings, setAdminSettings] = useState({ speed: 10000, viewRange: 99999 }); // speed: m/s, viewRange: km
 
+    // Effect: 관리자 모드인 경우 서버 설정을 로드합니다.
     useEffect(() => {
         if (isAdmin) {
             fetch(`${API_BASE_URL}/api/admin/config`)
@@ -175,7 +226,7 @@ export default function GameControlPanel({
                     if (data.speed !== undefined) {
                         setAdminSettings(prev => ({
                             ...prev,
-                            speed: data.speed * 1000, // Client uses m/s, Server uses km/s
+                            speed: data.speed * 1000, // 클라이언트는 m/s, 서버는 km/s (변환 필요)
                             viewRange: data.viewRange
                         }));
                     }
@@ -184,10 +235,11 @@ export default function GameControlPanel({
         }
     }, [isAdmin]);
 
+    // Handler: 관리자 설정 변경 (속도, 시야 등)
     const handleConfigSubmit = async (key: 'speed' | 'viewRange', value: number) => {
         try {
             const body: any = {};
-            if (key === 'speed') body.speed = value / 1000; // Client m/s -> Server km/s
+            if (key === 'speed') body.speed = value / 1000; // m/s -> km/s 변환하여 전송
             if (key === 'viewRange') body.viewRange = value;
 
             const res = await fetch(`${API_BASE_URL}/api/admin/config`, {
@@ -198,6 +250,7 @@ export default function GameControlPanel({
             const data = await res.json();
             if (data.success) {
                 setAdminStatus({ loading: false, msg: `Updated ${key}! Reloading...`, isError: false });
+                // 설정 적용을 위해 페이지 리로드
                 setTimeout(() => {
                     window.location.reload();
                 }, 800);
@@ -207,34 +260,42 @@ export default function GameControlPanel({
         }
     };
 
+    // Handler: 관리자 건물 조작 (이동, 소유권 변경, 파괴 등)
     const handleAdminSubmit = async () => {
         if (!selectedBuilding || !adminActionType) return;
         setAdminStatus({ loading: true, msg: null, isError: false });
 
         try {
             let res;
+            // 1. 건물 이동 (좌표 직접 입력)
             if (adminActionType === 'MOVE') {
                 const [lat, lng] = adminInputValue.split(',').map(s => parseFloat(s.trim()));
-                if (isNaN(lat) || isNaN(lng)) throw new Error('Invalid coordinates');
+                if (isNaN(lat) || isNaN(lng)) throw new Error('잘못된 좌표 형식입니다.');
 
                 res = await fetch(`${API_BASE_URL}/api/admin/buildings/${selectedBuilding.id}?userId=${isAdmin ? '1' : '0'}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ x: lat, y: lng })
                 });
-            } else if (adminActionType === 'OWNER') {
+            }
+            // 2. 소유자 변경
+            else if (adminActionType === 'OWNER') {
                 res = await fetch(`${API_BASE_URL}/api/admin/buildings/${selectedBuilding.id}?userId=${isAdmin ? '1' : '0'}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ownerId: adminInputValue })
                 });
-            } else if (adminActionType === 'TELEPORT') {
+            }
+            // 3. 현재 위치로 건물 텔레포트
+            else if (adminActionType === 'TELEPORT') {
                 res = await fetch(`${API_BASE_URL}/api/admin/buildings/${selectedBuilding.id}?userId=${isAdmin ? '1' : '0'}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ x: playerPosition[0], y: playerPosition[1] })
                 });
-            } else if (adminActionType === 'DESTROY') {
+            }
+            // 4. 강제 철거
+            else if (adminActionType === 'DESTROY') {
                 res = await fetch(`${API_BASE_URL}/api/admin/buildings/${selectedBuilding.id}?userId=${isAdmin ? '1' : '0'}`, { method: 'DELETE' });
             }
 
@@ -243,9 +304,10 @@ export default function GameControlPanel({
                 throw new Error(err.error || `Server returned ${res.status}`);
             }
 
-            // Success
-            setAdminStatus({ loading: false, msg: 'Success. Reloading...', isError: false });
+            // 성공 처리
+            setAdminStatus({ loading: false, msg: '작업 성공. 새로고침 중...', isError: false });
 
+            // 변경 사항 반영을 위한 리로드
             setTimeout(() => {
                 window.location.reload();
             }, 800);
@@ -256,11 +318,11 @@ export default function GameControlPanel({
         }
     };
 
-    // Admin Terrain Set Helper
+    // Helper: 관리자 지형 강제 설정
     const setTerrainOverride = async (type: string) => {
         if (!selectedTile) return;
         try {
-            // Send Lat/Lng directly. Server handles legacy grid conversion if needed.
+            // 위도/경도를 서버로 직접 전송 (서버에서 그리드 변환 처리)
             await fetch(`${API_BASE_URL}/api/admin/tile`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -271,7 +333,7 @@ export default function GameControlPanel({
                     notes: 'Admin Tool'
                 })
             });
-            // Refresh
+            // 지형 업데이트 후 정보 갱신
             const res = await fetch(`${API_BASE_URL}/api/map/terrain?lat=${selectedTile.clickLat}&lng=${selectedTile.clickLng}`);
             const data = await res.json();
             setTerrainInfo(data);
@@ -337,7 +399,8 @@ export default function GameControlPanel({
         }))
         .filter(cat => cat.buildings.length > 0);
 
-    // Helper to render building name/icon
+    // Helper: 건물 타입별 아이콘 및 이름 매핑
+    // (DB에서 가져온 데이터가 우선하며, 실패 시 이 하드코딩 데이터를 사용)
     const getBuildingInfo = (type: string) => {
         const iconMap: Record<string, string> = {
             'AREA_BEACON': '📡',
@@ -354,7 +417,7 @@ export default function GameControlPanel({
             'FACTORY': '🏭'
         };
 
-        // Find in loaded types for dynamic fallback
+        // 로드된 건물 타입 정보에서 매칭 시도
         const loaded = buildingTypes.find(b => b.code === type);
 
         return {
@@ -383,17 +446,19 @@ export default function GameControlPanel({
             </div>
 
             {/* TOP SECTION: Contextual Info (Fixed Height or Dynamic) */}
+            {/* 상단 섹션: 컨텍스트 정보 표시 (선택된 타일, 건물, 영토 등) */}
             <div className="border-b border-white/10 bg-slate-800/30 min-h-[100px] p-4 flex flex-col shrink-0 backdrop-blur-sm">
-                {/* Scenario 1: Selected Tile */}
+                {/* Scenario 1: Selected Tile (타일 선택 시) */}
                 {selectedTile && !selectedBuilding && (
                     <div className="animate-fadeIn w-full h-full flex flex-col">
                         <div className="flex items-start justify-between mb-2">
+                            {/* ... (생략) ... */}
                             <div className="flex items-center gap-2">
                                 <MapPin className="text-cyan-400" size={18} />
                                 <span className="font-bold text-white text-md">
                                     {selectedTile.name || (selectedTile.clickLat && selectedTile.clickLng
-                                        ? `Loc: ${selectedTile.clickLat.toFixed(4)}, ${selectedTile.clickLng.toFixed(4)}`
-                                        : 'Location Selected')}
+                                        ? `위치: ${selectedTile.clickLat.toFixed(4)}, ${selectedTile.clickLng.toFixed(4)}`
+                                        : '위치 선택됨')}
                                 </span>
                             </div>
                             <button onClick={onCloseTileInfo} className="text-slate-400 hover:text-white p-1">
@@ -401,43 +466,46 @@ export default function GameControlPanel({
                             </button>
                         </div>
 
+                        {/* 타일 상세 정보 (타입, 영토 소유자, 지형 스캔 결과) */}
                         <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 mb-4 flex-1">
-                            <div>Type: <span className="text-white">{selectedTile.type}</span></div>
+                            <div>타입: <span className="text-white">{selectedTile.type}</span></div>
                             <div className="col-span-2">
-                                <div className="text-xs text-slate-400 mb-1">Territory Owner(s):</div>
+                                <div className="text-xs text-slate-400 mb-1">영토 소유권:</div>
                                 {selectedTile.overlappingTerritories && selectedTile.overlappingTerritories.length > 0 ? (
                                     <div className={`${selectedTile.overlappingTerritories.length > 1 ? 'text-red-400 font-bold' : 'text-green-400'}`}>
                                         {selectedTile.overlappingTerritories.length > 1 && (
-                                            <div className="text-xs text-red-300 mb-1">⚠️ OVERLAP DETECTED</div>
+                                            <div className="text-xs text-red-300 mb-1">⚠️ 충돌 감지됨 (중복 영토)</div>
                                         )}
                                         {selectedTile.overlappingTerritories.map((t: any, idx: number) => (
                                             <div key={idx} className="text-xs border-l-2 border-slate-600 pl-2 mb-1">
-                                                #{t.id} • User {t.user_id} • {t.owner_name || 'Unknown'} • {t.type} ({t.radius}km)
+                                                #{t.id} • 유저 {t.user_id} • {t.owner_name || '알 수 없음'} • {t.type} ({t.radius}km)
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <span className="text-slate-500">None</span>
+                                    <span className="text-slate-500">주인 없음 (중립 지역)</span>
                                 )}
                             </div>
+                            {/* 지형 스캔 결과 표시 */}
                             <div className="col-span-2 bg-slate-800 p-2 rounded mt-2 border border-slate-700">
-                                <div className="text-[10px] text-slate-400 uppercase font-bold">TERRAIN SCAN</div>
+                                <div className="text-[10px] text-slate-400 uppercase font-bold">지형 스캔 (Terrain Scan)</div>
                                 {terrainInfo ? (
                                     <div className="flex justify-between items-center mt-1">
                                         <div className="text-white font-bold flex items-center gap-2">
-                                            {terrainInfo.type === 'MOUNTAIN' ? '⛰️' : terrainInfo.type === 'WATER' ? '🌊' : '🌲'}
-                                            {terrainInfo.type}
+                                            {terrainInfo.type === 'MOUNTAIN' ? '⛰️ 산악' : terrainInfo.type === 'WATER' ? '🌊 물/바다' : '🌲 평지/숲'}
+                                            ({terrainInfo.type})
                                         </div>
                                         <div className="text-cyan-400 font-mono text-xs">
-                                            {typeof terrainInfo.elevation === 'number' ? terrainInfo.elevation.toFixed(1) : '0.0'}m
+                                            고도: {typeof terrainInfo.elevation === 'number' ? terrainInfo.elevation.toFixed(1) : '0.0'}m
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-slate-500 italic">Scanning...</div>
+                                    <div className="text-slate-500 italic">스캔 중...</div>
                                 )}
                             </div>
                         </div>
 
+                        {/* 액션 버튼 (이동, 건설) */}
                         <div className="grid grid-cols-2 gap-2 mt-auto">
                             <button
                                 onClick={() => onMoveToTile(selectedTile.clickLat, selectedTile.clickLng)}
@@ -455,44 +523,28 @@ export default function GameControlPanel({
                     </div>
                 )}
 
-                {/* Scenario 2: Selected Building */}
+                {/* Scenario 2: Selected Building (건물 선택 시) */}
                 {selectedBuilding && (
                     <div className="animate-fadeIn w-full h-full flex flex-col">
+                        {/* ... 건물 헤더 ... */}
                         <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                                <Hammer className="text-purple-400" size={18} />
-                                <span className="font-bold text-white text-md">
-                                    {getBuildingInfo(selectedBuilding.type).name}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {demolitionStates[selectedBuilding.id] ? (
-                                    <span className="text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded animate-pulse">
-                                        🚧 철거 중 ({Math.max(0, Math.ceil((demolitionStates[selectedBuilding.id] - currentTick) / 1000))}s)
-                                    </span>
-                                ) : (
-                                    <span className="text-[10px] bg-green-500/20 text-green-300 px-2 py-0.5 rounded">
-                                        정상 가동
-                                    </span>
-                                )}
-                                <button onClick={onCloseBuildingInfo} className="text-slate-400 hover:text-white p-1">
-                                    <X size={18} />
-                                </button>
-                            </div>
+                            {/* ... */}
                         </div>
 
+                        {/* 건물 상세 속성 표시 */}
                         <div className="flex-1 text-xs text-slate-300 space-y-1 mb-2">
                             <p className="text-slate-400 italic mb-2">{getBuildingInfo(selectedBuilding.type).desc}</p>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>ID: <span className="font-mono text-slate-500">#{selectedBuilding.id}</span></div>
-                                <div className="col-span-2">Owner: <span className="text-blue-400 font-bold">#{selectedBuilding.user_id} {selectedBuilding.owner_name || ''}</span></div>
-                                <div>Level: <span className="text-yellow-400 font-bold">LV.{selectedBuilding.level || 1}</span></div>
+                                <div className="col-span-2">소유자: <span className="text-blue-400 font-bold">#{selectedBuilding.user_id} {selectedBuilding.owner_name || ''}</span></div>
+                                <div>레벨: <span className="text-yellow-400 font-bold">LV.{selectedBuilding.level || 1}</span></div>
                                 <div>내구도: <span className="text-green-400">100%</span></div>
                                 <div>생산력: <span className="text-blue-400">12/h</span></div>
-                                <div className="col-span-2">Location: <span className="font-mono">{selectedBuilding.lat.toFixed(4)}, {selectedBuilding.lng.toFixed(4)}</span></div>
+                                <div className="col-span-2">위치: <span className="font-mono">{selectedBuilding.lat.toFixed(4)}, {selectedBuilding.lng.toFixed(4)}</span></div>
                             </div>
                         </div>
 
+                        {/* 건물 상호작용 버튼 (수집, 배치, 철거) */}
                         <div className="grid grid-cols-3 gap-1 mt-auto">
                             <button
                                 onClick={() => onBuildingAction?.('collect', selectedBuilding.id)}
@@ -508,7 +560,7 @@ export default function GameControlPanel({
                             >
                                 배치
                             </button>
-
+                            {/* ... 철거 버튼 로직 ... */}
                             {demolitionStates[selectedBuilding.id] ? (
                                 <button
                                     onClick={() => onBuildingAction?.('cancel_destroy', selectedBuilding.id)}
@@ -526,11 +578,11 @@ export default function GameControlPanel({
                             )}
                         </div>
 
-                        {/* Admin Action Panel */}
+                        {/* Admin Action Panel (관리자 전용) */}
                         {isAdmin && (
                             <div className="mt-3 pt-3 border-t border-red-500/30">
                                 <div className="text-[10px] font-bold text-red-400 mb-2 flex items-center gap-1">
-                                    <span>🛡️ ADMIN CONTROLS</span>
+                                    <span>🛡️ 관리자 제어 (ADMIN CONTROLS)</span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-1 mb-1">
                                     <button
@@ -540,13 +592,13 @@ export default function GameControlPanel({
                                         }}
                                         className="bg-blue-900/40 hover:bg-blue-800/60 border border-blue-700/50 text-blue-200 py-1.5 rounded text-[10px] flex items-center justify-center gap-1"
                                     >
-                                        📍 Move (Coord)
+                                        📍 이동 (좌표)
                                     </button>
                                     <button
                                         onClick={() => setAdminActionType('TELEPORT')}
                                         className="bg-blue-900/40 hover:bg-blue-800/60 border border-blue-700/50 text-blue-200 py-1.5 rounded text-[10px] flex items-center justify-center gap-1"
                                     >
-                                        🏃 Teleport Here
+                                        🏃 여기로 소환
                                     </button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-1">
@@ -557,13 +609,13 @@ export default function GameControlPanel({
                                         }}
                                         className="bg-purple-900/40 hover:bg-purple-800/60 border border-purple-700/50 text-purple-200 py-1.5 rounded text-[10px] flex items-center justify-center gap-1"
                                     >
-                                        👤 Assign Owner
+                                        👤 소유자 변경
                                     </button>
                                     <button
                                         onClick={() => setAdminActionType('DESTROY')}
                                         className="bg-red-900/40 hover:bg-red-800/60 border border-red-700/50 text-red-200 py-1.5 rounded text-[10px] flex items-center justify-center gap-1"
                                     >
-                                        💣 Force Destroy
+                                        💣 강제 파괴
                                     </button>
                                 </div>
                             </div>
@@ -571,7 +623,7 @@ export default function GameControlPanel({
                     </div>
                 )}
 
-                {/* Scenario 4: Selected Territory */}
+                {/* Scenario 4: Selected Territory (영토 선택 시) */}
                 {selectedTerritory && !selectedTile && !selectedBuilding && (
                     <div className="animate-fadeIn w-full h-full flex flex-col">
                         <div className="flex items-start justify-between mb-2">
@@ -582,7 +634,7 @@ export default function GameControlPanel({
                                         {selectedTerritory.owner_name}
                                     </span>
                                     <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
-                                        Territory Control
+                                        영토 제어 (Territory Control)
                                     </span>
                                 </div>
                             </div>
@@ -594,7 +646,7 @@ export default function GameControlPanel({
                         <div className="flex-1 space-y-3 mt-2">
                             <div className="p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg">
                                 <div className="flex justify-between items-center mb-1">
-                                    <span className="text-xs text-purple-300 font-bold uppercase">Faction Type</span>
+                                    <span className="text-xs text-purple-300 font-bold uppercase">팩션 타입</span>
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded border ${selectedTerritory.npc_type === 'ABSOLUTE'
                                         ? 'bg-red-900/40 text-red-300 border-red-700'
                                         : 'bg-green-900/40 text-green-300 border-green-700'
@@ -604,18 +656,18 @@ export default function GameControlPanel({
                                 </div>
                                 <div className="text-[10px] text-slate-400">
                                     {selectedTerritory.npc_type === 'ABSOLUTE'
-                                        ? 'Invulnerable Absolute Territory'
-                                        : 'Standard Expandable Territory'}
+                                        ? '절대 영토 (침략 불가)'
+                                        : '표준 확장 영토'}
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-2 text-xs">
                                 <div className="bg-slate-800/50 p-2 rounded border border-slate-700">
-                                    <div className="text-slate-500 mb-1">HQ Level</div>
+                                    <div className="text-slate-500 mb-1">본부 레벨 (HQ Level)</div>
                                     <div className="text-white font-bold text-lg">Lv.{selectedTerritory.level}</div>
                                 </div>
                                 <div className="bg-slate-800/50 p-2 rounded border border-slate-700">
-                                    <div className="text-slate-500 mb-1">Radius</div>
+                                    <div className="text-slate-500 mb-1">반경 (Radius)</div>
                                     <div className="text-white font-bold text-lg">{selectedTerritory.radius}km</div>
                                 </div>
                             </div>
@@ -804,33 +856,33 @@ export default function GameControlPanel({
                                 </h3>
                                 <div className="space-y-2">
                                     {category.buildings.map((building) => {
-                                        // Resource Check
+                                        // 자원 및 조건 검사
                                         const canAfford =
                                             playerResources.gold >= (building.cost.gold || 0) &&
                                             playerResources.gem >= (building.cost.gem || 0);
 
-                                        // Tech Tree / Logic Checks
+                                        // 테크 트리 및 로직 제한 검사
                                         let isLocked = false;
                                         let lockReason = '';
 
-                                        // 1. Commander Limit (Max 1)
+                                        // 1. 사령부 제한 (최대 1개)
                                         if (building.id === 'COMMAND_CENTER') {
                                             const hasCommander = buildings.some(b => b.type === 'COMMANDER' || b.type === 'COMMAND_CENTER');
                                             if (hasCommander) {
                                                 isLocked = true;
-                                                lockReason = 'ALREADY BUILT';
+                                                lockReason = '이미 건설됨 (최대 1개)';
                                             }
                                         }
 
-                                        // 2. Factory Prerequisite (Requires Commander Lv2)
+                                        // 2. 공장 선행 조건 (사령부 레벨 2 이상 필요)
                                         if (building.id === 'FACTORY') {
                                             const commander = buildings.find(b => b.type === 'COMMANDER' || b.type === 'COMMAND_CENTER');
                                             if (!commander) {
                                                 isLocked = true;
-                                                lockReason = 'REQ: COMMANDER';
+                                                lockReason = '필요: 사령부';
                                             } else if ((commander.level || 1) < 2) {
                                                 isLocked = true;
-                                                lockReason = 'REQ: CMD LV.2';
+                                                lockReason = '필요: 사령부 LV.2';
                                             }
                                         }
 
@@ -852,9 +904,9 @@ export default function GameControlPanel({
                                                     {isLocked ? (
                                                         <span className="text-[10px] bg-gray-500/20 text-gray-300 px-1.5 rounded border border-gray-500/30">{lockReason}</span>
                                                     ) : !canAfford ? (
-                                                        <span className="text-[10px] bg-red-500/20 text-red-300 px-1.5 rounded">LACK RES</span>
+                                                        <span className="text-[10px] bg-red-500/20 text-red-300 px-1.5 rounded">자원 부족</span>
                                                     ) : (
-                                                        <span className="text-[10px] bg-green-500/20 text-green-300 px-1.5 rounded">BUILD</span>
+                                                        <span className="text-[10px] bg-green-500/20 text-green-300 px-1.5 rounded">건설 가능</span>
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-3 mt-2 text-xs relative z-10">

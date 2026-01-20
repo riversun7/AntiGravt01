@@ -26,6 +26,13 @@ interface TerritoryOverlayProps {
     onTerritoryClick?: (territory: Territory, e: any) => void;
 }
 
+/**
+ * @file TerritoryOverlay.tsx
+ * @description 영토(Territory) 정보를 시각화하는 오버레이 컴포넌트
+ * @role 유저별 영토 그룹화, 동적 경계선(Hull) 생성, 영토 간 겹침 처리(차집합 연산), Leaflet Layer 렌더링
+ * @dependencies react-leaflet, @turf/turf (기하 연산 라이브러리)
+ * @status Active
+ */
 export default function TerritoryOverlay({ territories, currentUserId, onTerritoryClick }: TerritoryOverlayProps) {
 
     const { commandCenters, beaconBorders } = useMemo(() => {
@@ -64,7 +71,7 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
         const allCenters: any[] = [];
 
         // =========================================================
-        // PASS 1: Generate Raw Hulls & Collect Circle Data
+        // PASS 1: 원시 Hull 생성 및 개별 원(Circle) 데이터 수집
         // =========================================================
         userGroups.forEach((userTerritories, userId) => {
             try {
@@ -155,7 +162,7 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
         });
 
         // =========================================================
-        // PASS 2: Subtract Foreign Hulls/Circles
+        // PASS 2: 외래 영토(타 유저/팩션)와의 겹침 제거 (차집합 연산)
         // =========================================================
         const finalBorders: any[] = [];
 
@@ -289,7 +296,7 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
 
     return (
         <>
-            {/* Layer 1: 비콘 국경선 (하위 레이어, z-index 399) */}
+            {/* Layer 1: 비콘 국경선 (하위 레이어, z-index 399) - 확장된 영토 경계 */}
             <Pane name="beacon-borders" style={{ zIndex: 399 }}>
                 {beaconBorders.map((border) => (
                     <Polygon
@@ -324,7 +331,7 @@ export default function TerritoryOverlay({ territories, currentUserId, onTerrito
                 ))}
             </Pane>
 
-            {/* Layer 2: 사령부 절대 영역 (상위 레이어, z-index 400) */}
+            {/* Layer 2: 사령부 절대 영역 (상위 레이어, z-index 400) - 핵심 영토 */}
             <Pane name="command-centers" style={{ zIndex: 400 }}>
                 {commandCenters.map((cc) => (
                     <Circle

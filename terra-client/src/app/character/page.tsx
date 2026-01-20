@@ -1,3 +1,27 @@
+/**
+ * @file character/page.tsx
+ * @description 캐릭터 관리 페이지 (Cyborg, Minions, Inventory)
+ * @role 플레이어의 사이보그, 미니언, 인벤토리를 통합 관리하는 페이지
+ * @dependencies CharacterContext, framer-motion, 각종 캐릭터 컴포넌트
+ * @status Active
+ * 
+ * @analysis
+ * **주요 기능:**
+ * - 3개 탭: Cyborg (메인 캐릭터), Minions (부하), Inventory (소지품)
+ * - 장비 착용/해제 (Cyborg)
+ * - 미니언 생산 및 관리 (휴식, 충전, 먹이)
+ * - 인벤토리 아이템 표시
+ * 
+ * **Context 사용:**
+ * - CharacterContext: Cyborg 및 Minion 데이터 전역 관리
+ * - Context에서 CRUD 함수 제공
+ * 
+ * **모달 시스템:**
+ * - MinionDetailModal: 미니언 상세 정보
+ * - MinionProductionModal: 새 미니언 생산  
+ * - EquipmentSelectionModal: 장비 선택 및 착용
+ */
+
 "use client";
 
 import { useState, useEffect } from "react";

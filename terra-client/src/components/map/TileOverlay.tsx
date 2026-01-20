@@ -14,6 +14,17 @@ interface TileOverlayProps {
     ownedTiles: TileData[];
 }
 
+/**
+ * @file TileOverlay.tsx
+ * @description 소유된 타일(Territory)을 지도 위에 사각형(Rectangle)으로 오버레이 표시
+ * @role 점령된 영역을 시각적으로 구분하고, 클릭 시 소유자 정보를 팝업으로 제공
+ * @dependencies react-leaflet
+ * @status Active
+ * 
+ * @analysis
+ * - 전체 지구를 그리드(Grid)로 나누어 타일 좌표(x, y)를 위경도 경계(Bounds)로 변환.
+ * - 소유자 ID에 따라 타일 색상을 구분 (예: 1번 유저는 파란색, 그 외는 빨간색).
+ */
 export default function TileOverlay({ ownedTiles }: TileOverlayProps) {
     // Grid constants
     const LAT_PER_TILE = 180 / 80; // Total Lat 180 deg / 80 rows
@@ -45,9 +56,9 @@ export default function TileOverlay({ ownedTiles }: TileOverlayProps) {
                     >
                         <Popup>
                             <div className="text-sm">
-                                <span className="font-bold">Owned Territory</span><br />
-                                Owner: User {tile.owner_id}<br />
-                                Grid: {tile.x}, {tile.y}
+                                <span className="font-bold">점령지 (Owned Territory)</span><br />
+                                소유자: User {tile.owner_id}<br />
+                                그리드 좌표: {tile.x}, {tile.y}
                             </div>
                         </Popup>
                     </Rectangle>

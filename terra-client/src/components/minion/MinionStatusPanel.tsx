@@ -15,6 +15,18 @@ interface Minion {
     fatigue: number;
 }
 
+/**
+ * @file MinionStatusPanel.tsx
+ * @description 게임 로비나 대시보드에서 간략하게 표출되는 미니언 상태 패널
+ * @role 전체 미니언의 목록과 주요 상태(배고픔, 스태미나, 배터리) 요약 표시
+ * @dependencies react, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - 주기적으로(기본 60초) 서버에서 미니언 데이터를 폴링하여 최신 상태를 유지함.
+ * - 각 행동(ACTION) 상태에 따라 색상이 구분되어 직관적임.
+ * - 스탯 바(배고픔, 스태미나 등) 색상 로직이 컴포넌트 내부에 하드코딩되어 있음. 추후 유틸리티 함수로 분리 고려 가능.
+ */
 export default function MinionStatusPanel({ userId }: { userId: number }) {
     const [minions, setMinions] = useState<Minion[]>([]);
     const [loading, setLoading] = useState(true);
@@ -36,19 +48,19 @@ export default function MinionStatusPanel({ userId }: { userId: number }) {
         let intervalId: NodeJS.Timeout;
 
         const initPolling = async () => {
-            // 1. Initial Fetch
+            // 1. 초기 데이터 로드 (Initial Fetch)
             fetchMinions();
 
-            // 2. Get Config Interval
+            // 2. 설정된 폴링 주기 가져오기 (Get Config Interval)
             try {
                 const configRes = await fetch(`/api/admin/system/config`);
                 const config = await configRes.json();
-                const pollRate = config.client_poll_interval || 60000; // Default 1 min
+                const pollRate = config.client_poll_interval || 60000; // 기본 1분
 
-                // 3. Start Interval
+                // 3. 주기적 폴링 시작 (Start Interval)
                 intervalId = setInterval(fetchMinions, pollRate);
             } catch (e) {
-                // Fallback
+                // 실패 시 기본값 사용
                 intervalId = setInterval(fetchMinions, 60000);
             }
         };

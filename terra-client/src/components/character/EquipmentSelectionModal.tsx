@@ -12,6 +12,18 @@ interface EquipmentSelectionModalProps {
     onUnequip: () => void;
 }
 
+/**
+ * @file EquipmentSelectionModal.tsx
+ * @description 특정 슬롯에 장착할 장비를 선택하는 모달
+ * @role 인벤토리에서 호환되는 아이템 필터링 및 목록 표시, 장착/해제 기능 제공
+ * @dependencies react, framer-motion, lucide-react
+ * @status Active
+ * 
+ * @analysis
+ * - 인벤토리 내의 수많은 아이템 중 현재 슬롯(slot)에 맞는 아이템만 필터링하여 보여주는 로직이 핵심.
+ * - 현재 장착 중인 아이템과 인벤토리의 아이템을 구분하여 표시.
+ * - 모바일 환경에서도 사용 가능하도록 max-height 및 overflow 설정이 되어 있음.
+ */
 export default function EquipmentSelectionModal({ slot, currentEquip, inventory, onClose, onEquip, onUnequip }: EquipmentSelectionModalProps) {
     // Filter inventory for this slot
     // Matches if type matches the slot requirement (e.g. HEAD, BODY)
@@ -42,9 +54,9 @@ export default function EquipmentSelectionModal({ slot, currentEquip, inventory,
                         <div>
                             <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase tracking-widest mb-1">
                                 <Shield size={14} />
-                                System Configuration
+                                시스템 설정 (System Configuration)
                             </div>
-                            <h2 className="text-2xl font-bold text-white">Select {slot} Module</h2>
+                            <h2 className="text-2xl font-bold text-white">{slot} 모듈 선택</h2>
                         </div>
                         <button
                             onClick={onClose}
@@ -59,7 +71,7 @@ export default function EquipmentSelectionModal({ slot, currentEquip, inventory,
 
                         {/* Currently Equipped */}
                         <div>
-                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Current Module</h3>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">현재 장착 모듈 (Current Module)</h3>
                             {currentEquip ? (
                                 <div className="bg-slate-800/50 border border-cyan-500/50 p-4 rounded-xl flex items-center gap-4">
                                     <ItemIcon item={currentEquip} size="lg" className="rounded-lg shadow-lg shadow-cyan-500/20" />
@@ -71,23 +83,23 @@ export default function EquipmentSelectionModal({ slot, currentEquip, inventory,
                                         onClick={onUnequip}
                                         className="px-4 py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-800 text-red-400 rounded-lg text-sm font-bold transition-all"
                                     >
-                                        UNEQUIP
+                                        해제 (UNEQUIP)
                                     </button>
                                 </div>
                             ) : (
                                 <div className="p-4 border border-dashed border-slate-700 rounded-xl text-center text-slate-500 text-sm">
-                                    No module installed in this slot.
+                                    이 슬롯에 장착된 모듈이 없습니다.
                                 </div>
                             )}
                         </div>
 
                         {/* Inventory List */}
                         <div>
-                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Compatible Modules ({compatibleItems.length})</h3>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">장착 가능 모듈 ({compatibleItems.length})</h3>
 
                             {compatibleItems.length === 0 ? (
                                 <div className="text-center py-12 text-slate-600">
-                                    No compatible {slot} modules found in inventory.
+                                    인벤토리에 호환되는 {slot} 모듈이 없습니다.
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 gap-3">

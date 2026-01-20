@@ -18,6 +18,19 @@ interface MailItem {
 
 import { useToast } from "@/context/ToastContext";
 
+/**
+ * @file Mailbox.tsx
+ * @description 사용자 우편함 컴포넌트
+ * @role 시스템 알림, 보상 수령, 메시지 확인 및 관리 (읽음/삭제)
+ * @dependencies react, framer-motion, lucide-react, ToastContext
+ * @status Active
+ * 
+ * @analysis
+ * - 폴링(Polling) 방식을 사용하여 주기적으로 새 우편을 확인하고 토스트 알림을 띄움.
+ * - `AnimatePresence`와 `motion`을 사용하여 부드러운 모달 열기/닫기 애니메이션 구현.
+ * - '모두 받기(Claim All)' 및 '기록 삭제(Clear History)' 같은 편의 기능 제공.
+ * - 아이템이 포함된 우편의 경우 JSON 파싱을 통해 아이템 목록을 시각적으로 표시.
+ */
 export default function Mailbox() {
     const { addToast } = useToast();
     const isFirstLoad = useRef(true);
@@ -53,12 +66,12 @@ export default function Mailbox() {
                     isFirstLoad.current = false;
                     if (unreadCount > 0) {
                         addToast({
-                            title: "Welcome Back",
-                            message: `You have ${unreadCount} unread message(s).`,
+                            title: "환영합니다",
+                            message: `${unreadCount}개의 읽지 않은 메시지가 있습니다.`,
                             type: "info",
                             duration: 5000,
                             action: {
-                                label: "Open Mailbox",
+                                label: "우편함 열기",
                                 onClick: handleOpen
                             }
                         });
@@ -67,12 +80,12 @@ export default function Mailbox() {
                 // 2. New Mail Arrived (Polling)
                 else if (data.length > prevMails.length) {
                     addToast({
-                        title: "New Message Received!",
-                        message: "A new secure transmission has arrived.",
+                        title: "새 메시지 수신!",
+                        message: "새로운 보안 전송이 도착했습니다.",
                         type: "info",
                         duration: 8000,
                         action: {
-                            label: "Open Mailbox",
+                            label: "우편함 열기",
                             onClick: handleOpen
                         }
                     });
@@ -216,7 +229,7 @@ export default function Mailbox() {
                         >
                             <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50 rounded-t-xl">
                                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                    <Mail className="text-cyan-400" /> Communications
+                                    <Mail className="text-cyan-400" /> 통신 채널 (Communications)
                                 </h3>
                                 <button onClick={() => setIsOpen(false)} className="text-gray-500 hover:text-white">
                                     <X size={20} />
@@ -255,7 +268,7 @@ export default function Mailbox() {
                                                     onClick={handleClaimAll}
                                                     className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded flex items-center gap-2 shadow-lg shadow-cyan-900/20 transition-all"
                                                 >
-                                                    <Gift size={14} /> CLAIM ALL REWARDS
+                                                    <Gift size={14} /> 보상 모두 받기 (CLAIM ALL)
                                                 </button>
                                             </div>
                                         )}
@@ -274,7 +287,7 @@ export default function Mailbox() {
                                         {mails.filter(m => activeTab === 'inbox' ? !m.is_claimed : m.is_claimed).length === 0 && (
                                             <div className="text-center text-gray-500 py-12 flex flex-col items-center">
                                                 <Mail size={48} className="mb-4 opacity-10" />
-                                                <p className="text-sm">No {activeTab} messages found.</p>
+                                                <p className="text-sm">{activeTab === 'inbox' ? '수신함이 비었습니다.' : '기록이 없습니다.'}</p>
                                             </div>
                                         )}
 

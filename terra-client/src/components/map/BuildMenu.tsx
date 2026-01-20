@@ -9,11 +9,22 @@ interface BuildingOption {
     icon: React.ReactNode;
 }
 
+/**
+ * @file BuildMenu.tsx
+ * @description (Legacy) 구버전 건물 건설 메뉴
+ * @role 현재 `BuildingMenuNew.tsx`로 대체되었으나, 참조용으로 유지 중.
+ * @dependencies react, lucide-react
+ * @status Deprecated
+ * 
+ * @analysis
+ * - `BUILDINGS` 배열에 건물 정보(가격, 설명)가 하드코딩되어 있음.
+ * - 신규 시스템(`BuildingMenuNew`)은 `building_types` DB 데이터 또는 개선된 구조를 따름.
+ */
 const BUILDINGS: BuildingOption[] = [
-    { type: 'HOUSE', name: 'Habitat Module', cost: { gold: 100, gem: 0 }, desc: 'Provides living space for units.', icon: <Box size={24} className="text-blue-400" /> },
-    { type: 'FACTORY', name: 'Matter Fabricator', cost: { gold: 500, gem: 0 }, desc: 'Produces basic refined materials.', icon: <Zap size={24} className="text-orange-400" /> },
-    { type: 'MINE', name: 'Auto-Miner', cost: { gold: 300, gem: 0 }, desc: 'Extracts resources from the ground.', icon: <Hammer size={24} className="text-gray-400" /> },
-    { type: 'TURRET', name: 'Defense Turret', cost: { gold: 200, gem: 0 }, desc: 'Automated defense system.', icon: <Lock size={24} className="text-red-400" /> }
+    { type: 'HOUSE', name: '거주 모듈 (Habitat)', cost: { gold: 100, gem: 0 }, desc: '유닛을 위한 거주 공간을 제공합니다.', icon: <Box size={24} className="text-blue-400" /> },
+    { type: 'FACTORY', name: '물질 합성기 (Factory)', cost: { gold: 500, gem: 0 }, desc: '기초 정제 자원을 생산합니다.', icon: <Zap size={24} className="text-orange-400" /> },
+    { type: 'MINE', name: '오토 마이너 (Miner)', cost: { gold: 300, gem: 0 }, desc: '지하 자원을 자동으로 채굴합니다.', icon: <Hammer size={24} className="text-gray-400" /> },
+    { type: 'TURRET', name: '방어 포탑 (Turret)', cost: { gold: 200, gem: 0 }, desc: '자동화된 기지 방어 시스템입니다.', icon: <Lock size={24} className="text-red-400" /> }
 ];
 
 interface BuildMenuProps {
@@ -36,9 +47,9 @@ export default function BuildMenu({ onClose, onBuild, x, y, resources }: BuildMe
             <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
                 <div>
                     <h3 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
-                        <Hammer size={18} /> CONSTRUCT
+                        <Hammer size={18} /> 건설 (CONSTRUCT)
                     </h3>
-                    <p className="text-xs text-gray-500">Sector {x}, {y}</p>
+                    <p className="text-xs text-gray-500">섹터 (Sector) {x}, {y}</p>
                 </div>
                 <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
             </div>
@@ -76,7 +87,7 @@ export default function BuildMenu({ onClose, onBuild, x, y, resources }: BuildMe
                 onClick={handleConstruct}
                 className="mt-4 w-full py-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold rounded shadow-[0_0_15px_rgba(8,145,178,0.4)] transition-all"
             >
-                INITIALIZE BUILD
+                건설 시작 (INITIALIZE BUILD)
             </button>
         </div>
     );
