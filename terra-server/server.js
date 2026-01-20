@@ -154,7 +154,7 @@ app.post('/api/login', (req, res) => {
     try {
         const user = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?').get(username, password);
         if (user) {
-            res.json(user);
+            res.json({ user });
         } else {
             res.status(401).json({ error: 'Invalid credentials' });
         }
@@ -1542,7 +1542,49 @@ app.get('/api/admin/db/:filename', (req, res) => {
     }
 });
 
-// ... (중략: 테이블 데이터 조회 및 업데이트 API) ...
+/**
+ * @route GET /api/admin/db/:filename/:tableName
+ * @description 특정 DB 파일의 특정 테이블 데이터를 조회합니다.
+ */
+app.get('/api/admin/db/:filename/:tableName', (req, res) => {
+    const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, '..', 'terra-data', 'db');
+    const dbPath = path.join(dbDir, req.params.filename);
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
+
+    try {
+        const tempDb = new db.constructor(dbPath);
+        const data = tempDb.prepare(`SELECT * FROM ${req.params.tableName} LIMIT 100`).all();
+        tempDb.close();
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * @route PUT /api/admin/db/:filename/:tableName/:id
+ * @description 특정 DB 파일의 테이블 데이터를 업데이트합니다.
+ */
+app.put('/api/admin/db/:filename/:tableName/:id', (req, res) => {
+    const dbDir = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(__dirname, '..', 'terra-data', 'db');
+    const dbPath = path.join(dbDir, req.params.filename);
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'File not found' });
+
+    try {
+        const tempDb = new db.constructor(dbPath);
+        const updates = req.body;
+        const keys = Object.keys(updates).filter(k => k !== 'id');
+        const setClause = keys.map(k => `${k} = ?`).join(', ');
+        const values = keys.map(k => updates[k]);
+        tempDb.prepare(`UPDATE ${req.params.tableName} SET ${setClause} WHERE id = ?`).run(...values, req.params.id);
+        tempDb.close();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ... (중략: 기타 Admin APIs) ...
 
 /**
  * @route POST /api/admin/users/:id/update
@@ -3863,8 +3905,9 @@ app.post('/api/admin/seed-factions', (req, res) => {
 
         res.json({ success: true, message: 'NPC Factions seeded successfully' });
     } catch (error) {
-        console.error('Seed error:', error);
-        res.status(500).json({ success: false, error: 'Failed to seed factions' });
+        console.error('\u001b[31m[SEED-FACTIONS ERROR]\u001b[0m', error);
+        console.error('Stack:', error.stack);
+        res.status(500).json({ success: false, error: 'Failed to seed factions', details: error.message });
     }
 });
 
