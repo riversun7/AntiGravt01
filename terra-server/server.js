@@ -209,7 +209,7 @@ app.get('/api/user/:id', (req, res) => {
 
         // 4. 장비 정보 조회 (SQL Join으로 한 번에 가져오면 더 효율적일 것임)
         const equipment = db.prepare(`
-            SELECT ue.*, mi.name as item_name, mi.type as item_type, mi.effect
+            SELECT ue.*, mi.name as item_name, mi.type as item_type
             FROM user_equipment ue
             JOIN market_items mi ON ue.item_id = mi.id
             WHERE ue.user_id = ?
@@ -910,6 +910,7 @@ function processFactionLogic() {
 // Start Faction Loop
 setTimeout(processFactionLogic, SYSTEM_CONFIG.faction_interval);
 console.log('[NPC] Absolute & Free Faction Logic loop started');
+console.log(`[System] Initial Config: faction_active=${SYSTEM_CONFIG.faction_active}, npc_activity=${SYSTEM_CONFIG.npc_activity}`);
 
 
 // API: System Configuration

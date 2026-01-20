@@ -241,6 +241,14 @@ class FreeNpcManager {
                 console.log(`[FreeNPC] ${npc.faction_name} arrived and built AREA_BEACON at ${destLat.toFixed(4)}, ${destLng.toFixed(4)}`);
                 this.logAction(npc, 'BUILD', `Built AREA_BEACON at ${destLat.toFixed(4)}, ${destLng.toFixed(4)}`);
             })();
+        } else {
+            // 2026-01-20 Fix: Clear movement even if funds are insufficient to prevent infinite loop
+            db.prepare(`
+                UPDATE users 
+                SET current_pos = ?, destination_pos = NULL, start_pos = NULL, arrival_time = NULL, departure_time = NULL
+                WHERE id = ?
+            `).run(`${destLat}_${destLng}`, npc.id);
+            console.log(`[FreeNPC] ${npc.faction_name} arrived at ${destLat.toFixed(4)}, ${destLng.toFixed(4)} but failed to build (Insufficient Gold: ${resources.gold}/${cost})`);
         }
     }
 
@@ -476,14 +484,24 @@ class FreeNpcManager {
     }
 
     getCommandCenter(userId) {
-        return db.prepare(`
-            SELECT ub.*, bt.patrol_radius_km, bt.vision_range_km, bt.max_beacons, bt.beacon_range_km 
+        // 2026-01-20 Fix: Use LEFT JOIN to ensure CC is found even if building_type join fails (fallback)
+        const cc = db.prepare(`
+            SELECT ub.*, 
+                   COALESCE(bt.patrol_radius_km, 20.0) as patrol_radius_km, 
+                   COALESCE(bt.vision_range_km, 30.0) as vision_range_km
             FROM user_buildings ub 
-            JOIN building_types bt ON ub.type = bt.code 
-            WHERE ub.user_id = ? AND ub.type IN (?, ?) 
+            LEFT JOIN building_types bt ON ub.type = bt.code 
+            WHERE ub.user_id = ? AND ub.type IN ('COMMAND_CENTER', 'CENTRAL_CONTROL_HUB') 
             ORDER BY ub.type DESC 
             LIMIT 1
-        `).get(userId, 'COMMAND_CENTER', 'CENTRAL_CONTROL_HUB');
+        `).get(userId);
+
+        if (!cc) {
+            // Debug log to check why CC is missing
+            const bldgs = db.prepare('SELECT type FROM user_buildings WHERE user_id = ?').all(userId);
+            // console.warn(`[FreeNPC] Debug: User ${userId} buildings: ${bldgs.map(b => b.type).join(', ')}`);
+        }
+        return cc;
     }
 
     // Helper: Log NPC Actions to DB
