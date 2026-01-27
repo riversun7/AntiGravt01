@@ -358,6 +358,13 @@ function initSchema() {
             db.exec("ALTER TABLE user_buildings ADD COLUMN territory_radius REAL DEFAULT 5.0"); // km
             console.log("Migrated user_buildings table: added is_territory_center and territory_radius");
         }
+
+        // Migration: Add parent_building_id for beacon limits
+        const hasParent = buildCols.some(c => c.name === 'parent_building_id');
+        if (!hasParent && buildCols.length > 0) {
+            db.exec("ALTER TABLE user_buildings ADD COLUMN parent_building_id INTEGER DEFAULT NULL");
+            console.log("Migrated user_buildings table: added parent_building_id");
+        }
     } catch (e) { console.log("Migration error (user_buildings):", e); }
 
 
@@ -710,7 +717,9 @@ function initSchema() {
 
         const hasLastMaintenance = buildCols.some(c => c.name === 'last_maintenance_at');
         if (!hasLastMaintenance && buildCols.length > 0) {
-            db.exec("ALTER TABLE user_buildings ADD COLUMN last_maintenance_at DATETIME DEFAULT CURRENT_TIMESTAMP");
+            // 2026-01-20 Fix: Split ADD COLUMN and data population to avoid "non-constant default" error
+            db.exec("ALTER TABLE user_buildings ADD COLUMN last_maintenance_at DATETIME DEFAULT NULL");
+            db.exec("UPDATE user_buildings SET last_maintenance_at = datetime('now') WHERE last_maintenance_at IS NULL");
             console.log("Migrated user_buildings table: added last_maintenance_at");
         }
     } catch (e) { console.log("Migration error (user_buildings building_types):", e); }

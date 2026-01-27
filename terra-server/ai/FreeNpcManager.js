@@ -227,9 +227,9 @@ class FreeNpcManager {
                 const beaconRadius = beaconType ? beaconType.territory_radius : 1.0;
 
                 db.prepare(`
-                    INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius)
-                    VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, ?)
-                `).run(npc.id, destLat, destLng, destWorldX, destWorldY, beaconRadius);
+                    INSERT INTO user_buildings (user_id, type, x, y, world_x, world_y, is_territory_center, territory_radius, parent_building_id)
+                    VALUES (?, 'AREA_BEACON', ?, ?, ?, ?, 1, ?, ?)
+                `).run(npc.id, destLat, destLng, destWorldX, destWorldY, beaconRadius, canBuild.parentId);
 
                 // Update current position and clear movement
                 db.prepare(`
@@ -238,7 +238,7 @@ class FreeNpcManager {
                     WHERE id = ?
                 `).run(`${destLat}_${destLng}`, npc.id);
 
-                console.log(`[FreeNPC] ${npc.faction_name} arrived and built AREA_BEACON at ${destLat.toFixed(4)}, ${destLng.toFixed(4)}`);
+                console.log(`[FreeNPC] ${npc.faction_name} arrived and built AREA_BEACON at ${destLat.toFixed(4)}, ${destLng.toFixed(4)} (Parent: ${canBuild.parentId})`);
                 this.logAction(npc, 'BUILD', `Built AREA_BEACON at ${destLat.toFixed(4)}, ${destLng.toFixed(4)}`);
             })();
         } else {
@@ -278,22 +278,20 @@ class FreeNpcManager {
                 continue; // Try next parent
             }
 
-            // Count existing beacons for this parent
+            // 2026-01-27 Fix: Count beacons PER PARENT building
             const beaconCount = db.prepare(`
                 SELECT COUNT(*) as count
                 FROM user_buildings
-                WHERE user_id = ?
+                WHERE parent_building_id = ?
                 AND type = 'AREA_BEACON'
-            `).get(userId);
+            `).get(parent.id);
 
-            // For now, count ALL beacons for the user
-            // TODO: In the future, track which beacon belongs to which parent
             if (beaconCount.count >= parent.max_beacons) {
                 continue; // Try next parent
             }
 
             // Found a valid parent
-            return { allowed: true, parent: parent };
+            return { allowed: true, parent: parent, parentId: parent.id };
         }
 
         return {
@@ -452,15 +450,19 @@ class FreeNpcManager {
         const resources = db.prepare('SELECT * FROM user_resources WHERE user_id = ?').get(npc.id);
 
         if (!resources || resources.gold < (cost.gold || 0)) {
+            // console.log(`[FreeNPC] ${npc.faction_name} expansion filtered: Insufficient gold (${resources?.gold} < ${cost.gold})`);
             return false;
         }
 
         const cc = this.getCommandCenter(npc.id);
-        if (!cc) return false;
+        if (!cc) {
+            console.log(`[FreeNPC] ${npc.faction_name} expansion filtered: No Command Center`);
+            return false;
+        }
 
         const beaconCount = db.prepare(
-            'SELECT COUNT(*) as count FROM user_buildings WHERE user_id = ? AND type = ?'
-        ).get(npc.id, 'AREA_BEACON');
+            'SELECT COUNT(*) as count FROM user_buildings WHERE parent_building_id = ? AND type = ?'
+        ).get(cc.id, 'AREA_BEACON');
 
         return beaconCount.count < cc.max_beacons;
     }

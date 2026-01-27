@@ -207,7 +207,7 @@ app.get('/api/user/:id', (req, res) => {
         // 3. 캐릭터(Cyborg) 스탯 조회
         const stats = db.prepare('SELECT * FROM character_cyborg WHERE user_id = ?').get(user.id);
 
-        // 4. 장비 정보 조회 (SQL Join으로 한 번에 가져오면 더 효율적일 것임)
+        // 4. 장비 정보 조회
         const equipment = db.prepare(`
             SELECT ue.*, mi.name as item_name, mi.type as item_type
             FROM user_equipment ue
@@ -584,12 +584,12 @@ const MARKET_UPDATE_INTERVAL = 60000; // 1분
 let SYSTEM_CONFIG = {
     market_fluctuation: false,       // 시장 가격 변동 (기본: 꺼짐)
     market_interval: 60000,         // 시장 업데이트 주기: 60초
-    production_active: false,       // 자원 생산 (기본: 꺼짐)
+    production_active: true,        // 자원 생산 (기본: 켜짐)
     production_interval: 60000,     // 생산 주기: 60초
-    npc_activity: false,            // 미니언 AI (기본: 꺼짐)
+    npc_activity: true,             // 미니언 AI (기본: 켜짐)
     npc_interval: 60000,            // 미니언 행동 주기: 60초
-    npc_position_update_interval: 60, // 이동 위치 갱신: 60초
-    faction_active: false,          // 세력전 AI (기본: 꺼짐)
+    npc_position_update_interval: 30, // 이동 위치 갱신: 30초
+    faction_active: true,           // 세력전 AI (기본: 켜짐 - NPC 확장 테스트)
     faction_interval: 60000,        // 세력 행동 주기: 60초
     client_poll_interval: 60000     // 클라이언트 폴링: 60초
 };
