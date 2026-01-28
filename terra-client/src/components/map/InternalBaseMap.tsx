@@ -33,6 +33,7 @@ interface BuildingType {
     code: string;
     name: string;
     construction_cost: { gold: number; gem: number };
+    image?: string;
 }
 
 export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBaseMapProps) {
@@ -253,27 +254,83 @@ export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBase
 
                                     {/* Building */}
                                     {tile.building && (
-                                        <div className="absolute bottom-[25%] left-[0%] w-[100%] h-[150%] z-10 pointer-events-none origin-bottom flex items-end justify-center">
-                                            {/* Sprite Image */}
-                                            <img
-                                                src={`/assets/buildings/${tile.building === 'COMMAND_CENTER' ? 'COMMAND_CENTER.png' :
-                                                    tile.building.includes('WALL') ? 'WALL.png' :
-                                                        tile.building.includes('TURRET') ? 'TURRET.png' :
-                                                            tile.building.includes('POWER') ? 'POWER_PLANT.png' :
-                                                                tile.building.includes('FACTORY') ? 'FACTORY.png' :
-                                                                    'COMMAND_CENTER.png' // Fallback
-                                                    }`}
-                                                alt={tile.building}
-                                                className="w-full h-auto object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]"
-                                                style={{
-                                                    transform: `translateY(${tilt > 1 ? '-5%' : '5%'}) scale(1.5)` // Scale up sprites slightly
-                                                }}
-                                            />
+                                        <div className="absolute bottom-[12%] left-[0%] w-[100%] h-[150%] z-10 pointer-events-none origin-bottom flex items-end justify-center">
+                                            {/* Sprite Image Logic */}
+                                            {(() => {
+                                                // 1. Dynamic DB Lookup
+                                                let spriteSrc = 'COMMAND_CENTER.png';
+                                                // Standard Default Tweaks
+                                                let scale = 0.85;
+                                                let translateY = '20%';
+                                                let flipX = false;
 
-                                            {/* Building Label (Optional, maybe smaller) */}
-                                            {/* <div className="absolute bottom-0 left-0 w-full text-[6px] text-center text-white bg-black/50 px-1 overflow-hidden">
-                                                {tile.building}
-                                            </div> */}
+                                                // Lookup building info from fetched DB types
+                                                const bInfo = buildingTypes.find(b => b.code === tile.building);
+                                                if (bInfo && bInfo.image) {
+                                                    spriteSrc = bInfo.image;
+                                                    scale = 0.85;
+                                                    translateY = '20%';
+
+                                                    if (tile.building === 'COMMAND_CENTER' || (tile.building && tile.building.includes('FACTORY'))) {
+                                                        scale = 0.8;
+                                                        translateY = '25%';
+                                                    }
+                                                }
+
+                                                // 2. Overrides for Special Mechanics
+                                                if (tile.building && tile.building.includes('WALL')) {
+                                                    spriteSrc = 'WALL_STRAIGHT.png';
+                                                    scale = 1.1;
+                                                    translateY = '10%'; // Wall might need different grounding
+
+                                                    // Wall Adjacency Logic
+                                                    const x = tile.x;
+                                                    const y = tile.y;
+
+                                                    const hasWall = (dx: number, dy: number) => {
+                                                        const neighbor = grid.find(t => t.x === x + dx && t.y === y + dy);
+                                                        return neighbor && neighbor.building && neighbor.building.includes('WALL');
+                                                    };
+
+                                                    // Isometric Grid Neighbors
+                                                    const nN = hasWall(0, -1);
+                                                    const nS = hasWall(0, 1);
+                                                    const nE = hasWall(1, 0);
+                                                    const nW = hasWall(-1, 0);
+
+                                                    const isAxis1 = nN || nS;
+                                                    const isAxis2 = nE || nW;
+
+                                                    // Decision Tree
+                                                    if ((nN || nS) && (nE || nW)) {
+                                                        spriteSrc = 'WALL_CORNER.png';
+                                                        scale = 1.3;
+                                                        translateY = '10%';
+                                                    } else if (isAxis2) { // East-West
+                                                        spriteSrc = 'WALL_STRAIGHT.png';
+                                                        flipX = false; // Swapped: Don't flip for E-W (assuming sprite is E-W aligned or user prefers this)
+                                                    } else if (isAxis1) { // North-South
+                                                        spriteSrc = 'WALL_STRAIGHT.png';
+                                                        flipX = true; // Swapped: Flip for N-S
+                                                    } else {
+                                                        // Standalone
+                                                        spriteSrc = 'WALL_CORNER.png';
+                                                        scale = 0.9;
+                                                    }
+                                                }
+
+                                                // transform-origin is bottom.
+                                                const transformStyle = `translateY(${translateY}) scale(${scale}) ${flipX ? 'scaleX(-1)' : ''}`;
+
+                                                return (
+                                                    <img
+                                                        src={`/assets/buildings/${spriteSrc}`}
+                                                        alt={tile.building}
+                                                        className="w-full h-auto object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]"
+                                                        style={{ transform: transformStyle }}
+                                                    />
+                                                );
+                                            })()}
                                         </div>
                                     )}
 
@@ -320,19 +377,16 @@ export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBase
                                 key={b.code}
                                 onClick={() => setSelectedTool(b.code)}
                                 className={`aspect-square border rounded flex flex-col items-center justify-center gap-1 transition-all active:scale-95 p-1 ${selectedTool === b.code
-                                        ? 'bg-cyan-900/50 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
-                                        : 'bg-slate-800 border-slate-600 hover:bg-slate-700 text-gray-400'
+                                    ? 'bg-cyan-900/50 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                                    : 'bg-slate-800 border-slate-600 hover:bg-slate-700 text-gray-400'
                                     }`}
                                 title={`${b.name} (Cost: ${b.construction_cost.gold || 0}G)`}
                             >
                                 <img
-                                    src={`/assets/buildings/${b.code === 'COMMAND_CENTER' ? 'COMMAND_CENTER.png' :
-                                            b.code.includes('WALL') ? 'WALL.png' :
-                                                b.code.includes('TURRET') ? 'TURRET.png' :
-                                                    b.code.includes('POWER') ? 'POWER_PLANT.png' :
-                                                        b.code.includes('FACTORY') ? 'FACTORY.png' :
-                                                            'COMMAND_CENTER.png'
-                                        }`}
+                                    src={b.image ? `/assets/buildings/${b.image}` : '/assets/buildings/no_image.png'}
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = '/assets/buildings/no_image.png';
+                                    }}
                                     alt={b.name}
                                     className="w-8 h-8 object-contain"
                                 />
