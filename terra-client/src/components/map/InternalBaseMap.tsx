@@ -19,24 +19,10 @@ const TILE_WIDTH = 64;
 interface InternalBaseMapProps {
     onClose: () => void;
     gridSize?: number;
+    userBuildingId?: number | null;
 }
 
-interface TileData {
-    x: number;
-    y: number;
-    type: string;
-    height: number;
-    building?: string;
-}
-
-interface BuildingType {
-    code: string;
-    name: string;
-    construction_cost: { gold: number; gem: number };
-    image?: string;
-}
-
-export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBaseMapProps) {
+export default function InternalBaseMap({ onClose, gridSize = 10, userBuildingId }: InternalBaseMapProps) {
     const [rotation, setRotation] = useState(0);
     const [scale, setScale] = useState(1);
     const [tilt, setTilt] = useState(1.0); // 0.5 (Flat) ~ 1.5 (Top Downish)
@@ -45,6 +31,21 @@ export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBase
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const dragStartRef = useRef<{ x: number, y: number } | null>(null);
+
+    const handleSave = async () => {
+        if (!userBuildingId) return;
+        try {
+            await fetch(`/api/internal-map/${userBuildingId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ layout: grid })
+            });
+            alert('Base Layout Saved!');
+        } catch (e) {
+            console.error(e);
+            alert('Save Failed');
+        }
+    };
 
     // Dynamic Building List
     const [buildingTypes, setBuildingTypes] = useState<BuildingType[]>([]);
@@ -61,21 +62,57 @@ export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBase
             .catch(err => console.error('Failed to load buildings:', err));
     }, []);
 
-    const [grid, setGrid] = useState<TileData[]>(() => {
-        const initial: TileData[] = [];
-        for (let x = 0; x < gridSize; x++) {
-            for (let y = 0; y < gridSize; y++) {
-                initial.push({
-                    x,
-                    y,
-                    type: (x + y) % 2 === 0 ? 'GRASS' : 'CONCRETE',
-                    height: 0,
-                    building: (x === 5 && y === 5) ? 'COMMAND_CENTER' : undefined
-                });
+    const [gridSizeState, setGridSizeState] = useState(gridSize);
+
+    const [grid, setGrid] = useState<TileData[]>([]);
+
+    useEffect(() => {
+        if (!userBuildingId) {
+            // Default Demo Mode
+            const initial: TileData[] = [];
+            for (let x = 0; x < gridSize; x++) {
+                for (let y = 0; y < gridSize; y++) {
+                    initial.push({
+                        x,
+                        y,
+                        type: (x + y) % 2 === 0 ? 'GRASS' : 'CONCRETE',
+                        height: 0,
+                        building: (x === 5 && y === 5) ? 'COMMAND_CENTER' : undefined
+                    });
+                }
             }
+            setGrid(initial);
+            return;
         }
-        return initial;
-    });
+
+        // Fetch Real Data
+        fetch(`/api/internal-map/${userBuildingId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.size) setGridSizeState(data.size);
+
+                if (data.layout && Array.isArray(data.layout) && data.layout.length > 0) {
+                    setGrid(data.layout);
+                } else {
+                    // Initialize Empty Grid based on size
+                    const size = data.size || 15;
+                    const initial: TileData[] = [];
+                    for (let x = 0; x < size; x++) {
+                        for (let y = 0; y < size; y++) {
+                            initial.push({
+                                x,
+                                y,
+                                type: (x + y) % 2 === 0 ? 'GRASS' : 'CONCRETE',
+                                height: 0,
+                                building: undefined
+                            });
+                        }
+                    }
+                    setGrid(initial);
+                }
+            })
+            .catch(err => console.error("Load map failed", err));
+    }, [userBuildingId, gridSize]);
 
     // Handle Zoom (Wheel)
     const handleWheel = (e: React.WheelEvent) => {
@@ -117,21 +154,21 @@ export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBase
             let ry = tile.y;
 
             if (rotation === 90) {
-                rx = gridSize - 1 - tile.y;
+                rx = gridSizeState - 1 - tile.y;
                 ry = tile.x;
             } else if (rotation === 180) {
-                rx = gridSize - 1 - tile.x;
-                ry = gridSize - 1 - tile.y;
+                rx = gridSizeState - 1 - tile.x;
+                ry = gridSizeState - 1 - tile.y;
             } else if (rotation === 270) {
                 rx = tile.y;
-                ry = gridSize - 1 - tile.x;
+                ry = gridSizeState - 1 - tile.x;
             }
 
             return { ...tile, renderX: rx, renderY: ry };
         }).sort((a, b) => {
             return (a.renderX + a.renderY) - (b.renderX + b.renderY);
         });
-    }, [grid, rotation, gridSize]);
+    }, [grid, rotation, gridSizeState]);
 
     const handleRotate = (direction: 'CW' | 'CCW') => {
         setRotation(prev => {
@@ -167,7 +204,7 @@ export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBase
                 <div className="h-16 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-6 z-10 select-none">
                     <div className="flex items-center gap-4">
                         <Layers className="text-cyan-400" />
-                        <h2 className="text-xl font-bold text-white">Base Layout Editor <span className="text-sm text-gray-400">({gridSize}x{gridSize})</span></h2>
+                        <h2 className="text-xl font-bold text-white">Base Layout Editor <span className="text-sm text-gray-400">({gridSizeState}x{gridSizeState})</span></h2>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -186,14 +223,23 @@ export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBase
                         </div>
 
                         {/* Rotation */}
-                        <button onClick={() => handleRotate('CCW')} className="p-2 hover:bg-slate-700 rounded text-cyan-400 transition-colors"><RotateCcw size={20} /></button>
-                        <div className="px-3 py-1 bg-slate-950 rounded text-xs font-mono text-cyan-500 min-w-[60px] text-center">{rotation}°</div>
-                        <button onClick={() => handleRotate('CW')} className="p-2 hover:bg-slate-700 rounded text-cyan-400 transition-colors"><RotateCw size={20} /></button>
+                        <div className="bg-slate-950 rounded flex items-center mr-4">
+                            <button onClick={() => handleRotate('CCW')} className="p-2 hover:bg-slate-700 rounded text-cyan-400 transition-colors"><RotateCcw size={20} /></button>
+                            <div className="px-3 py-1 bg-slate-950 rounded text-xs font-mono text-cyan-500 min-w-[60px] text-center">{rotation}°</div>
+                            <button onClick={() => handleRotate('CW')} className="p-2 hover:bg-slate-700 rounded text-cyan-400 transition-colors"><RotateCw size={20} /></button>
+                        </div>
                     </div>
 
-                    <button onClick={onClose} className="p-2 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded transition-colors">
-                        <X size={24} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {userBuildingId && (
+                            <button onClick={handleSave} className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-bold transition-colors shadow-lg shadow-green-900/20 border border-green-500/50">
+                                💾 SAVE Layout
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-2 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded transition-colors">
+                            <X size={24} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Main Viewport */}
@@ -211,8 +257,8 @@ export default function InternalBaseMap({ onClose, gridSize = 10 }: InternalBase
                         className="absolute top-1/2 left-1/2 transition-transform duration-75 ease-out origin-center will-change-transform"
                         style={{
                             transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${scale})`,
-                            width: gridSize * TILE_WIDTH * 2,
-                            height: gridSize * effectiveTileHeight * 2
+                            width: gridSizeState * TILE_WIDTH * 2,
+                            height: gridSizeState * effectiveTileHeight * 2
                         }}
                     >
                         {renderGrid.map((tile) => {

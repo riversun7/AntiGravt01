@@ -61,11 +61,11 @@ const insertStmt = db.prepare(`
     INSERT INTO building_types (
         code, name, description, tier, category, construction_cost, maintenance_cost,
         production_rate, production_type, storage_volume,
-        is_territory_center, territory_radius, prerequisites, max_hp, image
+        is_territory_center, territory_radius, prerequisites, max_hp, image, internal_map_size
     ) VALUES (
         @code, @name, @description, @tier, @category, @construction_cost, @maintenance_cost,
         @production_rate, @production_type, @storage_volume,
-        @is_territory_center, @territory_radius, @prerequisites, @max_hp, @image
+        @is_territory_center, @territory_radius, @prerequisites, @max_hp, @image, @internal_map_size
     )
 `);
 

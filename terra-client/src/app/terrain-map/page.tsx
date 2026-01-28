@@ -30,7 +30,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import SystemMenu from "@/components/SystemMenu";
 import dynamic from 'next/dynamic';
 import { useGeolocation } from '@/hooks/useGeolocation';
@@ -1133,6 +1133,8 @@ export default function TerrainMapPage() {
                             handleRequestDemolition(buildingId);
                         } else if (action === 'cancel_destroy') {
                             handleCancelDemolition(buildingId);
+                        } else if (action === 'enter_base') {
+                            router.push(`/base/${buildingId}`);
                         }
                     }}
 

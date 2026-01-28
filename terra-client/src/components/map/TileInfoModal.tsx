@@ -44,6 +44,7 @@ interface TileInfoModalProps {
     onClaim?: () => void;
     onBuild?: (buildingType: string) => void;
     onMove?: (lat: number, lng: number) => void;
+    onEnterBase?: (buildingId: number) => void;
     userId: number | null;
     position: { x: number; y: number }; // 모달 표시 위치 (화면 좌표)
 }
@@ -212,6 +213,20 @@ export default function TileInfoModal({ tile, buildings = [], territoryInfo, onC
                     >
                         <span className="text-lg mb-1">🏃</span>
                         <span className="text-[10px] font-bold text-blue-300">Move</span>
+                    </button>
+                )}
+
+                {/* Enter Base Button */}
+                {onEnterBase && buildings.some(b => ['COMMAND_CENTER', 'CENTRAL_CONTROL_HUB', 'RESEARCH_LAB'].includes(b.type)) && (
+                    <button
+                        onClick={() => {
+                            const b = buildings.find(b => ['COMMAND_CENTER', 'CENTRAL_CONTROL_HUB', 'RESEARCH_LAB'].includes(b.type));
+                            if (b) onEnterBase(b.id);
+                        }}
+                        className="flex flex-col items-center justify-center p-2 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/50 rounded transition-colors"
+                    >
+                        <span className="text-lg mb-1">🚪</span>
+                        <span className="text-[10px] font-bold text-purple-300">Enter</span>
                     </button>
                 )}
 

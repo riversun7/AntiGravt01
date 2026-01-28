@@ -3418,6 +3418,16 @@ app.post('/api/buildings/construct', (req, res) => {
 
         const newBuilding = db.prepare('SELECT * FROM user_buildings WHERE id = ?').get(result.lastInsertRowid);
 
+        // 8. Initialize Internal Map Layout if applicable
+        if (buildingType.internal_map_size) {
+            try {
+                db.prepare('INSERT INTO internal_building_layouts (user_building_id, layout_data) VALUES (?, ?)').run(newBuilding.id, '[]');
+                console.log(`[Internal Map] Initialized for building ${newBuilding.id} (Size: ${buildingType.internal_map_size})`);
+            } catch (e) {
+                console.error(`[Internal Map] Failed to initialize layout for ${newBuilding.id}:`, e);
+            }
+        }
+
         res.json({
             success: true,
             building: newBuilding,
@@ -3425,12 +3435,78 @@ app.post('/api/buildings/construct', (req, res) => {
             buildingInfo: {
                 name: buildingType.name,
                 description: buildingType.description,
-                tier: buildingType.tier
+                tier: buildingType.tier,
+                internal_map_size: buildingType.internal_map_size
             }
         });
 
     } catch (err) {
         console.error('Construction error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get Internal Map Data
+app.get('/api/internal-map/:userBuildingId', (req, res) => {
+    try {
+        const { userBuildingId } = req.params;
+
+        // Fetch Building Info first to check eligibility
+        const building = db.prepare('SELECT type, building_type_code FROM user_buildings WHERE id = ?').get(userBuildingId);
+        if (!building) {
+            return res.status(404).json({ error: 'Building not found' });
+        }
+
+        const typeCode = building.building_type_code || building.type;
+        const buildingType = db.prepare('SELECT internal_map_size FROM building_types WHERE code = ?').get(typeCode);
+
+        // Fetch layout
+        let layout = db.prepare('SELECT * FROM internal_building_layouts WHERE user_building_id = ?').get(userBuildingId);
+
+        // Auto-initialize if missing but eligible (Lazy Load for existing buildings)
+        if (!layout && buildingType && buildingType.internal_map_size) {
+            try {
+                db.prepare('INSERT INTO internal_building_layouts (user_building_id, layout_data) VALUES (?, ?)').run(userBuildingId, '[]');
+                layout = { layout_data: '[]' };
+                console.log(`[Internal Map] Lazy initialized for building ${userBuildingId}`);
+            } catch (e) {
+                console.error("Auto-init internal map failed:", e);
+            }
+        }
+
+        if (!layout) {
+            if (buildingType && buildingType.internal_map_size) {
+                return res.status(500).json({ error: 'Failed to initialize internal map' });
+            }
+            return res.status(404).json({ error: 'This building does not support an internal map' });
+        }
+
+        res.json({
+            userBuildingId,
+            layout: JSON.parse(layout.layout_data || '[]'),
+            size: buildingType ? buildingType.internal_map_size : 15
+        });
+
+    } catch (err) {
+        console.error('Get internal map error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Save Internal Map Layout
+app.post('/api/internal-map/:userBuildingId', (req, res) => {
+    try {
+        const { userBuildingId } = req.params;
+        const { layout } = req.body;
+
+        if (!layout) return res.status(400).json({ error: 'Layout data required' });
+
+        db.prepare('UPDATE internal_building_layouts SET layout_data = ?, updated_at = CURRENT_TIMESTAMP WHERE user_building_id = ?')
+            .run(JSON.stringify(layout), userBuildingId);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Save internal map error:', err);
         res.status(500).json({ error: err.message });
     }
 });

@@ -259,7 +259,8 @@ function initSchema() {
     );`;
 
     const createBuildingAssignmentsTable = `
-    CREATE TABLE IF NOT EXISTS building_assignments (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    CREATE TABLE IF NOT EXISTS building_assignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         building_id INTEGER NOT NULL,
         minion_id INTEGER NOT NULL,
         assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -269,6 +270,16 @@ function initSchema() {
         last_collection DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(building_id) REFERENCES user_buildings(id) ON DELETE CASCADE,
         FOREIGN KEY(minion_id) REFERENCES character_minion(id) ON DELETE CASCADE
+    );`;
+
+    const createInternalBuildingLayoutsTable = `
+    CREATE TABLE IF NOT EXISTS internal_building_layouts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_building_id INTEGER UNIQUE NOT NULL, -- Link to specific building instance on world map
+        layout_data TEXT DEFAULT '[]', -- JSON string of grid items: [{x, y, building}]
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_building_id) REFERENCES user_buildings(id) ON DELETE CASCADE
     );`;
 
     // Resource System Tables
@@ -403,6 +414,19 @@ function initSchema() {
     db.exec(createMinionEquipmentTable);
     db.exec(createMinionSkillsTable);
     db.exec(createBuildingAssignmentsTable);
+    db.exec(createInternalBuildingLayoutsTable);
+
+    // Migration: Add internal_map_size to building_types if missing
+    try {
+        const columns = db.prepare("PRAGMA table_info(building_types)").all();
+        const hasInternalMapSize = columns.some(c => c.name === 'internal_map_size');
+        if (!hasInternalMapSize) {
+            console.log('[Schema] Adding internal_map_size column to building_types...');
+            db.exec("ALTER TABLE building_types ADD COLUMN internal_map_size INTEGER DEFAULT NULL");
+        }
+    } catch (e) {
+        console.warn('Migration warning (internal_map_size):', e.message);
+    }
 
     // Execute resource system tables
     db.exec(createResourceNodesTable);

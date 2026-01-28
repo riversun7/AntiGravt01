@@ -146,7 +146,7 @@ interface GameControlPanelProps {
     /** 건물 철거 상태 맵 (buildingId -> finishTimestamp) */
     demolitionStates?: Record<number, number>;
     /** 건물 관련 액션 (배치, 수집, 철거 등) 핸들러 */
-    onBuildingAction?: (action: 'assign' | 'collect' | 'destroy' | 'cancel_destroy', buildingId: number) => void;
+    onBuildingAction?: (action: 'assign' | 'collect' | 'destroy' | 'cancel_destroy' | 'enter_base', buildingId: number) => void;
 
     // --- Settings Tab Props ---
     /** 현재 선택된 타일 레이어 제공자 ID */
@@ -546,6 +546,15 @@ export default function GameControlPanel({
 
                         {/* 건물 상호작용 버튼 (수집, 배치, 철거) */}
                         <div className="grid grid-cols-3 gap-1 mt-auto">
+                            {/* Base Entry for specific buildings */}
+                            {['COMMAND_CENTER', 'CENTRAL_CONTROL_HUB'].includes(selectedBuilding.type) && (
+                                <button
+                                    onClick={() => onBuildingAction?.('enter_base', selectedBuilding.id)}
+                                    className="col-span-3 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/50 text-purple-300 py-2 rounded text-[10px] font-bold flex items-center justify-center gap-1 mb-1"
+                                >
+                                    🚪 기지 입장 (ENTER BASE)
+                                </button>
+                            )}
                             <button
                                 onClick={() => onBuildingAction?.('collect', selectedBuilding.id)}
                                 disabled={!!demolitionStates[selectedBuilding.id]}
