@@ -264,8 +264,12 @@ class PathfindingService {
                             prev.distance < curr.distance ? prev : curr
                         );
 
+                        // Admin Bypass (User ID 1)
+                        if (String(userId) === '1') {
+                            // Admin passes through everything
+                        }
                         // 가장 가까운 사령부가 자신의 것이 아니면 차단
-                        if (closest.user_id && String(closest.user_id) !== String(userId)) {
+                        else if (closest.user_id && String(closest.user_id) !== String(userId)) {
                             console.timeEnd("PathfindingDuration");
                             return {
                                 success: false,
