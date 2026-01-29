@@ -16,6 +16,26 @@ const TILE_COLORS: Record<string, string> = {
 const TILE_WIDTH = 64;
 // TILE_HEIGHT is now dynamic based on tilt
 
+interface BuildingType {
+    code: string;
+    name: string;
+    image?: string;
+    construction_cost: {
+        gold?: number;
+        gem?: number;
+    };
+}
+
+interface TileData {
+    x: number;
+    y: number;
+    type: string;
+    height: number;
+    building?: string;
+    renderX?: number;
+    renderY?: number;
+}
+
 interface InternalBaseMapProps {
     onClose: () => void;
     gridSize?: number;

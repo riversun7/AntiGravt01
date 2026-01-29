@@ -72,7 +72,7 @@ function ConstructionButton({ icon, label, cost, onClick }: ConstructionButtonPr
     );
 }
 
-export default function TileInfoModal({ tile, buildings = [], territoryInfo, onClose, onClaim, onBuild, onMove, userId, position }: TileInfoModalProps) {
+export default function TileInfoModal({ tile, buildings = [], territoryInfo, onClose, onClaim, onBuild, onMove, onEnterBase, userId, position }: TileInfoModalProps) {
     //...
     // If territoryInfo is present, we prioritize showing that context
     // But we might also have tile info (e.g. clicked on territory, also a tile).
