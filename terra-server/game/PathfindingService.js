@@ -28,6 +28,7 @@
  */
 
 const TerrainManager = require('./TerrainManager');
+const WaterService = require('./WaterService');
 
 /**
  * @class PathfindingService
@@ -42,6 +43,7 @@ class PathfindingService {
         this.db = db;
         // 지형 정보 관리자 초기화
         this.terrainManager = new TerrainManager(db);
+        this.waterService = new WaterService();
     }
 
     /**
@@ -213,11 +215,32 @@ class PathfindingService {
                  * 참고: 현재 MOUNTAIN은 통과를 허용하지만,
                  * 추후 산악 지형에서 이동 속도 패널티를 추가할 수 있음
                  */
-                if (terrain.type === 'WATER') {
+                // 4-1. 지형 체크: 물(WATER)은 통과 불가
+                /* 
+                   Data Correction: User HGT data has min 0m. So 0m could be Ocean or Land.
+                   Step 1: If logical type is already WATER (from TerrainManager threshold), block.
+                   Step 2: If elevation is low (<=3m) and type is PLAIN, it is AMBIGUOUS.
+                           Verify with OpenStreetMap to distinguish Reclaimed Land (Go) vs Ocean (No-Go).
+                */
+                let isWater = (terrain.type === 'WATER');
+
+                if (!isWater && terrain.elevation <= 3) {
+                    // Lazy Check: Perform cached OSM check for this specific point
+                    // Note: To avoid N+1 API calls, we should ideally batch this in Step 3.
+                    // But for now, we do a quick check (cache handles repeated queries)
+                    try {
+                        const waterCheck = await this.waterService.checkWaterBatch(sample.lat, sample.lng, [{ lat: sample.lat, lng: sample.lng }]);
+                        if (waterCheck[0]) isWater = true;
+                    } catch (e) {
+                        // On error, assume Land to prevent sticking
+                    }
+                }
+
+                if (isWater) {
                     console.timeEnd("PathfindingDuration");
                     return {
                         success: false,
-                        error: `🌊 경로 차단: ${terrain.type} 지형 (물) 감지 - 위치: [${sample.lat.toFixed(4)}, ${sample.lng.toFixed(4)}]`
+                        error: `🌊 경로 차단: 물(Water) 지형 감지 (OSM 검증) - 위치: [${sample.lat.toFixed(4)}, ${sample.lng.toFixed(4)}]`
                     };
                 }
 

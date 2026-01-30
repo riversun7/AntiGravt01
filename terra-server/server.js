@@ -19,10 +19,16 @@ const fs = require('fs');
 const path = require('path');
 
 // 게임 로직 매니저 로드
+const ElevationService = require('./game/ElevationService');
+const OsmTerrainService = require('./game/OsmTerrainService');
 const TerrainManager = require('./game/TerrainManager');
-const terrainManager = new TerrainManager(db);
+
+const elevationService = new ElevationService(); // Handles HGT internally
+const osmTerrainService = new OsmTerrainService(); // Handles OSM Overpass
+const terrainManager = new TerrainManager(elevationService, osmTerrainService);
+
 const PathfindingService = require('./game/PathfindingService');
-const pathfindingService = new PathfindingService(db);
+const pathfindingService = new PathfindingService(db, terrainManager); // Pass dependencies if needed, or just db
 
 // --- 관리자 런타임 설정 (Admin Runtime Config) ---
 /**
@@ -48,7 +54,9 @@ app.use(cors({
 }));
 
 // Body Parser 설정: 요청 본문(JSON) 파싱
-app.use(bodyParser.json());
+// Body Parser 설정: 요청 본문(JSON) 파싱 (지도 데이터 저장을 위해 용량 증설)
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
 // --- 요청 로깅 미들웨어 (Request Logging Middleware) ---
 /**
@@ -75,6 +83,7 @@ app.get('/api/health', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
     console.log(`🚀 TERRA SERVER RUNNING on port ${PORT}`);
+    console.log(`⏰ Started at: ${new Date().toISOString()}`);
     console.log(`========================================`);
 });
 
@@ -584,12 +593,12 @@ const MARKET_UPDATE_INTERVAL = 60000; // 1분
 let SYSTEM_CONFIG = {
     market_fluctuation: false,       // 시장 가격 변동 (기본: 꺼짐)
     market_interval: 60000,         // 시장 업데이트 주기: 60초
-    production_active: true,        // 자원 생산 (기본: 켜짐)
+    production_active: false,        // 자원 생산 (기본: 꺼짐)
     production_interval: 60000,     // 생산 주기: 60초
-    npc_activity: true,             // 미니언 AI (기본: 켜짐)
+    npc_activity: false,             // 미니언 AI (기본: 꺼짐)
     npc_interval: 60000,            // 미니언 행동 주기: 60초
     npc_position_update_interval: 30, // 이동 위치 갱신: 30초
-    faction_active: true,           // 세력전 AI (기본: 켜짐 - NPC 확장 테스트)
+    faction_active: false,           // 세력전 AI (기본: 꺼짐)
     faction_interval: 60000,        // 세력 행동 주기: 60초
     client_poll_interval: 60000     // 클라이언트 폴링: 60초
 };
@@ -1978,7 +1987,7 @@ app.get('/api/game/state', (req, res) => {
             playerPosition,
             buildings: buildings.map(b => ({
                 id: b.id,
-                type: b.type.toLowerCase(), // 클라이언트 호환성을 위해 소문자 변환 (예: HOUSE -> house)
+                type: b.type, // 클라이언트에서 대문자 코드를 그대로 사용하도록 변경 (DB와 일치)
                 x: b.x,
                 y: b.y,
                 level: b.level || 1,
@@ -2029,9 +2038,13 @@ app.post('/api/game/build', (req, res) => {
 
         // 2. 개수 제한 (Limit Checks)
         if (buildingType === 'COMMAND_CENTER') {
-            const existing = db.prepare(`SELECT id FROM user_buildings WHERE user_id = ? AND type = 'COMMAND_CENTER'`).get(userId);
-            if (existing) {
-                return res.status(400).json({ error: 'You can only have one Command Center' });
+            const user = db.prepare('SELECT role FROM users WHERE id = ?').get(userId);
+            // Admin 계정은 제한 없이 건설 가능
+            if (!user || user.role !== 'admin') {
+                const existing = db.prepare(`SELECT id FROM user_buildings WHERE user_id = ? AND type = 'COMMAND_CENTER'`).get(userId);
+                if (existing) {
+                    return res.status(400).json({ error: 'You can only have one Command Center' });
+                }
             }
         }
 
@@ -3447,12 +3460,13 @@ app.post('/api/buildings/construct', (req, res) => {
 });
 
 // Get Internal Map Data
-app.get('/api/internal-map/:userBuildingId', (req, res) => {
+// Get Internal Map Data
+app.get('/api/internal-map/:userBuildingId', async (req, res) => {
     try {
         const { userBuildingId } = req.params;
 
-        // Fetch Building Info first to check eligibility
-        const building = db.prepare('SELECT type, building_type_code FROM user_buildings WHERE id = ?').get(userBuildingId);
+        // Fetch Building Info first to check eligibility (Include x, y for location)
+        const building = db.prepare('SELECT type, building_type_code, x, y FROM user_buildings WHERE id = ?').get(userBuildingId);
         if (!building) {
             return res.status(404).json({ error: 'Building not found' });
         }
@@ -3466,11 +3480,100 @@ app.get('/api/internal-map/:userBuildingId', (req, res) => {
         // Auto-initialize if missing but eligible (Lazy Load for existing buildings)
         if (!layout && buildingType && buildingType.internal_map_size) {
             try {
-                db.prepare('INSERT INTO internal_building_layouts (user_building_id, layout_data) VALUES (?, ?)').run(userBuildingId, '[]');
-                layout = { layout_data: '[]' };
-                console.log(`[Internal Map] Lazy initialized for building ${userBuildingId}`);
+                // Determine Map Size
+                const size = buildingType.internal_map_size;
+                const center = Math.floor(size / 2);
+
+                // --- Terrain Generation Logic ---
+                // 1 Tile = 150m (approx 0.0015 degrees) -> Total ~4.5km width (Radius ~2.2km)
+                const scale = 0.0015;
+                const points = [];
+
+                // Generate grid points (Lat/Lon)
+                for (let gx = 0; gx < size; gx++) {
+                    for (let gy = 0; gy < size; gy++) {
+                        const dLng = (gx - center) * scale;
+                        // Invert Y axis so 0 is North (Top) and size is South (Bottom)
+                        const dLat = (center - gy) * scale;
+                        points.push({ lat: building.x + dLat, lng: building.y + dLng });
+                    }
+                }
+
+                // Fetch Real Terrain Data (Async)
+                const terrains = await terrainManager.getTerrainInfos(points);
+
+                // Fetch Real OSM Data (Water, Urban, Forest, etc.)
+                const OsmTerrainService = require('./game/OsmTerrainService');
+                const osmService = new OsmTerrainService();
+                let osmMask = [];
+                try {
+                    osmMask = await osmService.classifyTerrainBatch(building.x, building.y, points);
+                } catch (e) {
+                    console.error("OSM Terrain Fetch Failed", e);
+                    osmMask = points.map(() => null);
+                }
+
+                // Calculate Base Elevation (Center Tile Height)
+                const centerIndex = center * size + center;
+                const baseElev = (terrains[centerIndex] && terrains[centerIndex].elevation) || 10;
+
+                // Create Tile Data Array
+                const layoutArr = points.map((_, i) => {
+                    const gx = Math.floor(i / size);
+                    const gy = i % size;
+                    const terrain = terrains[i];
+                    const osmType = osmMask[i];
+
+                    let type = 'GRASS'; // Default
+
+                    // Priority 1: OSM Strict Types
+                    if (osmType === 'WATER') type = 'WATER';
+                    else if (osmType === 'CONCRETE') type = 'CONCRETE';
+                    else if (osmType === 'DIRT') type = 'DIRT';
+
+                    // Priority 2: Elevation / Heuristic Fallbacks
+                    else if (osmType === 'FOREST') type = 'GRASS'; // Forests look like Grass (maybe darker later)
+                    else if (terrain.elevation < -2) type = 'WATER'; // Fallback for Deep Water missed by OSM
+                    else if (terrain.type === 'MOUNTAIN') type = 'DIRT'; // High altitude rock
+
+                    // Relative Height Calculation
+                    let h = Math.floor((terrain.elevation - baseElev) / 10);
+
+                    // Corrections
+                    if (type === 'WATER') h = Math.min(h, -1); // Sink Water
+                    if (type === 'CONCRETE') h = Math.max(h, 0); // Flatten Urban areas slightly? No, keep terrain.
+
+                    const tile = {
+                        x: gx,
+                        y: gy,
+                        type,
+                        height: h,
+                        building: undefined
+                    };
+
+                    // Place Command Center at Center
+                    if (gx === center && gy === center) {
+                        tile.building = 'COMMAND_CENTER';
+                        tile.height = 0; // Flatten center
+                    }
+
+                    return tile;
+                });
+
+                const jsonStr = JSON.stringify(layoutArr);
+
+                // Save Initial Layout
+                db.prepare('INSERT INTO internal_building_layouts (user_building_id, layout_data) VALUES (?, ?)').run(userBuildingId, jsonStr);
+
+                layout = { layout_data: jsonStr };
+                console.log(`[Internal Map] Terrain Generated for building ${userBuildingId} (${size}x${size})`);
             } catch (e) {
                 console.error("Auto-init internal map failed:", e);
+                const fs = require('fs');
+                fs.appendFileSync('server_internal_map_error.log', `[${new Date().toISOString()}] Building ${userBuildingId}: ${e.stack}\n`);
+                // Fallback to empty if terrain fail
+                db.prepare('INSERT INTO internal_building_layouts (user_building_id, layout_data) VALUES (?, ?)').run(userBuildingId, '[]');
+                layout = { layout_data: '[]' };
             }
         }
 
@@ -3501,8 +3604,12 @@ app.post('/api/internal-map/:userBuildingId', (req, res) => {
 
         if (!layout) return res.status(400).json({ error: 'Layout data required' });
 
-        db.prepare('UPDATE internal_building_layouts SET layout_data = ?, updated_at = CURRENT_TIMESTAMP WHERE user_building_id = ?')
-            .run(JSON.stringify(layout), userBuildingId);
+        db.prepare(`
+            INSERT INTO internal_building_layouts (user_building_id, layout_data, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_building_id) 
+            DO UPDATE SET layout_data = excluded.layout_data, updated_at = CURRENT_TIMESTAMP
+        `).run(userBuildingId, JSON.stringify(layout));
 
         res.json({ success: true });
     } catch (err) {
@@ -3778,6 +3885,37 @@ app.post('/api/admin/users/:id/update', (req, res) => {
     } catch (err) {
         console.error("Failed to update user", err);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// --- Debug Endpoint: Terrain Visualization ---
+app.get('/api/game/debug/terrain', async (req, res) => {
+    try {
+        const centerLat = parseFloat(req.query.lat);
+        const centerLng = parseFloat(req.query.lng);
+        const radius = parseInt(req.query.radius) || 10; // n*n grid
+
+        if (isNaN(centerLat) || isNaN(centerLng)) return res.status(400).json({ error: 'Invalid coords' });
+
+        const step = 0.001; // ~100m steps
+        const points = [];
+
+        // Generate n x n grid
+        for (let x = -radius; x <= radius; x++) {
+            for (let y = -radius; y <= radius; y++) {
+                points.push({ lat: centerLat + (x * step), lng: centerLng + (y * step) });
+            }
+        }
+
+        const terrains = await terrainManager.getTerrainInfos(points);
+
+        // Also check detailed OSM water if needed (optional integration)
+        // For now, return the TerrainManager's classification (which includes negative elevation logic)
+
+        res.json({ points, terrains });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
     }
 });
 

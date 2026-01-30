@@ -897,6 +897,7 @@ function initSchema() {
                 beacon_range_km: 15.0,
                 patrol_radius_km: 20.0,
                 vision_range_km: 10.0,
+                internal_map_size: 30, // Internal Map Enabled
                 prerequisites: JSON.stringify([])
             },
             // TIER 2 - Advanced Territory
@@ -916,7 +917,7 @@ function initSchema() {
                 max_hp: 100,
                 housing_capacity: 10,
                 housing_efficiency: 0.8,
-                internal_map_size: 100,
+                internal_map_size: 30,
                 max_rank_depth: 3,
                 rank_slots: 20,
                 max_beacons: 8,

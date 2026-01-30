@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 export async function middleware(request: NextRequest) {
     // Only proxy /api requests
     if (request.nextUrl.pathname.startsWith('/api/')) {
-        const apiUrl = process.env.INTERNAL_API_URL || 'http://localhost:3001';
+        const apiUrl = process.env.INTERNAL_API_URL || 'http://127.0.0.1:3001';
         const targetUrl = new URL(request.nextUrl.pathname + request.nextUrl.search, apiUrl);
 
         console.log(`[MIDDLEWARE PROXY] ${request.method} ${request.nextUrl.pathname} -> ${targetUrl}`);

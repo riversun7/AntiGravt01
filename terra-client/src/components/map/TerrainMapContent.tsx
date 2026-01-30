@@ -11,6 +11,7 @@ import BuildingMarkers from "./BuildingMarkers";
 import SelectedPointMarker from "./SelectedPointMarker";
 import PathOverlay from "./PathOverlay";
 import NpcCyborgMarkers from "./NpcCyborgMarkers";
+import OsmDebugOverlay from "./OsmDebugOverlay";
 
 interface GeolocationState {
     loading: boolean;
@@ -231,7 +232,32 @@ export default function TerrainMapContent({
                     setSelectedTile(null);
                 }}
             />
+
+            <OsmVisualizerControl isAdmin={isAdmin} center={geolocation.position || playerPosition} />
         </MapContainer>
+    );
+}
+
+// Sub-component for controlling the visualizer
+function OsmVisualizerControl({ isAdmin, center }: { isAdmin: boolean, center: [number, number] }) {
+    const [enabled, setEnabled] = useState(false);
+
+    // If not admin, hide? Or allow user to verify too? User asked for it. 
+    // Let's allow everyone for now or just if admin (User seems to be dev/admin)
+    // User ID 1 is checking.
+
+    return (
+        <>
+            <OsmDebugOverlay enabled={enabled} center={center} />
+            <div className="leaflet-bottom leaflet-left" style={{ bottom: '80px', left: '10px', pointerEvents: 'auto' }}>
+                <button
+                    onClick={() => setEnabled(!enabled)}
+                    className={`px-3 py-1 text-xs font-bold rounded border shadow-md ${enabled ? 'bg-blue-600 text-white border-blue-400' : 'bg-slate-800 text-gray-300 border-gray-600'}`}
+                >
+                    {enabled ? 'Hide Terrain Debug' : 'Show Terrain Debug'}
+                </button>
+            </div>
+        </>
     );
 }
 

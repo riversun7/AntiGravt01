@@ -99,55 +99,56 @@ class TerrainManager {
      * - 예: WATER 기준을 -10m로 변경하면 얼읍은 호수 포함
      */
     async getTerrainInfos(locations) {
-        // === 1단계: (미래) 타일 오버라이드 로직 (TODO) ===
-        /**
-         * TODO: 향후 구현 예정
-         * 
-         * tile_overrides 테이블 구조:
-         * - lat, lng: 좌표
-         * - terrain_type: 'PLAIN' | 'MOUNTAIN' | 'WATER' | ...
-         * - reason: 오버라이드 사유
-         * 
-         * 사용 예시:
-         * - 작은 섬을 PLAIN으로 설정 (고도는 음수지만 육지)
-         * - 교량을 PLAIN으로 설정 (강을 건널 수 있게)
-         * - 특수 미션 지역 설정
-         * 
-         * 코드 예시:
-         * const override = db.prepare(
-         *   'SELECT terrain_type FROM tile_overrides WHERE lat = ? AND lng = ?'
-         * ).get(lat, lng);
-         * if (override) return { type: override.terrain_type, isOverride: true };
-         */
-        // 현재는 생략됨
-
-        // === 2단계: 고도 기반 자동 분류 ===
-        // 모든 좌표의 고도를 일괄 조회 (배치 성능 최적화)
+        // === 1. Fetch Elevation (Always needed for height) ===
         const elevations = await this.elevationService.getElevations(locations);
 
-        // 각 고도를 지형 타입으로 변환
-        return elevations.map(elevation => {
-            let type = 'PLAIN'; // 기본값: 평지
-
-            /**
-             * 지형 타입 로직:
-             * 
-             * if-else 순서가 중요:
-             * 1. 먼저 WATER 확인 (elevation < 0)
-             * 2. 그 다음 MOUNTAIN 확인 (elevation >= 1000)
-             * 3. 나머지는 PLAIN (0 <= elevation < 1000)
-             */
-            if (elevation < 0) {
-                type = 'WATER'; // 물: 해수면 아래
-            } else if (elevation >= 1000) {
-                type = 'MOUNTAIN'; // 산: 1000m 이상
+        // === 2. Fetch OSM Data (The Truth for Type) ===
+        let osmTypes = [];
+        if (this.osmTerrainService && locations.length > 0) {
+            try {
+                // Heuristic: Use the center of the request
+                const centerLat = locations[0].lat;
+                const centerLng = locations[0].lng;
+                osmTypes = await this.osmTerrainService.classifyTerrainBatch(centerLat, centerLng, locations);
+            } catch (e) {
+                console.error("[TerrainManager] OSM Fetch failed, falling back to elevation only", e);
+                // Fallback array of nulls
+                osmTypes = new Array(locations.length).fill(null);
             }
-            // else: PLAIN은 이미 기본값으로 설정됨
+        } else {
+            osmTypes = new Array(locations.length).fill(null);
+        }
+
+        // === 3. Merge Strategies (Hybrid: OSM > Elevation for Sea) ===
+        return elevations.map((elevation, i) => {
+            const osmType = osmTypes[i];
+            let type = 'PLAIN';
+
+            // Strategy: OSM Type takes precedence
+            if (osmType === 'WATER') {
+                type = 'WATER';
+            } else if (osmType === 'CONCRETE') {
+                type = 'CONCRETE';
+            } else if (osmType === 'FOREST') {
+                type = 'FOREST';
+            } else if (osmType === 'DIRT') {
+                type = 'DIRT';
+            } else {
+                // If OSM is silent (Unmapped or Open Ocean)
+                if (elevation >= 50) {
+                    type = 'MOUNTAIN';
+                } else if (elevation <= 0.5) {
+                    // Fallback for Open Ocean / Sea Level where OSM polygon is missing
+                    type = 'WATER';
+                }
+            }
 
             return {
-                type: type,              // 지형 타입
-                elevation: elevation,    // 고도 (미터)
-                isOverride: false        // 오버라이드 여부 (현재 false)
+                type: type,
+                elevation: elevation,
+                isOverride: !!osmType,
+                lat: locations[i].lat,
+                lng: locations[i].lng
             };
         });
     }

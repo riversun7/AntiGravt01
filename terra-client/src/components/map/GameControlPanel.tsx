@@ -877,7 +877,8 @@ export default function GameControlPanel({
                                         // 1. 사령부 제한 (최대 1개)
                                         if (building.id === 'COMMAND_CENTER') {
                                             const hasCommander = buildings.some(b => b.type === 'COMMANDER' || b.type === 'COMMAND_CENTER');
-                                            if (hasCommander) {
+                                            // Admin은 제한 무시
+                                            if (hasCommander && !isAdmin) {
                                                 isLocked = true;
                                                 lockReason = '이미 건설됨 (최대 1개)';
                                             }
